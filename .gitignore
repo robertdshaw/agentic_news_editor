@@ -1,14 +1,16 @@
-# Python virtual env
+# virtual env
 venv/
-__pycache__/
-*.pyc
 
-# Data files
-data/
-*.tsv
+# data files
+news.tsv
+behaviors.tsv
+
+# vector files
+*.vec
 
 # Streamlit secrets
-.streamlit/secrets.toml
+.streamlit/
 
-# VSCode settings
-.vscode/
+# caches
+__pycache__/
+*.pyc
