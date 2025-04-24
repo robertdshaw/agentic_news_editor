@@ -53,10 +53,12 @@ agentic_ai_editor_project/
 
 ## 📌 Roadmap
 
-- [x] MVP with vector search and retrieval
-- [ ] Add memory and explanations (Week 4)
-- [ ] Simulate personalization vs. static list (Week 5)
-- [ ] Final polish and presentation (Week 6)
+- [x] **Week 1**: Environment setup, EDA on MIND-small dataset
+- [ ] **Week 2**: Embed articles, build vector index with FAISS
+- [ ] **Week 3**: Streamlit chat UI + basic retrieval
+- [ ] **Week 4**: Add memory and “why” explanations
+- [ ] **Week 5**: Simulate A/B test (personalized vs. static), analyze engagement
+- [ ] **Week 6**: Polish demo, write report, finalize presentation
 
 ## 🧠 Based on
 
