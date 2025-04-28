@@ -14,3 +14,14 @@ behaviors.tsv
 # caches
 __pycache__/
 *.pyc
+
+# Ignore large datasets and outputs
+*.csv
+*.index
+*.npy
+memory_topics.json
+
+# Ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+
