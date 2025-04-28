@@ -97,4 +97,20 @@ else:
 
 # --- 7. Update memory ---
 save_topics(today_topics)
-print("✅ Memory updated for tomorrow.")
+print(" Memory updated for tomorrow.")
+
+
+if fresh_topics:  # Only if new curation happened
+    curated_df = pd.read_csv("curated_full_daily_output.csv")
+    print("\n🎯 Curated Daily Articles (Sample):")
+    print(curated_df[["topic", "title", "rewritten_title", "explanation"]].head(20))
+else:
+    print("\nℹ️ No fresh topics today, so no new curated articles to display.")
+
+import json
+
+# Reset memory_topics.json
+with open("memory_topics.json", "w") as f:
+    json.dump([], f)
+
+print("✅ Memory reset!")
