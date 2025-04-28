@@ -1,21 +1,24 @@
 # Agentic AI News Editor
 
+![file_0000000001f0624692be87074a6b92ce](https://github.com/user-attachments/assets/606bf784-300e-4d1e-8b04-ec0de5a7e1a1)
+
+
 This project is a prototype for an editorial assistant powered by Retrieval-Augmented Generation (RAG) and agentic AI concepts. It simulates a smart newsroom assistant that helps users explore relevant news content, explains its recommendations, and remembers user interests over time.
 
-## 🧠 Key Features
+## Key Features
 
 - **Semantic search** of 50,000+ news article snippets using sentence-transformers and FAISS
 - **Streamlit chat UI** for natural interaction
 - **Retrieval-Augmented Generation (RAG)** for relevant content matching
 - **Agentic behavior roadmap**: memory of previous queries, rationale behind suggestions, and adaptive responses
 
-## 📦 Dataset
+## Dataset
 
 - **MIND-small** from Microsoft (publicly available)
   - `news.tsv` – article metadata, title, abstract
   - `behaviors.tsv` – user clicks (optional, for personalization experiments)
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 agentic_ai_editor_project/
@@ -27,7 +30,7 @@ agentic_ai_editor_project/
 └── README.md                            ← You're here!
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 1. Clone the repo:
    ```bash
@@ -51,7 +54,7 @@ agentic_ai_editor_project/
    streamlit run MVP_Agentic_AI_News_Editor_app.py
    ```
 
-## 📌 Roadmap
+## Roadmap
 
 - [x] **Week 1**: Environment setup, EDA on MIND-small dataset
 - [ ] **Week 2**: Embed articles, build vector index with FAISS
@@ -65,6 +68,6 @@ agentic_ai_editor_project/
 - _Unlocking Data with Generative AI and RAG_ by Keith Bourne
 - _Agentic Artificial Intelligence_ by Bornet et al.
 
-## 📝 License
+## License
 
 MIT — free to use and adapt for academic, research, or prototype use.
