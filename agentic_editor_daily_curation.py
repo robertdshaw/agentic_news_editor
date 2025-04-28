@@ -1,3 +1,4 @@
+# --- 1. Imports ---
 import pandas as pd
 import numpy as np
 import faiss
@@ -5,81 +6,95 @@ import json
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 
-def load_index_and_metadata(index_path="articles_faiss.index", metadata_path="articles_with_embeddings.csv"):
-    index = faiss.read_index(index_path)
-    articles_df = pd.read_csv(metadata_path)
-    model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
-    return index, articles_df, model
+# --- 2. Load FAISS index, articles metadata, embedding model, and LLM ---
+print(" Loading index, metadata, and models...")
+index = faiss.read_index("articles_faiss.index")
+articles_df = pd.read_csv("articles_with_embeddings.csv")
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+rewrite_pipeline = pipeline("text2text-generation", model="google/flan-t5-small")
 
-def load_memory(filename="memory_topics.json"):
+# --- 3. Define editorial queries ---
+editorial_queries = {
+    "Top Technology News": "latest breakthroughs in technology and innovation",
+    "Inspiring Stories": "positive and uplifting news stories",
+    "Global Politics": "latest news about world politics and diplomacy",
+    "Climate and Environment": "climate change news and environment protection",
+    "Health and Wellness": "advances in healthcare and medical discoveries"
+}
+
+# --- 4. Load yesterday's topics for memory (optional) ---
+def load_topics(filename="memory_topics.json"):
     try:
         with open(filename, "r") as f:
             return json.load(f)
     except FileNotFoundError:
         return []
 
-def save_memory(topics, filename="memory_topics.json"):
+def save_topics(topics, filename="memory_topics.json"):
     with open(filename, "w") as f:
         json.dump(topics, f)
 
-def rewrite_headline(title, abstract, rewrite_pipeline):
+yesterday_topics = load_topics()
+today_topics = list(editorial_queries.keys())
+fresh_topics = [t for t in today_topics if t not in yesterday_topics]
+
+print(f" Fresh topics to curate today: {fresh_topics}")
+
+# --- 5. Retrieval, Headline Rewriting, Explanation Generation ---
+def rewrite_headline(title, abstract):
     prompt = f"Rewrite the news headline to be more engaging and SEO-friendly:\n\nTitle: {title}\n\nAbstract: {abstract}\n\nRewritten Headline:"
     response = rewrite_pipeline(prompt, max_length=30, do_sample=False)
     return response[0]['generated_text']
 
-def generate_explanation(title, abstract, rewrite_pipeline):
+def generate_explanation(title, abstract):
     prompt = f"Explain in one sentence why this news article is important to readers:\n\nTitle: {title}\n\nAbstract: {abstract}\n\nExplanation:"
     response = rewrite_pipeline(prompt, max_length=40, do_sample=False)
     return response[0]['generated_text']
 
-def daily_curation():
-    index, articles_df, model = load_index_and_metadata()
-    print("✅ Loaded FAISS index, metadata, and MiniLM model.")
+all_curated_articles = []
 
-    yesterday_topics = load_memory()
+for topic, query_text in editorial_queries.items():
+    if topic not in fresh_topics:
+        continue  # Skip topics already curated yesterday
     
-    editorial_queries = {
-        "Top Technology News": "latest breakthroughs in technology and innovation",
-        "Inspiring Stories": "positive and uplifting news stories",
-        "Global Politics": "latest news about world politics and diplomacy",
-        "Climate and Environment": "climate change news and environment protection",
-        "Health and Wellness": "advances in healthcare and medical discoveries"
-    }
-    
-    fresh_topics = [q for q in editorial_queries if q not in yesterday_topics]
-    print(f"✅ Today's fresh topics: {fresh_topics}")
+    print(f"\n Curating articles for: {topic}")
 
-    rewrite_pipeline = pipeline("text2text-generation", model="google/flan-t5-small")
-    print("✅ Loaded FLAN-T5 lightweight model for headline rewriting and explanation generation.")
+    # Embed query
+    query_embedding = model.encode([query_text])
 
-    all_curated_articles = []
+    # Retrieve top 5 articles
+    D, I = index.search(np.array(query_embedding), k=5)
+    topic_articles = articles_df.iloc[I[0]].copy()
 
-    for topic in fresh_topics:
-        query_text = editorial_queries[topic]
-        query_embedding = model.encode([query_text])
-        D, I = index.search(np.array(query_embedding), k=5)
-        topic_articles = articles_df.iloc[I[0]].copy()
-        topic_articles["rewritten_title"] = topic_articles.apply(
-            lambda row: rewrite_headline(row["title"], row["abstract"], rewrite_pipeline), axis=1
-        )
+    # Headline Rewriting
+    topic_articles["rewritten_title"] = topic_articles.apply(
+        lambda row: rewrite_headline(row["title"], row["abstract"]), axis=1
+    )
 
-        topic_articles["explanation"] = topic_articles.apply(
-            lambda row: generate_explanation(row["title"], row["abstract"], rewrite_pipeline), axis=1
-        )
+    # Explanation Generation
+    topic_articles["explanation"] = topic_articles.apply(
+        lambda row: generate_explanation(row["title"], row["abstract"]), axis=1
+    )
 
-        topic_articles["topic"] = topic
+    # Assign topic
+    topic_articles["topic"] = topic
 
-        all_curated_articles.append(topic_articles)
+    # Save topic-specific CSV
+    safe_topic = topic.replace(" ", "_").replace("/", "_").lower()
+    filename = f"retrieved_{safe_topic}.csv"
+    topic_articles.to_csv(filename, index=False)
+    print(f" Saved curated articles for {topic} to {filename}")
 
-    final_curated_df = pd.concat(all_curated_articles, ignore_index=True)
+    all_curated_articles.append(topic_articles)
 
-    final_curated_df.to_csv("daily_curated_articles.csv", index=False)
-    print("✅ Saved today's curated articles to 'daily_curated_articles.csv'.")
+# --- 6. Save all articles together if needed ---
+if all_curated_articles:
+    full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
+    full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
+    print("\n Saved full curated daily output to curated_full_daily_output.csv")
+else:
+    print("\n No new topics curated today.")
 
-    save_memory(list(editorial_queries.keys()))
-    print("✅ Updated memory with today's topics.")
-
-# --- Run Script ---
-
-if __name__ == "__main__":
-    daily_curation()
+# --- 7. Update memory ---
+save_topics(today_topics)
+print("✅ Memory updated for tomorrow.")
