@@ -255,14 +255,14 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
 
 def get_article_image(topic):
     topic_keywords = {
-        "Top Technology News": "artificial intelligence, gadgets, innovation",
-        "Inspiring Stories": "uplifting, hope, kindness, success",
-        "Global Politics": "world leaders, international relations, diplomacy",
-        "Climate and Environment": "climate change, nature, conservation, environment",
-        "Health and Wellness": "medicine, healthcare, well-being, fitness",
+        "Top Technology News": "technology",
+        "Inspiring Stories": "inspiration",
+        "Global Politics": "politics",
+        "Climate and Environment": "environment",
+        "Health and Wellness": "health",
     }
     keyword = topic_keywords.get(topic, "news")
-    return f"https://source.unsplash.com/800x400/?{keyword}"
+    return f"https://via.placeholder.com/800x400.png?text={keyword.replace(' ', '+')}"
 
 
 def display_article(col, article, is_main=False):
