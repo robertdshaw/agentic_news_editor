@@ -14,11 +14,33 @@ st.set_page_config(
 # --- 2. Load data ---
 try:
     df = pd.read_csv("curated_full_daily_output.csv")
+    
     # Create a 'date' column if it doesn't exist
     if 'date' not in df.columns:
         # Generate random dates within the last week
         today = date.today()
         df['date'] = [today - datetime.timedelta(days=random.randint(0, 6)) for _ in range(len(df))]
+    
+    # Map rewritten titles to be the primary titles if they exist
+    if 'rewritten_title' in df.columns:
+        df['display_title'] = df['rewritten_title'].fillna(df['title'])
+    else:
+        df['display_title'] = df['title']
+    
+    # Map abstract as the primary content source
+    if 'abstract' in df.columns:
+        df['primary_content'] = df['abstract']
+    elif 'content' in df.columns:
+        df['primary_content'] = df['content']
+    else:
+        df['primary_content'] = "Content not available"
+    
+    # Use explanation as secondary content if available
+    if 'explanation' in df.columns:
+        df['secondary_content'] = df['explanation']
+    else:
+        df['secondary_content'] = df['primary_content'].apply(lambda x: x[:150] if len(x) > 150 else x)
+    
 except FileNotFoundError:
     st.error("❌ No curated articles found. Run the daily curation script first.")
     st.stop()
@@ -304,10 +326,18 @@ else:
 
 # Apply search filter if query exists
 if search_query:
-    filtered_df = filtered_df[
-        filtered_df["title"].str.contains(search_query, case=False) | 
-        filtered_df["summary"].str.contains(search_query, case=False)
-    ]
+    search_columns = ["display_title", "primary_content"]
+    
+    # Add explanation to search if it exists
+    if 'explanation' in df.columns:
+        search_columns.append("explanation")
+    
+    query_match = filtered_df["display_title"].str.contains(search_query, case=False)
+    for col in search_columns[1:]:
+        if col in filtered_df.columns:
+            query_match = query_match | filtered_df[col].str.contains(search_query, case=False)
+    
+    filtered_df = filtered_df[query_match]
 
 # --- 7. Newspaper Masthead ---
 today = datetime.datetime.now()
@@ -322,15 +352,22 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- 8. Breaking News Banner (if applicable) ---
-breaking_news = random.choice([True, False])
+# Only show breaking news if we have articles
+if len(filtered_df) > 0:
+    breaking_news = random.choice([True, False])
 if breaking_news and len(filtered_df) > 0:
-    breaking_article = filtered_df.sample(1).iloc[0]
-    st.markdown(f"""
-        <div style="background-color: #D42424; color: white; padding: 10px; margin-bottom: 20px; text-align: center;">
-            <span style="font-family: 'Source Serif Pro', serif; font-weight: 700; font-size: 16px;">BREAKING NEWS:</span> 
-            <span style="font-family: 'Lora', serif;">{breaking_article['title']}</span>
-        </div>
-    """, unsafe_allow_html=True)
+    try:
+        breaking_article = filtered_df.sample(1).iloc[0]
+        breaking_title = breaking_article.get('display_title', breaking_article.get('title', 'Breaking News Update'))
+        st.markdown(f"""
+            <div style="background-color: #D42424; color: white; padding: 10px; margin-bottom: 20px; text-align: center;">
+                <span style="font-family: 'Source Serif Pro', serif; font-weight: 700; font-size: 16px;">BREAKING NEWS:</span> 
+                <span style="font-family: 'Lora', serif;">{breaking_title}</span>
+            </div>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        # Silently handle any errors with breaking news
+        pass
 
 # --- 9. Main Content Layout ---
 # Calculate pagination
@@ -361,16 +398,17 @@ else:
                         <div class="article-meta">
                             <span class="topic-tag">{topic}</span> {featured_article.get('date', date_str)}
                         </div>
-                        <h1 class="article-headline">{featured_article['title']}</h1>
-                        <p class="article-lead">{featured_article['summary'][:150]}...</p>
+                        <h1 class="article-headline">{featured_article['display_title']}</h1>
+                        <p class="article-lead">{featured_article['primary_content'][:150]}...</p>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # Create a pull quote from the article
-                if 'summary' in featured_article and len(featured_article['summary']) > 200:
-                    quote_start = random.randint(50, min(150, len(featured_article['summary'])-50))
-                    quote_end = min(quote_start + 100, len(featured_article['summary']))
-                    pull_quote = featured_article['summary'][quote_start:quote_end]
+                # Create a pull quote for the article
+                article_text = featured_article['primary_content']
+                if len(article_text) > 200:
+                    quote_start = random.randint(50, min(150, len(article_text)-50))
+                    quote_end = min(quote_start + 100, len(article_text))
+                    pull_quote = article_text[quote_start:quote_end]
                     
                     st.markdown(f"""
                         <div class="pull-quote">
@@ -379,23 +417,20 @@ else:
                     """, unsafe_allow_html=True)
                 
                 # Continue with article content
-                if 'content' in featured_article and featured_article['content']:
-                    content = featured_article['content']
-                    # Display first few paragraphs
-                    paragraphs = content.split('\n\n')[:2]
-                    content_display = '\n\n'.join(paragraphs)
-                    
+                secondary_content = featured_article.get('secondary_content', '')
+                if secondary_content:
                     st.markdown(f"""
                         <div class="article-content">
-                            {content_display}... 
+                            <strong>Why It Matters:</strong> {secondary_content}
                             <span class="read-more">Continue reading →</span>
                         </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # If no content, show more of the summary
+                    # Use primary content as fallback
+                    content_display = featured_article['primary_content'][150:] if len(featured_article['primary_content']) > 150 else ''
                     st.markdown(f"""
                         <div class="article-content">
-                            {featured_article['summary']}
+                            {content_display}
                             <span class="read-more">Read more →</span>
                         </div>
                     """, unsafe_allow_html=True)
@@ -414,20 +449,36 @@ else:
                 # Additional short news items
                 st.markdown('<div class="section-header" style="font-size: 18px;">IN BRIEF</div>', unsafe_allow_html=True)
                 
-                # Get a few random articles for the brief section
+                # Get a few random articles for the brief section - safely
                 if len(df) >= 3:
-                    brief_articles = df.sample(3)
-                    for _, brief in brief_articles.iterrows():
-                        st.markdown(f"""
-                            <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dotted #ccc;">
-                                <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 15px;">
-                                    {brief['title']}
+                    try:
+                        brief_articles = df.sample(3)
+                        for _, brief in brief_articles.iterrows():
+                            brief_title = brief.get('display_title', brief.get('title', 'Untitled Article'))
+                            brief_text = brief.get('secondary_content', brief.get('primary_content', ''))[:80]
+                            
+                            st.markdown(f"""
+                                <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dotted #ccc;">
+                                    <div style="font-family: 'Playfair Display', serif; font-weight: 700; font-size: 15px;">
+                                        {brief_title}
+                                    </div>
+                                    <div style="font-size: 13px; color: #444; margin-top: 5px;">
+                                        {brief_text}...
+                                    </div>
                                 </div>
-                                <div style="font-size: 13px; color: #444; margin-top: 5px;">
-                                    {brief['summary'][:80]}...
-                                </div>
+                            """, unsafe_allow_html=True)
+                    except Exception as e:
+                        st.markdown("""
+                            <div style="font-size: 13px; color: #666; font-style: italic;">
+                                More stories available in today's edition.
                             </div>
                         """, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                        <div style="font-size: 13px; color: #666; font-style: italic;">
+                            More stories available in today's edition.
+                        </div>
+                    """, unsafe_allow_html=True)
         
         # Divider
         st.markdown("<hr style='margin: 30px 0; border-color: #ddd;'>", unsafe_allow_html=True)
@@ -450,14 +501,17 @@ else:
                             # Display image
                             st.image(img_url, use_column_width=True)
                             
+                            # Get article text safely
+                            article_summary = article.get('summary', article.get('content', 'Click to read this article'))
+                            
                             # Article content
                             st.markdown(f"""
                                 <div class="article-container">
                                     <div class="article-meta">
                                         <span class="topic-tag">{topic}</span> {article.get('date', date_str)}
                                     </div>
-                                    <h2 class="article-headline" style="font-size: 22px;">{article['title']}</h2>
-                                    <p class="article-lead" style="font-size: 15px;">{article['summary'][:120]}...</p>
+                                    <h2 class="article-headline" style="font-size: 22px;">{article['display_title']}</h2>
+                                    <p class="article-lead" style="font-size: 15px;">{article['primary_content'][:120]}...</p>
                                 </div>
                             """, unsafe_allow_html=True)
             
@@ -498,10 +552,10 @@ else:
                                 <div class="article-meta">
                                     <span class="topic-tag">{topic}</span> {article.get('date', date_str)}
                                 </div>
-                                <h2 class="article-headline" style="font-size: 20px;">{article['title']}</h2>
-                                <p class="article-lead" style="font-size: 14px;">{article['summary'][:100]}...</p>
+                                <h2 class="article-headline" style="font-size: 20px;">{article['display_title']}</h2>
+                                <p class="article-lead" style="font-size: 14px;">{article['primary_content'][:100]}...</p>
                                 <div class="article-content" style="font-size: 14px;">
-                                    {article['summary'][100:200]}...
+                                    {article.get('secondary_content', 'Continue reading for more details on this story.')}
                                     <span class="read-more">Continue reading →</span>
                                 </div>
                             </div>
