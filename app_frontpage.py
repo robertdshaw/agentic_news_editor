@@ -1,5 +1,6 @@
 import os
 os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
+import streamlit_torch_fix
 import streamlit as st
 import json
 import pandas as pd
@@ -28,114 +29,77 @@ import logging
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Page configuration ---
 st.set_page_config(
-    page_title="The Daily Chronicle",
-    layout="wide",
+    page_title="Agentic AI News Editor",
+    page_icon="📰",
+    layout="wide",  # Use wide layout by default
     initial_sidebar_state="expanded"
 )
 
-# --- Simple CSS for reliable rendering ---
-st.markdown("""
-<style>
-    /* Basic reset */
-    * {
-        box-sizing: border-box;
+def apply_custom_css():
+    st.markdown("""
+    <style>
+    /* Reduce padding to use more screen space */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0.5rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
     }
     
-    /* Better fonts */
-    body {
-        font-family: Arial, sans-serif;
+    /* Make sure content uses available width */
+    .stApp {
+        max-width: 100%;
     }
     
-    /* Header styling */
-    .header {
-        text-align: center;
-        padding: 20px 0;
-        border-bottom: 3px solid #ddd;
-        margin-bottom: 20px;
+    /* Tighten up spacing between elements */
+    div.row-widget.stRadio > div {
+        flex-direction: row;
+        align-items: center;
     }
     
-    .newspaper-title {
-        font-size: 2.5rem;
-        font-weight: bold;
-        font-family: Georgia, 'Times New Roman', Times, serif;
+    /* Adjust spacing for headings */
+    h1, h2, h3 {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
     }
     
-    /* Navigation menu */
-    .nav-menu {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 20px;
-        margin-bottom: 20px;
-        padding: 10px;
-        background-color: #f5f5f5;
+    /* Make cards more compact */
+    div.stCard {
+        padding: 0.5rem;
     }
     
-    .nav-item {
-        font-weight: bold;
-        text-transform: uppercase;
-        font-size: 0.9rem;
+    /* Fix for markdown spacing */
+    .element-container .stMarkdown {
+        margin-bottom: 0.5rem;
     }
-    
-    /* Article styling */
-    .article-tag {
-        background-color: #0066cc;
-        color: white;
-        padding: 3px 8px;
-        border-radius: 3px;
-        font-size: 0.8rem;
-        font-weight: bold;
-        display: inline-block;
-        margin-bottom: 8px;
-    }
-    
-    .article-byline {
-        font-style: italic;
-        color: #666;
-        margin-bottom: 15px;
-        font-size: 0.9rem;
-    }
-    
-    .article-why-matters {
-        background-color: #f5f5f5;
-        padding: 10px;
-        border-left: 3px solid #0066cc;
-        margin: 15px 0;
-        font-size: 0.9rem;
-    }
-    
-    .section-title {
-        font-family: Georgia, 'Times New Roman', Times, serif;
-        font-size: 1.5rem;
-        font-weight: bold;
-        border-bottom: 2px solid #c00;
-        padding-bottom: 5px;
-        margin: 25px 0 15px 0;
-    }
-    
-    /* Article cards */
-    .article-box {
-        padding: 15px;
-        margin-bottom: 20px;
-        background-color: white;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-    }
-    
-    /* Footer */
-    .footer {
-        text-align: center;
-        padding: 20px;
-        margin-top: 30px;
-        background-color: #333;
-        color: white;
-    }
-</style>
-""", unsafe_allow_html=True)
+    </style>
+    """, unsafe_allow_html=True)
+
+apply_custom_css()
 
 # --- Functions ---
+
+def show_debug_info():
+    with st.expander("Debug Info"):
+        st.write("Screen Resolution", st.session_state.get('screen_resolution', 'Unknown'))
+        st.write("Browser Info", st.session_state.get('browser_info', 'Unknown'))
+        
+        st.markdown("""
+        <script>
+        window.parent.postMessage({
+            type: "streamlit:setSessionState",
+            data: {
+                screen_resolution: {
+                    width: window.screen.width,
+                    height: window.screen.height
+                },
+                browser_info: navigator.userAgent
+            }
+        }, "*");
+        </script>
+        """, unsafe_allow_html=True)
+
 def load_sentence_transformer():
     """Load the sentence transformer model separately to avoid conflicts"""
     try:
@@ -737,6 +701,8 @@ if 'curation_started' not in st.session_state:
     st.session_state.curation_started = False
 if 'curation_complete' not in st.session_state:
     st.session_state.curation_complete = False
+    
+show_debug_info()
 
 # Run the main application
 if __name__ == "__main__":
