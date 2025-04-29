@@ -317,10 +317,10 @@ def get_stock_image_path(topic, article_id=None):
     topic_to_prefix = {
         "Top Technology News": "tech",
         "Inspiring Stories": "inspire",
-        "Global Politics": "politic",
+        "Global Politics": "educate",
         "Climate and Environment": "climate",
         "Health and Wellness": "health",
-        "Education": "educate",
+        # "Education": "educate",
         # Add more topic mappings as needed
     }
     
@@ -507,7 +507,9 @@ def main():
         st.write("This tool checks if your stock images are accessible.")
         
         # Check a few sample paths
-        sample_paths = ["tech1.jpg", "tech2.jpg", "inspire1.jpg", "health1.jpg"]
+        sample_paths = ["tech1.jpg", "tech2.jpg", "inspire1.jpg", "inspire2.jpg", "health1.jpg", 
+                        "health2.jpg", "educate1.jpg", "educate2.jpg", "climate1.jpg", 
+                        "climate2.jpg"]
         for path in sample_paths:
             if os.path.exists(path):
                 st.success(f"✓ {path} found")
