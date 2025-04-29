@@ -549,6 +549,7 @@ def main():
                 st.markdown(f'<div class="article-tag">{main_article["topic"]}</div>', unsafe_allow_html=True)
                 
                 # Title
+                st.markdown(f"**Original:** {main_article['original_title']}")
                 st.subheader(main_article['rewritten_title'])
                 
                 # Author byline
@@ -575,125 +576,75 @@ def main():
         # Trending Articles Section
         st.markdown('<h2 class="section-title">TRENDING NOW</h2>', unsafe_allow_html=True)
         
-        import os
-# os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
-import disable_torch_watch
-import streamlit as st
-import json
-import pandas as pd
-import numpy as np
-# Import FAISS conditionally to avoid conflicts
-try:
-    import faiss
-except ImportError:
-    st.error("FAISS not installed. Please install with 'pip install faiss-cpu'")
-
-# Handle SentenceTransformer with special care
-try:
-    # Import in a way that avoids torch event loop conflicts
-    os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Disable parallelism to avoid deadlocks
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    st.error("SentenceTransformer not installed. Please install with 'pip install sentence-transformers'")
-
-from openai import OpenAI
-from dotenv import load_dotenv
-import datetime
-import random
-import time
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-st.set_page_config(
-    page_title="Agentic AI News Editor",
-    page_icon="📰",
-    layout="wide",  # Use wide layout by default
-    initial_sidebar_state="expanded"
-)
-
-# Custom CSS
-...
-
-# All your existing functions remain unchanged
-...
-
-# Update trending section to show original headline
-...
-        # Trending Articles Section
-    st.markdown('<h2 class="section-title">TRENDING NOW</h2>', unsafe_allow_html=True)
-
-    # Display trending articles (next 5 after main)
-    trend_cols = st.columns(3)
-
-    for i in range(1, min(7, len(articles_df))):
-        if i < len(articles_df):
-            # Determine which column to place the article in
-            col_idx = (i - 1) % 3
-
-            with trend_cols[col_idx]:
-                article = articles_df.iloc[i]
-
-                st.markdown('<div class="article-box">', unsafe_allow_html=True)
-
-                # Article tag
-                st.markdown(f'<div class="article-tag">{article["topic"]}</div>', unsafe_allow_html=True)
-
-                # Show original and rewritten title
-                st.markdown(f"**Original:** {article['original_title']}")
-                st.markdown(f"### {article['rewritten_title']}")
-
-                # Image - use article's index as a consistent ID for image selection
-                display_article_image(article["topic"], article_id=article.name)
-
-                # Short abstract
-                abstract = article['abstract']
-                if abstract and len(abstract) > 150:
-                    abstract = abstract[:150] + "..."
-                st.write(abstract)
-
-                # Read more link
-                st.markdown("**Read More →**")
-
-                st.markdown('</div>', unsafe_allow_html=True)
-
-    # Topic Sections
-    remaining_articles = articles_df.iloc[7:] if len(articles_df) > 7 else pd.DataFrame()
-
-    if len(remaining_articles) > 0:
-        # Group by topic
-        topics = remaining_articles['topic'].unique()
-
-        for topic in topics:
-            st.markdown(f'<h2 class="section-title">{topic.upper()}</h2>', unsafe_allow_html=True)
-
-            topic_articles = remaining_articles[remaining_articles['topic'] == topic]
-
-            # Create a grid of articles
-            cols = st.columns(2)
-
-            for i, (_, article) in enumerate(topic_articles.iterrows()):
-                with cols[i % 2]:
+        # Display trending articles (next 5 after main)
+        trend_cols = st.columns(3)
+        
+        for i in range(1, min(7, len(articles_df))):
+            if i < len(articles_df):
+                # Determine which column to place the article in
+                col_idx = (i - 1) % 3
+                
+                with trend_cols[col_idx]:
+                    article = articles_df.iloc[i]
+                    
                     st.markdown('<div class="article-box">', unsafe_allow_html=True)
-
-                    # Show original and rewritten title
+                    
+                    # Article tag
+                    st.markdown(f'<div class="article-tag">{article["topic"]}</div>', unsafe_allow_html=True)
+                    
+                    # Title
                     st.markdown(f"**Original:** {article['original_title']}")
                     st.markdown(f"### {article['rewritten_title']}")
-
+                    
                     # Image - use article's index as a consistent ID for image selection
                     display_article_image(article["topic"], article_id=article.name)
-
+                    
                     # Short abstract
                     abstract = article['abstract']
-                    if abstract and len(abstract) > 100:
-                        abstract = abstract[:100] + "..."
+                    if abstract and len(abstract) > 150:
+                        abstract = abstract[:150] + "..."
                     st.write(abstract)
-
+                    
                     # Read more link
                     st.markdown("**Read More →**")
-
+                    
                     st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Topic Sections
+        remaining_articles = articles_df.iloc[7:] if len(articles_df) > 7 else pd.DataFrame()
+        
+        if len(remaining_articles) > 0:
+            # Group by topic
+            topics = remaining_articles['topic'].unique()
+            
+            for topic in topics:
+                st.markdown(f'<h2 class="section-title">{topic.upper()}</h2>', unsafe_allow_html=True)
+                
+                topic_articles = remaining_articles[remaining_articles['topic'] == topic]
+                
+                # Create a grid of articles
+                cols = st.columns(2)
+                
+                for i, (_, article) in enumerate(topic_articles.iterrows()):
+                    with cols[i % 2]:
+                        st.markdown('<div class="article-box">', unsafe_allow_html=True)
+                        
+                        # Title
+                        st.markdown(f"### {article['rewritten_title']}")
+                        
+                        # Image - use article's index as a consistent ID for image selection
+                        display_article_image(article["topic"], article_id=article.name)
+                        
+                        # Short abstract
+                        abstract = article['abstract']
+                        if abstract and len(abstract) > 100:
+                            abstract = abstract[:100] + "..."
+                        st.write(abstract)
+                        
+                        # Read more link
+                        st.markdown("**Read More →**")
+                        
+                        st.markdown('</div>', unsafe_allow_html=True)
         
         # Footer
         st.markdown('<div class="footer">', unsafe_allow_html=True)
