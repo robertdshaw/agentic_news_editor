@@ -270,6 +270,7 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
             # Fallback to random articles
             random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
             topic_articles = articles_df.iloc[random_indices].copy()
+            topic_articles["original_title"] = topic_articles["title"]
         
         # Process each article individually
         total = len(topic_articles)
