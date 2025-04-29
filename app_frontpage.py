@@ -1,5 +1,6 @@
-import streamlit as st
 import os
+os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
+import streamlit as st
 import json
 import pandas as pd
 import numpy as np
@@ -387,7 +388,7 @@ def display_article_image(topic, article_id=None, is_main=False):
         
         # Check if the file exists before trying to display it
         if os.path.exists(image_path):
-            st.image(image_path, width=width, use_column_width=True)
+            st.image(image_path, width=width, use_container_width=True)
             return True
         else:
             # Log that the file was not found
