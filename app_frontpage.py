@@ -3,8 +3,20 @@ import os
 import json
 import pandas as pd
 import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
+# Import FAISS conditionally to avoid conflicts
+try:
+    import faiss
+except ImportError:
+    st.error("FAISS not installed. Please install with 'pip install faiss-cpu'")
+
+# Handle SentenceTransformer with special care
+try:
+    # Import in a way that avoids torch event loop conflicts
+    os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Disable parallelism to avoid deadlocks
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    st.error("SentenceTransformer not installed. Please install with 'pip install sentence-transformers'")
+
 from openai import OpenAI
 from dotenv import load_dotenv
 import datetime
@@ -12,7 +24,6 @@ import random
 import time
 import requests
 from io import BytesIO
-from PIL import Image
 import logging
 
 # Set up logging
@@ -176,22 +187,44 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Functions from original script with improvements ---
+# Use a separate function for loading embeddings to avoid PyTorch conflicts
+def load_sentence_transformer():
+    """Load the sentence transformer model separately to avoid conflicts"""
+    try:
+        return SentenceTransformer('paraphrase-MiniLM-L6-v2')
+    except Exception as e:
+        logging.error(f"Error loading SentenceTransformer: {e}")
+        return None
+
 @st.cache_resource
 def load_models_and_data():
     """Load FAISS index, metadata, and embedding model with caching"""
     try:
         logging.info("Loading FAISS index and models")
-        index = faiss.read_index("articles_faiss.index")
+        
+        # Load the CSV data first
+        if not os.path.exists("articles_with_embeddings.csv"):
+            st.error("⚠️ articles_with_embeddings.csv file not found!")
+            return None, None, None
+            
         articles_df = pd.read_csv("articles_with_embeddings.csv")
-        model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+        
+        # Load FAISS index
+        if not os.path.exists("articles_faiss.index"):
+            st.error("⚠️ articles_faiss.index file not found!")
+            return None, None, None
+            
+        index = faiss.read_index("articles_faiss.index")
+        
+        # Load model with the separate function
+        model = load_sentence_transformer()
+        if model is None:
+            return None, None, None
+            
         logging.info(f"Loaded {len(articles_df)} articles and model")
         return index, articles_df, model
     except Exception as e:
         logging.error(f"Error loading models and data: {e}")
-        if not os.path.exists("articles_faiss.index"):
-            st.error("⚠️ articles_faiss.index file not found!")
-        if not os.path.exists("articles_with_embeddings.csv"):
-            st.error("⚠️ articles_with_embeddings.csv file not found!")
         return None, None, None
 
 def load_topics(filename="memory_topics.json"):
@@ -305,29 +338,53 @@ def generate_explanation(client, title, abstract):
 def curate_articles_for_topic(query_text, index, articles_df, model, openai_client, k=5, progress_bar=None):
     """Find and enhance articles for a given topic"""
     try:
-        # Create query embedding and search
-        query_embedding = model.encode([query_text])
-        D, I = index.search(np.array(query_embedding), k=k)
+        # Create query embedding and search - wrap in try/except
+        try:
+            query_embedding = model.encode([query_text])
+            D, I = index.search(np.array(query_embedding), k=k)
+        except Exception as e:
+            logging.error(f"Error creating embeddings: {e}")
+            st.error(f"Error searching for articles: {str(e)}")
+            # Return a sample of random articles as fallback
+            random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
+            topic_articles = articles_df.iloc[random_indices].copy()
+            return topic_articles
         
         # Extract articles
-        topic_articles = articles_df.iloc[I[0]].copy()
+        topic_articles = articles_df.iloc[I[0]].copy() if len(I) > 0 and len(I[0]) > 0 else pd.DataFrame()
         if len(topic_articles) == 0:
             logging.warning(f"No articles found for query: {query_text}")
-            return pd.DataFrame()
+            st.warning(f"No articles found for {query_text}. Using random selection instead.")
+            # Fallback to random articles
+            random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
+            topic_articles = articles_df.iloc[random_indices].copy()
         
         # Process each article individually
         total = len(topic_articles)
-        for idx, row in topic_articles.iterrows():
+        
+        # Safety check
+        if total == 0:
+            return pd.DataFrame()
+        
+        for i, (idx, row) in enumerate(topic_articles.iterrows()):
+            # Update progress
             if progress_bar is not None:
-                progress_value = (idx - topic_articles.index[0] + 1) / total
-                progress_bar.progress(progress_value, text=f"Processing article {idx - topic_articles.index[0] + 1}/{total}")
+                progress_value = (i + 1) / total
+                progress_bar.progress(progress_value, text=f"Processing article {i + 1}/{total}")
             
-            topic_articles.at[idx, 'rewritten_title'] = rewrite_headline(
-                openai_client, row['title'], row['abstract']
-            )
-            topic_articles.at[idx, 'explanation'] = generate_explanation(
-                openai_client, row['title'], row['abstract']
-            )
+            # Process with OpenAI
+            try:
+                topic_articles.at[idx, 'rewritten_title'] = rewrite_headline(
+                    openai_client, row['title'], row['abstract']
+                )
+                topic_articles.at[idx, 'explanation'] = generate_explanation(
+                    openai_client, row['title'], row['abstract']
+                )
+            except Exception as e:
+                logging.error(f"Error processing article {idx}: {e}")
+                # Use original title as fallback
+                topic_articles.at[idx, 'rewritten_title'] = row['title']
+                topic_articles.at[idx, 'explanation'] = "This article contains important information relevant to the topic."
         
         if progress_bar is not None:
             progress_bar.progress(1.0, text="Processing complete!")
@@ -336,6 +393,7 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
         return topic_articles
     except Exception as e:
         logging.error(f"Error curating articles: {e}")
+        st.error(f"Error while curating articles: {str(e)}")
         return pd.DataFrame()
 
 def get_topic_image_url(topic):
@@ -353,41 +411,92 @@ def get_topic_image_url(topic):
 def display_image_for_topic(topic, size=(300, 200)):
     """Display an image for the topic, with fallback to placeholder"""
     try:
-        image_url = get_topic_image_url(topic)
-        response = requests.get(image_url, timeout=5)
-        if response.status_code == 200:
-            image = Image.open(BytesIO(response.content))
-            st.image(image, width=size[0])
-            return True
-        else:
-            # Fallback to placeholder
-            st.image(f"https://via.placeholder.com/{size[0]}x{size[1]}?text={topic.replace(' ', '+')}")
-            return False
+        # Create a placeholder image URL based on topic - no external fetch needed
+        placeholder_url = f"https://via.placeholder.com/{size[0]}x{size[1]}?text={topic.replace(' ', '+')}"
+        
+        # Try to use emojis and better styling for placeholders
+        topic_to_emoji = {
+            "Top Technology News": "🖥️",
+            "Inspiring Stories": "✨",
+            "Global Politics": "🌎",
+            "Climate and Environment": "🌿",
+            "Health and Wellness": "🏥"
+        }
+        
+        emoji = topic_to_emoji.get(topic, "📰")
+        
+        # Display the placeholder with emoji
+        st.markdown(f"""
+        <div style="
+            width: {size[0]}px; 
+            height: {size[1]}px; 
+            background-color: #f0f0f0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            margin-bottom: 10px;
+            border-radius: 5px;
+            color: #333;
+            font-size: 18px;
+            text-align: center;
+            padding: 10px;
+            ">
+            <div>
+                <div style="font-size: 40px; margin-bottom: 10px;">{emoji}</div>
+                <div>{topic}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        return True
     except Exception as e:
         logging.error(f"Error displaying image for {topic}: {e}")
-        # Use Streamlit placeholder directly if external placeholders fail
-        st.image(f"https://via.placeholder.com/{size[0]}x{size[1]}?text={topic.replace(' ', '+')}")
+        # Use simple text as last resort
+        st.text(f"[Image: {topic}]")
         return False
 
 def display_article(col, article, is_main=False):
     """Display a single article in the specified column with proper styling"""
     with col:
-        st.markdown(f'<span class="article-tag">{article["topic"]}</span>', unsafe_allow_html=True)
-        
-        if is_main:
-            st.markdown(f"## {article['rewritten_title']}")
-            display_image_for_topic(article["topic"], size=(600, 350))
-            st.markdown(f'<p class="byline">By {random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])}, {article["topic"]} Editor</p>', unsafe_allow_html=True)
-        else:
-            st.markdown(f"### {article['rewritten_title']}")
-            display_image_for_topic(article["topic"], size=(300, 200))
-        
-        # Show abstract and explanation
-        st.write(f"{article['abstract'][:200]}..." if len(article['abstract']) > 200 else article['abstract'])
-        st.markdown(f"**Why it matters:** {article['explanation']}")
-        
-        if is_main:
-            st.markdown('<p class="continue-reading">Continue reading →</p>', unsafe_allow_html=True)
+        try:
+            # Make sure we have all needed columns
+            if 'topic' not in article:
+                article['topic'] = "General News"
+            if 'rewritten_title' not in article or pd.isna(article['rewritten_title']) or article['rewritten_title'] == '':
+                article['rewritten_title'] = article.get('title', 'Untitled Article')
+            if 'abstract' not in article or pd.isna(article['abstract']):
+                article['abstract'] = "No abstract available for this article."
+            if 'explanation' not in article or pd.isna(article['explanation']):
+                article['explanation'] = "This article provides important information for our readers."
+            
+            # Display article tag
+            st.markdown(f'<span class="article-tag">{article["topic"]}</span>', unsafe_allow_html=True)
+            
+            # Display title and image based on if it's main article
+            if is_main:
+                st.markdown(f"## {article['rewritten_title']}")
+                display_image_for_topic(article["topic"], size=(600, 350))
+                author = random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])
+                st.markdown(f'<p class="byline">By {author}, {article["topic"]} Editor</p>', unsafe_allow_html=True)
+            else:
+                st.markdown(f"### {article['rewritten_title']}")
+                display_image_for_topic(article["topic"], size=(300, 200))
+            
+            # Show abstract with safe length
+            abstract = article['abstract']
+            if abstract and len(abstract) > 200:
+                abstract = abstract[:200] + "..."
+            st.write(abstract)
+            
+            # Show explanation
+            st.markdown(f"**Why it matters:** {article['explanation']}")
+            
+            # Add continue reading link for main articles
+            if is_main:
+                st.markdown('<p class="continue-reading">Continue reading →</p>', unsafe_allow_html=True)
+        except Exception as e:
+            logging.error(f"Error displaying article: {e}")
+            st.error(f"Error displaying article: {str(e)}")
 
 def load_curated_articles():
     """Load previously curated articles if available"""
