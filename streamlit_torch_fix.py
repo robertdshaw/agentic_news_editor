@@ -1,3 +1,7 @@
+"""
+A simpler fix for the torch._classes error in Streamlit
+"""
+
 import sys
 import types
 
@@ -8,21 +12,26 @@ class PathMock:
 # Only apply if torch is installed
 try:
     import torch
-    if hasattr(torch, "_classes"):
-        # Create a mock __path__ attribute
-        if not hasattr(torch._classes, "__path__"):
-            torch._classes.__path__ = PathMock()
+    
+    # Create mock class for torch._classes
+    class ClassesMock:
+        def __init__(self, original_classes):
+            self.original = original_classes
+            self.__path__ = PathMock()
         
-        # Make __getattr__ safer
-        original_getattr = torch._classes.__getattr__
-        
-        def safe_getattr(self, attr):
-            if attr == "__path__":
+        def __getattr__(self, name):
+            if name == "__path__":
                 return PathMock()
-            return original_getattr(self, attr)
-        
-        torch._classes.__getattr__ = types.MethodType(safe_getattr, torch._classes)
-        
+            return getattr(self.original, name)
+    
+    # Apply the mock only if torch._classes exists
+    if hasattr(torch, "_classes"):
+        original_classes = torch._classes
+        torch._classes = ClassesMock(original_classes)
+    
 except ImportError:
     pass  # torch not installed
+except Exception as e:
+    print(f"Warning: Failed to patch torch._classes: {e}")
+    # Continue without patching to avoid breaking the application
 
