@@ -254,17 +254,16 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
     return topic_articles
 
 def get_article_image(topic):
-    """Return a placeholder image based on the topic"""
-    # In a real implementation, you would have actual images or an image API
-    topic_to_image = {
-        "Top Technology News": "/api/placeholder/800/400",
-        "Inspiring Stories": "/api/placeholder/800/400",
-        "Global Politics": "/api/placeholder/800/400",
-        "Climate and Environment": "/api/placeholder/800/400",
-        "Health and Wellness": "/api/placeholder/800/400"
+    topic_keywords = {
+        "Top Technology News": "technology",
+        "Inspiring Stories": "inspiration",
+        "Global Politics": "politics",
+        "Climate and Environment": "environment",
+        "Health and Wellness": "health",
     }
-    
-    return topic_to_image.get(topic, "/api/placeholder/800/400")
+    keyword = topic_keywords.get(topic, "news")
+    return f"https://source.unsplash.com/800x400/?{keyword}"
+
 
 def display_article(col, article, is_main=False):
     """Display a single article in the specified column"""
