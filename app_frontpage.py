@@ -519,7 +519,7 @@ def main():
     # --- Header and Navigation ---
     # Header section
     st.markdown('<div class="header">', unsafe_allow_html=True)
-    st.markdown('<h1 class="newspaper-title">THE DAILY CHRONICLE</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="newspaper-title">THE DAILY AGENT</h1>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Navigation menu using Streamlit columns for reliability
@@ -646,8 +646,8 @@ def main():
         
         # Footer
         st.markdown('<div class="footer">', unsafe_allow_html=True)
-        st.markdown('<h3>THE DAILY CHRONICLE</h3>', unsafe_allow_html=True)
-        st.markdown(f'<p>© {datetime.datetime.now().year} The Daily Chronicle. All Rights Reserved.</p>', unsafe_allow_html=True)
+        st.markdown('<h3>THE DAILY AGENT</h3>', unsafe_allow_html=True)
+        st.markdown(f'<p>© {datetime.datetime.now().year} The Daily Agent. All Rights Reserved.</p>', unsafe_allow_html=True)
         st.markdown('<p>Powered by AI-curated content</p>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -658,7 +658,7 @@ def main():
             st.info("⏳ Curation in progress... Please wait while we prepare your personalized news articles.")
         else:
             # Welcome message with clear instructions
-            st.header("Welcome to The Daily Chronicle")
+            st.header("Welcome to The Daily Agent")
             st.write("Your AI-powered personalized news platform")
             
             # Step-by-step instructions
@@ -688,7 +688,7 @@ def main():
             
             # Preview
             st.subheader("YOUR PERSONALIZED NEWSPAPER")
-            st.write("The Daily Chronicle will create a professional newspaper using your selected topics and AI-curated content.")
+            st.write("The Daily Agent will create a professional newspaper using your selected topics and AI-curated content.")
             
             # Try to display a sample layout image or message
             st.markdown("""
