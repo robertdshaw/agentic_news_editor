@@ -592,6 +592,7 @@ def main():
                     st.markdown(f'<div class="article-tag">{article["topic"]}</div>', unsafe_allow_html=True)
                     
                     # Title
+                    st.markdown(f"**Original:** {article['original_title']}")
                     st.markdown(f"### {article['rewritten_title']}")
                     
                     # Image - use article's index as a consistent ID for image selection
