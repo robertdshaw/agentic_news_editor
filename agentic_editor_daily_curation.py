@@ -8,7 +8,11 @@ import os
 from sentence_transformers import SentenceTransformer
 
 # --- 2. Set up OpenAI API Key ---
-os.environ["OPENAI_API_KEY"] = "your-openai-api-key-here"  # REPLACE THIS
+from dotenv import load_dotenv
+import os
+import openai
+
+load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # --- 3. Load FAISS index, articles metadata, and embedding model ---

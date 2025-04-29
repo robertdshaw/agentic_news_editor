@@ -8,6 +8,9 @@ behaviors.tsv
 # vector files
 *.vec
 
+# env files
+*.env
+
 # Streamlit secrets
 .streamlit/
 
