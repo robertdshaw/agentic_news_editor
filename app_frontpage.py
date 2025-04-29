@@ -1,6 +1,10 @@
 # app_frontpage.py
 
 import streamlit as st
+
+# ⚡ Set page config immediately (MUST be first Streamlit command)
+st.set_page_config(page_title="Agentic AI News Editor", page_icon="🗞️", layout="wide")
+
 import pandas as pd
 
 # --- Load curated daily articles ---
@@ -16,8 +20,6 @@ def load_curated_articles(filepath="curated_full_daily_output.csv"):
 curated_df = load_curated_articles()
 
 # --- Streamlit App Interface ---
-st.set_page_config(page_title="Agentic AI News Editor", page_icon="🗞️", layout="wide")
-
 st.title("🗞️ Agentic AI News Editor - Daily Curated Front Page")
 
 if curated_df.empty:
