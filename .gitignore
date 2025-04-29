@@ -9,7 +9,7 @@ behaviors.tsv
 *.vec
 
 # env files
-*.env
+.env
 
 # Streamlit secrets
 .streamlit/
