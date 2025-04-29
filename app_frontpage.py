@@ -22,8 +22,6 @@ from dotenv import load_dotenv
 import datetime
 import random
 import time
-import requests
-from io import BytesIO
 import logging
 
 # Set up logging
@@ -36,158 +34,263 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for newspaper styling and compact layout ---
+# --- Daily Wire-inspired CSS ---
 st.markdown("""
 <style>
-    /* More compact layout */
+    /* Global reset and basic styling */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    /* Main content container */
     .main .block-container {
-        padding-top: 1rem;
-        padding-right: 1rem;
-        padding-left: 1rem;
-        padding-bottom: 1rem;
-        max-width: 100%;
+        padding: 0 !important;
+        max-width: 100% !important;
     }
     
-    /* Force sidebar to be open and styled */
-    section[data-testid="stSidebar"] {
-        display: block !important;
-        width: 250px !important;
-        min-width: 250px !important;
-        background-color: #f0f2f6;
-        border-right: 1px solid #ddd;
+    /* Customize sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa;
+        border-right: 1px solid #e9ecef;
+        padding-top: 0 !important;
     }
     
-    /* Newspaper styling */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Header styling */
+    .site-header {
+        background-color: #fff;
+        border-bottom: 3px solid #e9ecef;
+        padding: 10px 20px;
+        text-align: center;
+    }
+    
     .newspaper-title {
-        font-family: "Times New Roman", Times, serif;
-        font-size: 3rem;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 0;
-        padding-top: 10px;
+        font-family: 'Georgia', serif;
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: #222;
         letter-spacing: -1px;
+        margin: 10px 0 5px;
+        text-transform: uppercase;
     }
-    .newspaper-motto {
-        font-style: italic;
-        text-align: center;
-        margin-bottom: 5px;
-        font-size: 1rem;
-    }
-    .date-line {
+    
+    .nav-menu {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        padding: 10px 0;
+        margin-bottom: 20px;
         display: flex;
-        justify-content: space-between;
-        border-top: 1px solid #000;
-        border-bottom: 1px solid #000;
-        padding: 5px 0;
-        margin-bottom: 10px;
+        justify-content: center;
     }
-    .breaking-news {
-        background-color: #c00;
-        color: white;
-        padding: 8px;
-        text-align: center;
-        font-weight: bold;
-        margin: 10px 0;
-        font-size: 1rem;
+    
+    .nav-item {
+        display: inline-block;
+        padding: 5px 15px;
+        margin: 0 5px;
+        font-weight: 600;
+        color: #333;
+        text-transform: uppercase;
+        font-size: 0.85rem;
     }
+    
+    .nav-item.active {
+        color: #0d6efd;
+    }
+    
+    /* Article styling */
+    .main-container {
+        padding: 0 20px;
+    }
+    
+    .section-title {
+        font-family: 'Georgia', serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        border-bottom: 2px solid #c00;
+        padding-bottom: 5px;
+        margin: 20px 0 15px;
+        color: #222;
+    }
+    
+    .article-card {
+        background-color: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .article-card:hover {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
     .article-tag {
-        background-color: #333;
+        display: inline-block;
+        background-color: #0d6efd;
         color: white;
         padding: 3px 8px;
         font-size: 0.7rem;
         border-radius: 3px;
-        margin-bottom: 5px;
-        display: inline-block;
-    }
-    .byline {
-        font-style: italic;
-        font-size: 0.8rem;
         margin-bottom: 10px;
-        color: #555;
+        text-transform: uppercase;
+        font-weight: 600;
     }
-    .article-container {
-        padding: 0 5px;
+    
+    .article-title {
+        font-family: 'Georgia', serif;
+        font-size: 1.4rem;
+        line-height: 1.3;
+        margin-bottom: 10px;
+        color: #222;
+        font-weight: 700;
+    }
+    
+    .main-article-title {
+        font-family: 'Georgia', serif;
+        font-size: 2rem;
+        line-height: 1.2;
+        margin-bottom: 15px;
+        color: #222;
+        font-weight: 700;
+    }
+    
+    .article-byline {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 15px;
+        font-style: italic;
+    }
+    
+    .article-abstract {
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: #444;
         margin-bottom: 15px;
     }
-    .sidebar-header {
-        border-bottom: 2px solid #333;
-        padding-bottom: 5px;
-        margin-bottom: 10px;
-        font-size: 1.2rem;
-        font-weight: bold;
-    }
-    .section-divider {
-        height: 1px;
-        background-color: #ddd;
-        margin: 15px 0;
-    }
-    .continue-reading {
-        font-weight: bold;
-        font-style: italic;
-        color: #444;
-        font-size: 0.8rem;
-    }
-    .advert-container {
-        background-color: #f5f5f5;
-        border: 1px solid #ddd;
-        padding: 15px;
-        text-align: center;
-        margin: 15px 0;
-    }
-    .footer {
-        text-align: center;
-        margin-top: 15px;
-        padding-top: 10px;
-        border-top: 1px solid #ddd;
-        color: #666;
-        font-size: 0.8rem;
-    }
     
-    /* Make text and elements more compact */
-    h1 {
-        font-size: 1.8rem;
-        margin-bottom: 0.5rem;
-    }
-    h2 {
-        font-size: 1.4rem;
-        margin-bottom: 0.5rem;
-    }
-    h3 {
-        font-size: 1.1rem;
-        margin-bottom: 0.3rem;
-    }
-    p {
-        font-family: Georgia, serif;
-        line-height: 1.4;
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Make buttons more prominent */
-    .stButton>button {
+    .article-image-placeholder {
         width: 100%;
-        font-weight: bold;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid #e9ecef;
     }
     
-    /* Compact image styling */
-    img {
-        margin-bottom: 0.5rem !important;
+    .article-why-matters {
+        font-size: 0.9rem;
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-left: 3px solid #0d6efd;
+        margin-bottom: 10px;
     }
     
-    /* Fix for the sidebar scrolling */
-    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-        gap: 0.5rem;
+    .read-more {
+        display: inline-block;
+        color: #0d6efd;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-top: 10px;
+        text-decoration: none;
     }
     
-    /* Progress bar styling */
-    .stProgress .st-bo {
-        background-color: #0066cc;
+    /* Feature articles layout */
+    .feature-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    /* Trending articles */
+    .trending-articles {
+        margin-bottom: 30px;
+    }
+    
+    .trending-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .trending-number {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #c00;
+        margin-right: 15px;
+        min-width: 25px;
+    }
+    
+    .trending-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    /* Footer */
+    .site-footer {
+        background-color: #222;
+        color: #fff;
+        padding: 30px 20px;
+        text-align: center;
+        margin-top: 40px;
+    }
+    
+    .footer-title {
+        font-family: 'Georgia', serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+    }
+    
+    .footer-text {
+        color: #aaa;
+        font-size: 0.85rem;
+        margin-bottom: 10px;
+    }
+    
+    /* Buttons and form elements */
+    .stButton > button {
+        background-color: #0d6efd !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border: none !important;
+        padding: 0.5rem 1rem !important;
+        border-radius: 4px !important;
+    }
+    
+    .stButton > button:hover {
+        background-color: #0b5ed7 !important;
+    }
+    
+    /* Make elements in the sidebar more compact */
+    [data-testid="stSidebar"] .css-1544g2n {
+        padding-top: 2rem;
+    }
+    
+    /* Responsive adjustments */
+    @media (min-width: 992px) {
+        .feature-grid {
+            grid-template-columns: 2fr 1fr;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Functions from original script with improvements ---
-# Use a separate function for loading embeddings to avoid PyTorch conflicts
+# --- Functions ---
 def load_sentence_transformer():
     """Load the sentence transformer model separately to avoid conflicts"""
     try:
@@ -396,107 +499,158 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
         st.error(f"Error while curating articles: {str(e)}")
         return pd.DataFrame()
 
-def get_topic_image_url(topic):
-    """Return an appropriate image URL for the topic"""
-    topic_to_image = {
-        "Top Technology News": "https://source.unsplash.com/featured/?technology,digital",
-        "Inspiring Stories": "https://source.unsplash.com/featured/?inspire,hope",
-        "Global Politics": "https://source.unsplash.com/featured/?politics,government",
-        "Climate and Environment": "https://source.unsplash.com/featured/?climate,nature",
-        "Health and Wellness": "https://source.unsplash.com/featured/?health,medical"
+def display_image_placeholder(topic, size=(300, 200), is_main=False):
+    """Display a styled image placeholder for the topic"""
+    topic_to_color = {
+        "Top Technology News": "#0066cc",
+        "Inspiring Stories": "#6b5b95",
+        "Global Politics": "#d64161",
+        "Climate and Environment": "#3cb371",
+        "Health and Wellness": "#ff7e67"
     }
     
-    return topic_to_image.get(topic, "https://source.unsplash.com/featured/?news")
-
-def display_image_for_topic(topic, size=(300, 200)):
-    """Display an image for the topic, with fallback to placeholder"""
-    try:
-        # Create a placeholder image URL based on topic - no external fetch needed
-        placeholder_url = f"https://via.placeholder.com/{size[0]}x{size[1]}?text={topic.replace(' ', '+')}"
-        
-        # Try to use emojis and better styling for placeholders
-        topic_to_emoji = {
-            "Top Technology News": "🖥️",
-            "Inspiring Stories": "✨",
-            "Global Politics": "🌎",
-            "Climate and Environment": "🌿",
-            "Health and Wellness": "🏥"
-        }
-        
-        emoji = topic_to_emoji.get(topic, "📰")
-        
-        # Display the placeholder with emoji
-        st.markdown(f"""
+    topic_to_emoji = {
+        "Top Technology News": "🖥️",
+        "Inspiring Stories": "✨",
+        "Global Politics": "🌎",
+        "Climate and Environment": "🌿",
+        "Health and Wellness": "🏥"
+    }
+    
+    # Get color and emoji, or use defaults
+    color = topic_to_color.get(topic, "#333333")
+    emoji = topic_to_emoji.get(topic, "📰")
+    
+    # Adjust size for main article
+    if is_main:
+        height = 300
+        emoji_size = 60
+    else:
+        height = size[1]
+        emoji_size = 40
+    
+    # Create placeholder with topic styling
+    st.markdown(f"""
+    <div class="article-image-placeholder" style="
+        height: {height}px; 
+        background: linear-gradient(135deg, {color}25, {color}40);
+        position: relative;
+        overflow: hidden;
+    ">
         <div style="
-            width: {size[0]}px; 
-            height: {size[1]}px; 
-            background-color: #f0f0f0; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            margin-bottom: 10px;
-            border-radius: 5px;
-            color: #333;
-            font-size: 18px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\"><path fill=\"%23ffffff15\" d=\"M0,0 L20,20 M20,0 L0,20\"/></svg>');
+            opacity: 0.3;
+        "></div>
+        <div style="
+            position: relative;
+            z-index: 2;
             text-align: center;
-            padding: 10px;
-            ">
-            <div>
-                <div style="font-size: 40px; margin-bottom: 10px;">{emoji}</div>
-                <div>{topic}</div>
-            </div>
+            padding: 15px;
+        ">
+            <div style="font-size: {emoji_size}px; margin-bottom: 10px;">{emoji}</div>
+            <div style="
+                color: #333; 
+                background-color: rgba(255,255,255,0.7); 
+                padding: 5px 10px; 
+                border-radius: 4px; 
+                font-weight: 600;
+                display: inline-block;
+            ">{topic}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_featured_article(article):
+    """Display a featured article in Daily Wire style"""
+    try:
+        # Make sure we have all needed columns
+        if 'topic' not in article:
+            article['topic'] = "General News"
+        if 'rewritten_title' not in article or pd.isna(article['rewritten_title']) or article['rewritten_title'] == '':
+            article['rewritten_title'] = article.get('title', 'Untitled Article')
+        if 'abstract' not in article or pd.isna(article['abstract']):
+            article['abstract'] = "No abstract available for this article."
+        if 'explanation' not in article or pd.isna(article['explanation']):
+            article['explanation'] = "This article provides important information for our readers."
+        
+        # Format the article  
+        st.markdown(f'<div class="article-card">', unsafe_allow_html=True)
+        st.markdown(f'<span class="article-tag">{article["topic"]}</span>', unsafe_allow_html=True)
+        st.markdown(f'<h2 class="main-article-title">{article["rewritten_title"]}</h2>', unsafe_allow_html=True)
+        
+        # Author byline
+        author = random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])
+        st.markdown(f'<p class="article-byline">By {author} | {datetime.datetime.now().strftime("%B %d, %Y")}</p>', unsafe_allow_html=True)
+        
+        # Image placeholder
+        display_image_placeholder(article["topic"], is_main=True)
+        
+        # Article abstract
+        abstract = article['abstract']
+        if abstract and len(abstract) > 300:
+            abstract = abstract[:300] + "..."
+        st.markdown(f'<p class="article-abstract">{abstract}</p>', unsafe_allow_html=True)
+        
+        # Why it matters box
+        st.markdown(f'<div class="article-why-matters"><strong>Why it matters:</strong> {article["explanation"]}</div>', unsafe_allow_html=True)
+        
+        # Read more link
+        st.markdown('<a href="#" class="read-more">Continue Reading →</a>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    except Exception as e:
+        logging.error(f"Error displaying featured article: {e}")
+        st.error(f"Error displaying featured article: {str(e)}")
+
+def display_secondary_article(article):
+    """Display a secondary article in Daily Wire style"""
+    try:
+        # Make sure we have all needed columns
+        if 'topic' not in article:
+            article['topic'] = "General News"
+        if 'rewritten_title' not in article or pd.isna(article['rewritten_title']) or article['rewritten_title'] == '':
+            article['rewritten_title'] = article.get('title', 'Untitled Article')
+        if 'abstract' not in article or pd.isna(article['abstract']):
+            article['abstract'] = "No abstract available for this article."
+        
+        # Format the article
+        st.markdown(f'<div class="article-card">', unsafe_allow_html=True)
+        st.markdown(f'<span class="article-tag">{article["topic"]}</span>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="article-title">{article["rewritten_title"]}</h3>', unsafe_allow_html=True)
+        
+        # Image placeholder
+        display_image_placeholder(article["topic"])
+        
+        # Article abstract (shorter for secondary)
+        abstract = article['abstract']
+        if abstract and len(abstract) > 150:
+            abstract = abstract[:150] + "..."
+        st.markdown(f'<p class="article-abstract">{abstract}</p>', unsafe_allow_html=True)
+        
+        # Read more link
+        st.markdown('<a href="#" class="read-more">Read More →</a>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    except Exception as e:
+        logging.error(f"Error displaying secondary article: {e}")
+
+def display_sidebar_article(article, number):
+    """Display a trending sidebar article"""
+    try:
+        if 'rewritten_title' not in article or pd.isna(article['rewritten_title']) or article['rewritten_title'] == '':
+            article['rewritten_title'] = article.get('title', 'Untitled Article')
+            
+        st.markdown(f"""
+        <div class="trending-item">
+            <div class="trending-number">{number}</div>
+            <div class="trending-title">{article["rewritten_title"]}</div>
         </div>
         """, unsafe_allow_html=True)
-        
-        return True
     except Exception as e:
-        logging.error(f"Error displaying image for {topic}: {e}")
-        # Use simple text as last resort
-        st.text(f"[Image: {topic}]")
-        return False
-
-def display_article(col, article, is_main=False):
-    """Display a single article in the specified column with proper styling"""
-    with col:
-        try:
-            # Make sure we have all needed columns
-            if 'topic' not in article:
-                article['topic'] = "General News"
-            if 'rewritten_title' not in article or pd.isna(article['rewritten_title']) or article['rewritten_title'] == '':
-                article['rewritten_title'] = article.get('title', 'Untitled Article')
-            if 'abstract' not in article or pd.isna(article['abstract']):
-                article['abstract'] = "No abstract available for this article."
-            if 'explanation' not in article or pd.isna(article['explanation']):
-                article['explanation'] = "This article provides important information for our readers."
-            
-            # Display article tag
-            st.markdown(f'<span class="article-tag">{article["topic"]}</span>', unsafe_allow_html=True)
-            
-            # Display title and image based on if it's main article
-            if is_main:
-                st.markdown(f"## {article['rewritten_title']}")
-                display_image_for_topic(article["topic"], size=(600, 350))
-                author = random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])
-                st.markdown(f'<p class="byline">By {author}, {article["topic"]} Editor</p>', unsafe_allow_html=True)
-            else:
-                st.markdown(f"### {article['rewritten_title']}")
-                display_image_for_topic(article["topic"], size=(300, 200))
-            
-            # Show abstract with safe length
-            abstract = article['abstract']
-            if abstract and len(abstract) > 200:
-                abstract = abstract[:200] + "..."
-            st.write(abstract)
-            
-            # Show explanation
-            st.markdown(f"**Why it matters:** {article['explanation']}")
-            
-            # Add continue reading link for main articles
-            if is_main:
-                st.markdown('<p class="continue-reading">Continue reading →</p>', unsafe_allow_html=True)
-        except Exception as e:
-            logging.error(f"Error displaying article: {e}")
-            st.error(f"Error displaying article: {str(e)}")
+        logging.error(f"Error displaying sidebar article: {e}")
 
 def load_curated_articles():
     """Load previously curated articles if available"""
@@ -510,32 +664,13 @@ def load_curated_articles():
 
 # --- Main Application Logic ---
 def main():
-    # Make sidebar explicitly visible with a large noticeable header
+    # Setup sidebar with controls
     with st.sidebar:
-        st.title("📰 NEWSPAPER CONTROLS")
-        st.markdown("### Configure Your Paper")
-        st.markdown("---")
-    
-    # Display newspaper header (more compact)
-    st.markdown('<h1 class="newspaper-title">THE DAILY CHRONICLE</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="newspaper-motto">Delivering Truth, Inspiring Minds</p>', unsafe_allow_html=True)
-    
-    # Date and edition line in a more compact layout
-    today = datetime.datetime.now()
-    cols = st.columns([1, 1, 1])
-    with cols[0]:
-        st.write(f"{today.strftime('%A, %B %d, %Y').upper()}")
-    with cols[1]:
-        st.write(f"VOL. {today.year - 1997}, NO. {today.timetuple().tm_yday}")
-    with cols[2]:
-        st.write("$2.00")
-    
-    # Breaking news banner (more compact)
-    st.markdown('<div class="breaking-news">LATEST UPDATES: Curated news from across the globe</div>', unsafe_allow_html=True)
-    
-    # Setup the rest of the sidebar controls
-    with st.sidebar:
-        # Editorial queries - same as in original script
+        st.markdown('<h2 style="margin-top:0; padding-top:0; font-size:1.5rem; font-weight:700;">📰 NEWSPAPER CONTROLS</h2>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:0.9rem;">Configure your daily newspaper</p>', unsafe_allow_html=True)
+        st.markdown('<hr style="margin:10px 0;">', unsafe_allow_html=True)
+        
+        # Editorial queries
         editorial_queries = {
             "Top Technology News": "latest breakthroughs in technology and innovation",
             "Inspiring Stories": "positive and uplifting news stories",
@@ -555,8 +690,10 @@ def main():
         articles_per_topic = st.slider("Articles per topic", 1, 10, 3, 1)
         
         # Action buttons
-        curate_button = st.button("🔄 Curate Fresh Articles", use_container_width=True)
+        curate_button = st.button("CURATE FRESH ARTICLES", use_container_width=True)
+        load_button = st.button("LOAD SAVED ARTICLES", use_container_width=True)
         
+        # Handle curation process
         if curate_button:
             if not selected_topics:
                 st.error("Please select at least one topic to curate")
@@ -613,9 +750,8 @@ def main():
                         st.warning("No articles were curated")
                         st.session_state.curation_started = False
         
-        # Load previously curated articles
-        st.markdown("---")
-        if st.button("📂 Load Previous Articles", use_container_width=True):
+        # Handle loading previous articles
+        if load_button:
             with st.spinner("Loading previously curated articles..."):
                 st.session_state.loaded_articles = load_curated_articles()
                 if st.session_state.loaded_articles is not None:
@@ -623,80 +759,134 @@ def main():
                 else:
                     st.error("No previously curated articles found")
     
+    # --- Daily Wire style header and navigation ---
+    st.markdown('<div class="site-header">', unsafe_allow_html=True)
+    st.markdown('<h1 class="newspaper-title">THE DAILY CHRONICLE</h1>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Navigation menu
+    st.markdown('<div class="nav-menu">', unsafe_allow_html=True)
+    for nav_item in ["Politics", "Entertainment", "Tech", "Sports", "Opinion", "Health", "World"]:
+        is_active = nav_item == "Politics"  # Make first one active
+        active_class = " active" if is_active else ""
+        st.markdown(f'<span class="nav-item{active_class}">{nav_item}</span>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Main container for content
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    
     # Check if we have articles to display
     if 'loaded_articles' in st.session_state and st.session_state.loaded_articles is not None and len(st.session_state.loaded_articles) > 0:
         articles_df = st.session_state.loaded_articles
         
-        # Main content area with layout
-        main_col, sidebar_col = st.columns([2, 1])
+        # Top Featured Articles
+        st.markdown('<h2 class="section-title">FEATURED NEWS</h2>', unsafe_allow_html=True)
         
-        # Main article section
-        with main_col:
-            # Get the first article as the main feature
-            if len(articles_df) > 0:
-                main_article = articles_df.iloc[0]
-                display_article(main_col, main_article, is_main=True)
+        # Create a feature grid with main feature and sidebar
+        st.markdown('<div class="feature-grid">', unsafe_allow_html=True)
         
-        # Article sidebar (not to be confused with Streamlit's sidebar)
-        with sidebar_col:
-            st.markdown('<div class="sidebar-header">IN BRIEF</div>', unsafe_allow_html=True)
-            
-            # Display next 3 articles in sidebar (if available)
-            for i in range(1, min(4, len(articles_df))):
-                if i < len(articles_df):
-                    article = articles_df.iloc[i]
-                    st.markdown(f"### {article['rewritten_title']}")
-                    st.write(f"{article['abstract'][:80]}..." if len(article['abstract']) > 80 else article['abstract'])
-                    st.markdown("---")
+        # Left column - main featured article
+        st.markdown('<div>', unsafe_allow_html=True)
+        if len(articles_df) > 0:
+            display_featured_article(articles_df.iloc[0])
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # Secondary articles in a two-column layout
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-        st.subheader("MORE TOP STORIES")
+        # Right column - trending articles
+        st.markdown('<div class="trending-articles">', unsafe_allow_html=True)
+        st.markdown('<h3 style="font-size:1.2rem; font-weight:700; margin-bottom:15px; font-family:Georgia, serif;">TRENDING NOW</h3>', unsafe_allow_html=True)
         
-        # Create rows of 2 articles each
-        remaining_articles = articles_df.iloc[4:] if len(articles_df) > 4 else pd.DataFrame()
+        # Display trending sidebar articles (next 5 articles after main)
+        for i in range(1, min(6, len(articles_df))):
+            if i < len(articles_df):
+                display_sidebar_article(articles_df.iloc[i], i)
         
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # More News Section with 2-column grid
+        st.markdown('<h2 class="section-title">MORE NEWS</h2>', unsafe_allow_html=True)
+        
+        # Group remaining articles by topic
+        remaining_articles = articles_df.iloc[6:] if len(articles_df) > 6 else pd.DataFrame()
         if len(remaining_articles) > 0:
-            for i in range(0, len(remaining_articles), 2):
-                cols = st.columns(2)
-                
-                for j in range(2):
-                    if i + j < len(remaining_articles):
-                        article = remaining_articles.iloc[i + j]
-                        display_article(cols[j], article)
+            # Group by topic and create topic sections
+            topics = remaining_articles['topic'].unique()
+            
+            for topic in topics:
+                topic_articles = remaining_articles[remaining_articles['topic'] == topic]
+                if len(topic_articles) > 0:
+                    # Create section for each topic
+                    st.markdown(f'<h3 style="font-size:1.3rem; font-weight:700; margin:20px 0 15px; color:#333; font-family:Georgia, serif;">{topic.upper()}</h3>', unsafe_allow_html=True)
+                    
+                    # Create a grid of secondary articles
+                    cols = st.columns(2)
+                    
+                    for i, (_, article) in enumerate(topic_articles.iterrows()):
+                        with cols[i % 2]:
+                            display_secondary_article(article)
         
-        # Advertisement section (more compact)
-        st.markdown('<div class="advert-container">', unsafe_allow_html=True)
-        st.markdown("### ADVERTISEMENT")
-        st.write("Support quality journalism with a subscription to The Daily Chronicle.")
-        st.button("SUBSCRIBE NOW", key="subscribe_button")
+        # Site footer
+        st.markdown('<div class="site-footer">', unsafe_allow_html=True)
+        st.markdown('<h3 class="footer-title">THE DAILY CHRONICLE</h3>', unsafe_allow_html=True)
+        st.markdown('<p class="footer-text">© 2025 The Daily Chronicle. All Rights Reserved.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="footer-text">Powered by AI-curated content | Privacy Policy | Terms of Service</p>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Footer (more compact)
-        st.markdown('<div class="footer">', unsafe_allow_html=True)
-        st.write(f"© {today.year} The Daily Chronicle | All Rights Reserved | Built with AI-powered curation")
-        st.markdown('</div>', unsafe_allow_html=True)
     else:
         # Check if curation is in progress
         if 'curation_started' in st.session_state and st.session_state.curation_started and not st.session_state.get('curation_complete', False):
-            st.info("⏳ Curation in progress... Please wait while articles are being processed.")
+            # Show progress message
+            st.markdown("""
+            <div style="text-align:center; padding:50px 20px; background-color:#f8f9fa; border-radius:4px; margin:30px 0;">
+                <h2 style="margin-bottom:20px; color:#333;">⏳ Curation in Progress</h2>
+                <p style="font-size:1.1rem; color:#666;">Please wait while we prepare your personalized news articles...</p>
+                <div style="width:100px; height:100px; margin:30px auto; border:5px solid #f3f3f3; border-top:5px solid #0d6efd; border-radius:50%; animation:spin 1s linear infinite;"></div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            # Display very clear instructions with visual cues
-            st.warning("⚠️ No articles loaded. Please curate or load articles using the sidebar controls.")
+            # Show welcome message and instructions
+            st.markdown("""
+            <div style="text-align:center; padding:40px 20px; background-color:#f8f9fa; border-radius:4px; margin:30px 0;">
+                <h2 style="margin-bottom:20px; color:#333;">Welcome to The Daily Chronicle</h2>
+                <p style="font-size:1.1rem; color:#666; margin-bottom:30px;">Your AI-powered personalized news platform</p>
+                
+                <div style="max-width:600px; margin:0 auto; text-align:left; background:#fff; padding:25px; border-radius:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                    <h3 style="border-bottom:2px solid #0d6efd; padding-bottom:10px; margin-bottom:20px; font-size:1.3rem;">Get Started in Two Simple Steps:</h3>
+                    
+                    <div style="display:flex; align-items:center; margin-bottom:20px;">
+                        <div style="background:#0d6efd; color:white; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:15px; font-weight:bold;">1</div>
+                        <div>
+                            <p style="margin:0; font-weight:600;">Select Topics in the Sidebar</p>
+                            <p style="margin:5px 0 0; color:#666; font-size:0.9rem;">Choose which news categories you want to include</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display:flex; align-items:center;">
+                        <div style="background:#0d6efd; color:white; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:15px; font-weight:bold;">2</div>
+                        <div>
+                            <p style="margin:0; font-weight:600;">Click "CURATE FRESH ARTICLES"</p>
+                            <p style="margin:5px 0 0; color:#666; font-size:0.9rem;">Our AI will find and enhance relevant articles for you</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            # Create a visual guide with images
-            st.markdown("### Quick Start Guide:")
-            
-            guide_col1, guide_col2 = st.columns(2)
-            with guide_col1:
-                st.markdown("#### Step 1: Select Topics")
-                st.info("Choose topics in the sidebar and click '🔄 Curate Fresh Articles'")
-                st.image("https://via.placeholder.com/400x200?text=Select+Topics+in+Sidebar", width=300)
-            
-            with guide_col2:
-                st.markdown("#### Step 2: View Your Newspaper")
-                st.success("Your AI-curated newspaper will appear here")
-                st.image("https://via.placeholder.com/400x200?text=Your+Newspaper+Layout", width=300)
+            # Show example of what they'll get
+            st.markdown("""
+            <h2 class="section-title">PREVIEW</h2>
+            <div style="display:flex; align-items:center; justify-content:center; padding:30px; background:#f0f0f0; border-radius:4px; margin-bottom:30px;">
+                <img src="https://via.placeholder.com/800x400?text=Your+Personalized+Newspaper+Preview" style="max-width:100%; border:1px solid #ddd; border-radius:4px; box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close main-container
 
 # Make sure to create these session state variables
 if 'curation_started' not in st.session_state:
