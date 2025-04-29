@@ -1,43 +1,56 @@
-# app_frontpage.py
-
 import streamlit as st
-
-# ⚡ Set page config immediately (MUST be first Streamlit command)
-st.set_page_config(page_title="Agentic AI News Editor", page_icon="🗞️", layout="wide")
-
 import pandas as pd
 
-# --- Load curated daily articles ---
+# --- 1. Set page config FIRST ---
+st.set_page_config(page_title="Agentic AI News Editor", layout="wide")
+
+# --- 2. Load curated articles ---
 @st.cache_data
-def load_curated_articles(filepath="curated_full_daily_output.csv"):
+def load_curated_articles():
     try:
-        return pd.read_csv(filepath)
+        return pd.read_csv("curated_full_daily_output.csv")
     except FileNotFoundError:
-        st.error("No curated articles found. Please run the daily curation script first.")
+        st.error("No curated articles found. Run the curation script first.")
         return pd.DataFrame()
 
-# Load the data
 curated_df = load_curated_articles()
-
-# --- Streamlit App Interface ---
-st.title("🗞️ Agentic AI News Editor - Daily Curated Front Page")
 
 if curated_df.empty:
     st.stop()
 
-# Allow user to select topic
-selected_topic = st.selectbox("Select a Topic:", curated_df["topic"].unique())
+# --- 3. Front page title ---
+st.title("🗞️ Agentic AI News Editor - Today's Front Page")
+st.markdown("##### Curated daily using AI rewriting, editorial explanations, and topic curation.")
 
-# Filter articles by selected topic
-filtered_articles = curated_df[curated_df["topic"] == selected_topic]
+st.markdown("---")
 
-# Show articles
-for idx, row in filtered_articles.iterrows():
-    st.subheader(row["rewritten_title"])
-    st.write(f"**Category:** {row['category']}")
-    st.write(f"🧠 **Why it matters:** {row['explanation']}")
+# --- 4. Group by editorial topics ---
+topics = curated_df["topic"].unique()
+
+for topic in topics:
+    st.subheader(f"📚 {topic}")
     
-    with st.expander("See original article abstract"):
-        st.write(row["abstract"])
-    
-    st.markdown("---")
+    topic_articles = curated_df[curated_df["topic"] == topic]
+
+    # Arrange articles in a 2-column layout
+    cols = st.columns(2)
+
+    for idx, row in topic_articles.iterrows():
+        with cols[idx % 2]:  # Alternate articles between two columns
+            with st.container():
+                st.markdown(f"### 📰 {row['rewritten_title']}")
+                
+                # Small subtitle info
+                st.caption(f"**Category:** {row['category']}  |  **Original Headline:** {row['title']}")
+                
+                # Important highlight
+                st.markdown(f"**🧠 Why It Matters:** {row['explanation']}")
+
+                # Abstract inside an expandable block
+                with st.expander("📖 Read Abstract"):
+                    st.markdown(f"{row['abstract']}")
+
+                st.markdown("---")
+
+# --- 5. Footer ---
+st.markdown("#### 🛠️ Powered by Streamlit + OpenAI | Curated automatically every 24 hours.")
