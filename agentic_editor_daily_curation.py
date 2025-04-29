@@ -1,45 +1,28 @@
-# --- 1. Imports ---
+import os
+import json
 import pandas as pd
 import numpy as np
 import faiss
-import json
-import openai
-import os
 from sentence_transformers import SentenceTransformer
-
-
-# --- 2. Set up OpenAI API Key ---
+from openai import OpenAI
 from dotenv import load_dotenv
-import os
 
+# --- 1. Load environment variables ---
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-MAX_REQUESTS_PER_RUN = 50
+if not openai_api_key:
+    raise ValueError("❌ OPENAI_API_KEY is missing. Check your .env file!")
 
-request_count = 0
+client = OpenAI(api_key=openai_api_key)
 
-def safe_gpt_request(prompt):
-    global request_count
-    if request_count >= MAX_REQUESTS_PER_RUN:
-        raise Exception("Reached maximum GPT request limit for this run!")
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "system", "content": "You are helpful."},
-                  {"role": "user", "content": prompt}],
-        temperature=0.4,
-        max_tokens=60,
-    )
-    request_count += 1
-    return response["choices"][0]["message"]["content"]
-
-# --- 3. Load FAISS index, articles metadata, and embedding model ---
-print("Loading index, metadata, and models...")
+# --- 2. Load FAISS index, metadata, and embedding model ---
+print("🔵 Loading index, metadata, and models...")
 index = faiss.read_index("articles_faiss.index")
 articles_df = pd.read_csv("articles_with_embeddings.csv")
 model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
-# --- 4. Define editorial queries ---
+# --- 3. Define editorial queries ---
 editorial_queries = {
     "Top Technology News": "latest breakthroughs in technology and innovation",
     "Inspiring Stories": "positive and uplifting news stories",
@@ -48,7 +31,7 @@ editorial_queries = {
     "Health and Wellness": "advances in healthcare and medical discoveries"
 }
 
-# --- 5. Memory helpers: load/save yesterday's topics ---
+# --- 4. Load yesterday's topics for memory ---
 def load_topics(filename="memory_topics.json"):
     try:
         with open(filename, "r") as f:
@@ -64,103 +47,113 @@ yesterday_topics = load_topics()
 today_topics = list(editorial_queries.keys())
 fresh_topics = [t for t in today_topics if t not in yesterday_topics]
 
-print(f"Fresh topics to curate today: {fresh_topics}")
+print(f"🟠 Fresh topics to curate today: {fresh_topics}")
 
-# --- 6. GPT Batch Functions ---
+# --- 5. Helper functions for GPT ---
+def batch_rewrite_headlines(titles, abstracts):
+    responses = []
+    for title, abstract in zip(titles, abstracts):
+        prompt = f"""You are an expert news editor.
 
-def batch_rewrite_headlines(titles, abstracts, batch_size=5):
-    rewritten_headlines = []
-    for i in range(0, len(titles), batch_size):
-        batch_titles = titles[i:i+batch_size]
-        batch_abstracts = abstracts[i:i+batch_size]
+Your task is to rewrite the following news headline to be more engaging, SEO-optimized, and still factually accurate based on the article abstract.
 
-        prompts = "\n\n".join([
-            f"Title: {t}\nAbstract: {a}\nRewritten Headline:" for t, a in zip(batch_titles, batch_abstracts)
-        ])
+Use clear, active language and keep it under 15 words.
 
-        response = openai.ChatCompletion.create(
+---
+
+Title: {title}
+
+Abstract: {abstract}
+
+Rewritten Headline:"""
+
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an expert news editor. Rewrite each headline to be SEO-optimized, clear, engaging, under 15 words."},
-                {"role": "user", "content": prompts}
+                {"role": "system", "content": "You are a professional news editor."},
+                {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=50 * batch_size,
+            max_tokens=50,
         )
+        rewritten = response.choices[0].message.content.strip()
+        if len(rewritten) < 5 or rewritten.lower() in ["", "the new york times"]:
+            rewritten = title
+        responses.append(rewritten)
+    return responses
 
-        completions = response["choices"][0]["message"]["content"].split("\n\n")
-        completions = [c.strip() for c in completions if c.strip()]
-        rewritten_headlines.extend(completions)
-    return rewritten_headlines
+def batch_generate_explanations(titles, abstracts):
+    responses = []
+    for title, abstract in zip(titles, abstracts):
+        prompt = f"""You are an editorial assistant.
 
-def batch_generate_explanations(titles, abstracts, batch_size=5):
-    explanations = []
-    for i in range(0, len(titles), batch_size):
-        batch_titles = titles[i:i+batch_size]
-        batch_abstracts = abstracts[i:i+batch_size]
+Write one sentence explaining why the following news article is important to readers.
 
-        prompts = "\n\n".join([
-            f"Title: {t}\nAbstract: {a}\nExplanation:" for t, a in zip(batch_titles, batch_abstracts)
-        ])
+Focus on clarity and importance for a general audience.
 
-        response = openai.ChatCompletion.create(
+---
+
+Title: {title}
+
+Abstract: {abstract}
+
+Explanation:"""
+
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an editorial assistant. Write one sentence explaining why each article is important."},
-                {"role": "user", "content": prompts}
+                {"role": "system", "content": "You are a professional editorial assistant."},
+                {"role": "user", "content": prompt}
             ],
             temperature=0.4,
-            max_tokens=60 * batch_size,
+            max_tokens=60,
         )
+        explanation = response.choices[0].message.content.strip()
+        responses.append(explanation)
+    return responses
 
-        completions = response["choices"][0]["message"]["content"].split("\n\n")
-        completions = [c.strip() for c in completions if c.strip()]
-        explanations.extend(completions)
-    return explanations
-
-# --- 7. Retrieval, Rewriting, and Saving ---
-
+# --- 6. Retrieval and curation ---
 all_curated_articles = []
 
 for topic, query_text in editorial_queries.items():
     if topic not in fresh_topics:
         continue
 
-    print(f"Curating articles for: {topic}")
+    print(f"\n🟢 Curating articles for: {topic}")
 
-    # Embed query and retrieve top 5 articles
     query_embedding = model.encode([query_text])
     D, I = index.search(np.array(query_embedding), k=5)
     topic_articles = articles_df.iloc[I[0]].copy()
 
-    # Batch rewrite headlines and generate explanations
     titles = topic_articles["title"].tolist()
     abstracts = topic_articles["abstract"].tolist()
 
     rewritten_titles = batch_rewrite_headlines(titles, abstracts)
     explanations = batch_generate_explanations(titles, abstracts)
 
-    topic_articles["original_title"] = topic_articles["title"]
     topic_articles["rewritten_title"] = rewritten_titles
     topic_articles["explanation"] = explanations
     topic_articles["topic"] = topic
 
-    # Save topic-specific file
     safe_topic = topic.replace(" ", "_").replace("/", "_").lower()
     filename = f"retrieved_{safe_topic}.csv"
     topic_articles.to_csv(filename, index=False)
-    print(f"Saved curated articles for {topic} to {filename}")
+
+    print(f"💾 Saved curated articles for '{topic}' to {filename}")
 
     all_curated_articles.append(topic_articles)
 
-# --- 8. Save full curated daily output ---
+# --- 7. Save full daily curation output ---
 if all_curated_articles:
     full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
     full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
-    print("Saved full curated daily output to curated_full_daily_output.csv")
-else:
-    print("No fresh topics today.")
+    print("\n✅ Saved full curated daily output to curated_full_daily_output.csv")
 
-# --- 9. Update memory ---
+    print("\n🎯 Sample curated articles:")
+    print(full_curated_df[["topic", "title", "rewritten_title", "explanation"]].head(20))
+else:
+    print("\nℹ No fresh topics today. Nothing new to save.")
+
+# --- 8. Update memory for tomorrow ---
 save_topics(today_topics)
-print("Memory updated for tomorrow.")
+print("\n🧠 Memory updated!")
