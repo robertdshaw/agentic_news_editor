@@ -272,11 +272,11 @@ def display_article(col, article, is_main=False):
         
         if is_main:
             st.markdown(f"## {article['rewritten_title']}")
-            st.image(get_article_image(article["topic"]))
+            st.image(get_article_image(article["topic"]), caption=article["topic"], use_container_width=True)
             st.markdown(f'<p class="byline">By {random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])}, {article["topic"]} Editor</p>', unsafe_allow_html=True)
         else:
             st.markdown(f"### {article['rewritten_title']}")
-            st.image(get_article_image(article["topic"]))
+            st.image(get_article_image(article["topic"]), caption=article["topic"], use_container_width=True)
         
         # Show abstract and explanation
         st.write(f"{article['abstract'][:200]}..." if len(article['abstract']) > 200 else article['abstract'])
