@@ -15,7 +15,7 @@ from PIL import Image
 st.set_page_config(
     page_title="The Daily Chronicle",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded" # Make sidebar expanded by default
 )
 
 # --- Custom CSS for newspaper styling ---
@@ -295,6 +295,12 @@ def load_curated_articles():
 
 # --- Main Application Logic ---
 def main():
+    # Make sidebar explicitly visible with a large noticeable header
+    with st.sidebar:
+        st.title("📰 NEWSPAPER CONTROLS")
+        st.markdown("### Use these controls to manage your newspaper")
+        st.markdown("---")
+    
     # Display newspaper header
     st.markdown('<h1 class="newspaper-title">THE DAILY CHRONICLE</h1>', unsafe_allow_html=True)
     st.markdown('<p class="newspaper-motto">Delivering Truth, Inspiring Minds</p>', unsafe_allow_html=True)
@@ -312,10 +318,11 @@ def main():
     # Breaking news banner - can be dynamically generated
     st.markdown('<div class="breaking-news">LATEST UPDATES: Curated news from across the globe</div>', unsafe_allow_html=True)
     
-    # Setup sidebar for controls
+    # Add a notice about the sidebar at the top
+    st.info("⬅️ Use the sidebar on the left for curation controls. If you don't see it, click the '>' arrow in the top-left corner.")
+    
+    # Setup the rest of the sidebar controls
     with st.sidebar:
-        st.title("Newspaper Curation Controls")
-        st.write("Use these controls to manage your curated newspaper")
         
         # Editorial queries - same as in original script
         editorial_queries = {
@@ -381,6 +388,11 @@ def main():
             else:
                 st.error("No previously curated articles found")
     
+    # Add a prominent button to show sidebar if it's hidden
+    if st.button("🔍 Show Curation Controls", use_container_width=True):
+        # This won't actually show the sidebar, but helps users understand they need to click the arrow
+        st.info("Look for the '>' arrow in the top-left corner of the screen to expand the sidebar")
+    
     # Check if we have articles to display
     if 'loaded_articles' in st.session_state and st.session_state.loaded_articles is not None:
         articles_df = st.session_state.loaded_articles
@@ -395,7 +407,7 @@ def main():
                 main_article = articles_df.iloc[0]
                 display_article(main_col, main_article, is_main=True)
         
-        # Sidebar with "In Brief" articles
+        # Article sidebar (not to be confused with Streamlit's sidebar)
         with sidebar_col:
             st.markdown('<div class="sidebar-header">IN BRIEF</div>', unsafe_allow_html=True)
             
@@ -426,7 +438,7 @@ def main():
         st.markdown('<div class="advert-container">', unsafe_allow_html=True)
         st.markdown("### ADVERTISEMENT")
         st.write("Support quality journalism with a subscription to The Daily Chronicle.")
-        st.button("SUBSCRIBE NOW")
+        st.button("SUBSCRIBE NOW", key="subscribe_button")
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Footer
@@ -434,14 +446,66 @@ def main():
         st.write(f"© {today.year} The Daily Chronicle | All Rights Reserved | Built with AI-powered curation")
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        # Display instructions if no articles loaded
-        st.info("👈 Use the sidebar controls to curate or load articles")
-        st.write("This application uses AI to curate and enhance news articles for a daily newspaper format.")
-        st.write("To get started:")
-        st.write("1. Open the sidebar (click the '>' arrow if collapsed)")
-        st.write("2. Select topics you want to feature in your newspaper")
-        st.write("3. Click 'Curate Fresh Articles' to find and enhance new content")
-        st.write("4. Or click 'Load Previously Curated Articles' to view existing content")
+        # Display very clear instructions if no articles loaded
+        st.warning("⚠️ No articles loaded. You need to curate or load articles first.")
+        
+        st.markdown("### How to Get Started:")
+        st.markdown("""
+        1. **Find the sidebar controls** - Look for the ">" arrow in the top-left corner if you don't see the sidebar
+        2. **Select topics** - Choose which news categories you want in your paper
+        3. **Curate articles** - Click the "Curate Fresh Articles" button to find and enhance content
+        4. **Or load existing articles** - Use "Load Previously Curated Articles" to display already curated content
+        """)
+        
+        # Add a visual guide with columns
+        st.markdown("### Visual Guide:")
+        guide_col1, guide_col2 = st.columns([1, 1])
+        
+        with guide_col1:
+            st.markdown("#### Step 1: Sidebar Controls")
+            st.info("Select topics and click 'Curate Fresh Articles'")
+            
+        with guide_col2:
+            st.markdown("#### Step 2: View Results")
+            st.success("Your AI-curated newspaper appears here")
+
+# Add a special trick to make the sidebar always visible
+def inject_sidebar_force_visible():
+    st.markdown("""
+    <style>
+        /* Force sidebar to be open */
+        section[data-testid="stSidebar"] {
+            display: block !important;
+            width: 300px !important;
+            min-width: 300px !important;
+            flex-shrink: 0 !important;
+        }
+        
+        /* Make main content adjust accordingly */
+        .main .block-container {
+            max-width: calc(100% - 300px) !important;
+            padding-left: 1rem !important;
+        }
+        
+        /* Add visual cue */
+        section[data-testid="stSidebar"] .css-1d391kg {
+            background-color: #f0f8ff;
+            padding: 20px;
+            border-right: 2px solid #0066cc;
+        }
+        
+        /* Make sidebar controls more obvious */
+        section[data-testid="stSidebar"] button {
+            width: 100%;
+            background-color: #0066cc;
+            color: white;
+            font-weight: bold;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
+    inject_sidebar_force_visible()
     main()
