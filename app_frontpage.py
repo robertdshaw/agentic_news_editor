@@ -1,56 +1,68 @@
 import streamlit as st
 import pandas as pd
+import random
 
-# --- 1. Set page config FIRST ---
-st.set_page_config(page_title="Agentic AI News Editor", layout="wide")
+# --- 1. Set up page ---
+st.set_page_config(page_title="Agentic Daily - Curated for You!", layout="wide")
 
-# --- 2. Load curated articles ---
-@st.cache_data
-def load_curated_articles():
-    try:
-        return pd.read_csv("curated_full_daily_output.csv")
-    except FileNotFoundError:
-        st.error("No curated articles found. Run the curation script first.")
-        return pd.DataFrame()
-
-curated_df = load_curated_articles()
-
-if curated_df.empty:
+# --- 2. Load data ---
+try:
+    df = pd.read_csv("curated_full_daily_output.csv")
+except FileNotFoundError:
+    st.error("❌ No curated articles found. Run the daily curation script first.")
     st.stop()
 
-# --- 3. Front page title ---
-st.title("🗞️ Agentic AI News Editor - Today's Front Page")
-st.markdown("##### Curated daily using AI rewriting, editorial explanations, and topic curation.")
+# --- 3. Prepare article images ---
+# Example list of placeholder news images
+placeholder_images = [
+    "https://source.unsplash.com/featured/?news",
+    "https://source.unsplash.com/featured/?newspaper",
+    "https://source.unsplash.com/featured/?journalism",
+    "https://source.unsplash.com/featured/?city,skyline",
+    "https://source.unsplash.com/featured/?technology",
+    "https://source.unsplash.com/featured/?politics",
+    "https://source.unsplash.com/featured/?climate",
+    "https://source.unsplash.com/featured/?health",
+    "https://source.unsplash.com/featured/?environment",
+]
 
-st.markdown("---")
+# --- 4. Sidebar Filters ---
+st.sidebar.title("🧠 Customize Your Front Page")
+selected_topic = st.sidebar.selectbox(
+    "Choose a section:", 
+    options=["All Topics"] + sorted(df["topic"].unique())
+)
 
-# --- 4. Group by editorial topics ---
-topics = curated_df["topic"].unique()
+# Filter articles based on selected topic
+if selected_topic != "All Topics":
+    filtered_df = df[df["topic"] == selected_topic]
+else:
+    filtered_df = df.copy()
 
-for topic in topics:
-    st.subheader(f"📚 {topic}")
-    
-    topic_articles = curated_df[curated_df["topic"] == topic]
+# --- 5. Title and Intro ---
+st.title("🗞 Agentic Daily - Curated for You!")
+st.caption("Your personalized, AI-curated front page. Freshly updated daily!")
 
-    # Arrange articles in a 2-column layout
-    cols = st.columns(2)
+# --- 6. Main Front Page Layout ---
+for idx, row in filtered_df.iterrows():
+    with st.container():
+        cols = st.columns([2, 5])  # small image column + larger text column
 
-    for idx, row in topic_articles.iterrows():
-        with cols[idx % 2]:  # Alternate articles between two columns
-            with st.container():
-                st.markdown(f"### 📰 {row['rewritten_title']}")
-                
-                # Small subtitle info
-                st.caption(f"**Category:** {row['category']}  |  **Original Headline:** {row['title']}")
-                
-                # Important highlight
-                st.markdown(f"**🧠 Why It Matters:** {row['explanation']}")
+        # Random image for placeholder
+        image_url = random.choice(placeholder_images)
+        cols[0].image(image_url, use_column_width=True)
 
-                # Abstract inside an expandable block
-                with st.expander("📖 Read Abstract"):
-                    st.markdown(f"{row['abstract']}")
+        with cols[1]:
+            st.subheader(row["rewritten_title"])
+            st.write(f"**Original Headline:** {row['title']}")
+            st.write(f"*Category: {row['topic']}*")
+            st.markdown(f"> {row['explanation']}")
 
-                st.markdown("---")
+        st.markdown("---")  # separator between articles
 
-# --- 5. Footer ---
-st.markdown("#### 🛠️ Powered by Streamlit + OpenAI | Curated automatically every 24 hours.")
+# --- 7. Footer ---
+st.write("")
+st.markdown(
+    "<center><small>© 2025 Agentic Daily - Powered by AI News Curation</small></center>", 
+    unsafe_allow_html=True
+)
