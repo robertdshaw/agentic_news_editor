@@ -1,6 +1,6 @@
 import os
-os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
-import streamlit_torch_fix
+# os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
+import disable_torch_watch
 import streamlit as st
 import json
 import pandas as pd
