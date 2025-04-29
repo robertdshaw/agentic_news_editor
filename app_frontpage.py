@@ -73,6 +73,32 @@ def apply_custom_css():
     .element-container .stMarkdown {
         margin-bottom: 0.5rem;
     }
+    
+    /* Style for original headlines */
+    .original-headline {
+        font-style: italic;
+        color: #777;
+        margin-bottom: 5px;
+        padding: 4px 8px;
+        background-color: #f8f9fa;
+        border-left: 3px solid #ccc;
+        font-size: 0.9em;
+    }
+    
+    /* Style for rewritten headlines */
+    .rewritten-headline {
+        font-weight: bold;
+        color: #000;
+        margin-top: 0;
+    }
+    
+    /* Title comparison box */
+    .title-comparison {
+        margin-bottom: 15px;
+        padding: 8px;
+        border-radius: 4px;
+        background-color: #f5f5f5;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -270,7 +296,9 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
             # Fallback to random articles
             random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
             topic_articles = articles_df.iloc[random_indices].copy()
-            topic_articles["original_title"] = topic_articles["title"]
+        
+        # Store original title explicitly
+        topic_articles["original_title"] = topic_articles["title"].copy()
         
         # Process each article individually
         total = len(topic_articles)
@@ -395,6 +423,15 @@ def display_article_image(topic, article_id=None, is_main=False):
         """, unsafe_allow_html=True)
         return False
 
+def display_headline_comparison(original_title, rewritten_title):
+    """Display original and rewritten titles with clear styling"""
+    st.markdown(f"""
+    <div class="title-comparison">
+        <div class="original-headline">Original: {original_title}</div>
+        <div class="rewritten-headline">{rewritten_title}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 def load_curated_articles():
     """Load previously curated articles if available"""
     try:
@@ -431,6 +468,11 @@ def main():
         
         # Article count per topic
         articles_per_topic = st.slider("Articles per topic", 1, 10, 3, 1)
+        
+        # Display settings
+        st.subheader("Display Settings")
+        show_headline_comparison = st.toggle("Show headline comparison", value=True, 
+                                          help="Display both original and AI-rewritten headlines")
         
         # Action buttons
         curate_button = st.button("CURATE FRESH ARTICLES", use_container_width=True)
@@ -502,6 +544,9 @@ def main():
                 else:
                     st.error("No previously curated articles found")
         
+        # Store headline comparison preference in session state
+        st.session_state.show_headline_comparison = show_headline_comparison
+        
         # Image path check
         st.markdown("---")
         st.subheader("Image Path Check")
@@ -531,6 +576,9 @@ def main():
         with cols[i]:
             st.markdown(f'<div class="nav-item">{item}</div>', unsafe_allow_html=True)
     
+    # Get headline comparison preference
+    show_comparison = st.session_state.get('show_headline_comparison', True)
+    
     # Check if we have articles to display
     if 'loaded_articles' in st.session_state and st.session_state.loaded_articles is not None and len(st.session_state.loaded_articles) > 0:
         articles_df = st.session_state.loaded_articles
@@ -549,9 +597,11 @@ def main():
                 # Article tag
                 st.markdown(f'<div class="article-tag">{main_article["topic"]}</div>', unsafe_allow_html=True)
                 
-                # Title
-                st.markdown(f"**Original:** {main_article['original_title']}")
-                st.subheader(main_article['rewritten_title'])
+                # Title comparison - either use the new comparison function or the old way
+                if show_comparison:
+                    display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
+                else:
+                    st.subheader(main_article['rewritten_title'])
                 
                 # Author byline
                 author = random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])
@@ -593,9 +643,11 @@ def main():
                     # Article tag
                     st.markdown(f'<div class="article-tag">{article["topic"]}</div>', unsafe_allow_html=True)
                     
-                    # Title
-                    st.markdown(f"**Original:** {article['original_title']}")
-                    st.markdown(f"### {article['rewritten_title']}")
+                    # Title comparison 
+                    if show_comparison:
+                        display_headline_comparison(article['original_title'], article['rewritten_title'])
+                    else:
+                        st.markdown(f"### {article['rewritten_title']}")
                     
                     # Image - use article's index as a consistent ID for image selection
                     display_article_image(article["topic"], article_id=article.name)
@@ -630,8 +682,11 @@ def main():
                     with cols[i % 2]:
                         st.markdown('<div class="article-box">', unsafe_allow_html=True)
                         
-                        # Title
-                        st.markdown(f"### {article['rewritten_title']}")
+                        # Title comparison for topic sections (was missing in original)
+                        if show_comparison:
+                            display_headline_comparison(article['original_title'], article['rewritten_title'])
+                        else:
+                            st.markdown(f"### {article['rewritten_title']}")
                         
                         # Image - use article's index as a consistent ID for image selection
                         display_article_image(article["topic"], article_id=article.name)
@@ -700,15 +755,3 @@ def main():
                 <p>Your newspaper will include featured articles, trending stories, and topic-specific sections with images.</p>
             </div>
             """, unsafe_allow_html=True)
-
-# Make sure to create these session state variables
-if 'curation_started' not in st.session_state:
-    st.session_state.curation_started = False
-if 'curation_complete' not in st.session_state:
-    st.session_state.curation_complete = False
-    
-show_debug_info()
-
-# Run the main application
-if __name__ == "__main__":
-    main()
