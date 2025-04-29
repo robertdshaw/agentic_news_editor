@@ -7,13 +7,31 @@ import openai
 import os
 from sentence_transformers import SentenceTransformer
 
+
 # --- 2. Set up OpenAI API Key ---
 from dotenv import load_dotenv
 import os
-import openai
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+MAX_REQUESTS_PER_RUN = 50
+
+request_count = 0
+
+def safe_gpt_request(prompt):
+    global request_count
+    if request_count >= MAX_REQUESTS_PER_RUN:
+        raise Exception("Reached maximum GPT request limit for this run!")
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "system", "content": "You are helpful."},
+                  {"role": "user", "content": prompt}],
+        temperature=0.4,
+        max_tokens=60,
+    )
+    request_count += 1
+    return response["choices"][0]["message"]["content"]
 
 # --- 3. Load FAISS index, articles metadata, and embedding model ---
 print("Loading index, metadata, and models...")
