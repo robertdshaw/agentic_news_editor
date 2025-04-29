@@ -1,6 +1,11 @@
 import os
 # os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
-import disable_torch_watch
+# Import disable_torch_watch conditionally to avoid errors
+try:
+    import disable_torch_watch
+except ImportError:
+    pass  # Silently continue if not available
+
 import streamlit as st
 import json
 import pandas as pd
@@ -469,10 +474,10 @@ def main():
         # Article count per topic
         articles_per_topic = st.slider("Articles per topic", 1, 10, 3, 1)
         
-        # Display settings
+        # Display settings - use checkbox instead of toggle for compatibility
         st.subheader("Display Settings")
-        show_headline_comparison = st.toggle("Show headline comparison", value=True, 
-                                          help="Display both original and AI-rewritten headlines")
+        show_headline_comparison = st.checkbox("Show headline comparison", value=True, 
+                                           help="Display both original and AI-rewritten headlines")
         
         # Action buttons
         curate_button = st.button("CURATE FRESH ARTICLES", use_container_width=True)
@@ -576,7 +581,7 @@ def main():
         with cols[i]:
             st.markdown(f'<div class="nav-item">{item}</div>', unsafe_allow_html=True)
     
-    # Get headline comparison preference
+    # Get headline comparison preference (with fallback)
     show_comparison = st.session_state.get('show_headline_comparison', True)
     
     # Check if we have articles to display
@@ -599,7 +604,9 @@ def main():
                 
                 # Title comparison - either use the new comparison function or the old way
                 if show_comparison:
-                    display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
+                    # Check if original_title exists, fallback to title if not
+                    original_title = main_article.get('original_title', main_article['title'])
+                    display_headline_comparison(original_title, main_article['rewritten_title'])
                 else:
                     st.subheader(main_article['rewritten_title'])
                 
@@ -645,7 +652,9 @@ def main():
                     
                     # Title comparison 
                     if show_comparison:
-                        display_headline_comparison(article['original_title'], article['rewritten_title'])
+                        # Check if original_title exists, fallback to title if not
+                        original_title = article.get('original_title', article['title'])
+                        display_headline_comparison(original_title, article['rewritten_title'])
                     else:
                         st.markdown(f"### {article['rewritten_title']}")
                     
@@ -684,7 +693,9 @@ def main():
                         
                         # Title comparison for topic sections (was missing in original)
                         if show_comparison:
-                            display_headline_comparison(article['original_title'], article['rewritten_title'])
+                            # Check if original_title exists, fallback to title if not
+                            original_title = article.get('original_title', article['title'])
+                            display_headline_comparison(original_title, article['rewritten_title'])
                         else:
                             st.markdown(f"### {article['rewritten_title']}")
                         
@@ -694,7 +705,7 @@ def main():
                         # Short abstract
                         abstract = article['abstract']
                         if abstract and len(abstract) > 100:
-                            abstract = abstract[:100] + "..."
+                            abstract = article['abstract'][:100] + "..."
                         st.write(abstract)
                         
                         # Read more link
@@ -755,3 +766,17 @@ def main():
                 <p>Your newspaper will include featured articles, trending stories, and topic-specific sections with images.</p>
             </div>
             """, unsafe_allow_html=True)
+
+# Make sure to create these session state variables
+if 'curation_started' not in st.session_state:
+    st.session_state.curation_started = False
+if 'curation_complete' not in st.session_state:
+    st.session_state.curation_complete = False
+if 'show_headline_comparison' not in st.session_state:
+    st.session_state.show_headline_comparison = True
+    
+show_debug_info()
+
+# Run the main application
+if __name__ == "__main__":
+    main()
