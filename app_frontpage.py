@@ -99,6 +99,67 @@ def apply_custom_css():
         border-radius: 4px;
         background-color: #f5f5f5;
     }
+    
+    /* Add navigation styling */
+    .newspaper-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .nav-item {
+        text-align: center;
+        font-weight: bold;
+        padding: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .article-tag {
+        display: inline-block;
+        background-color: #f0f0f0;
+        padding: 2px 8px;
+        margin-bottom: 8px;
+        font-size: 0.8em;
+        border-radius: 3px;
+        font-weight: bold;
+        color: #555;
+    }
+    
+    .article-byline {
+        font-style: italic;
+        color: #666;
+        margin-bottom: 10px;
+        font-size: 0.9em;
+    }
+    
+    .article-why-matters {
+        background-color: #f9f9f9;
+        padding: 10px;
+        border-left: 3px solid #007bff;
+        margin: 10px 0;
+    }
+    
+    .section-title {
+        border-bottom: 2px solid #ddd;
+        padding-bottom: 5px;
+        margin-top: 30px;
+        margin-bottom: 20px;
+    }
+    
+    .article-box {
+        padding: 10px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .footer {
+        text-align: center;
+        margin-top: 50px;
+        padding: 20px;
+        background-color: #f9f9f9;
+        border-top: 1px solid #ddd;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -443,7 +504,6 @@ def enforce_user_need_balance(df, quota={"Inspire": 1, "Educate": 2, "Update": 1
         balanced.append(need_articles)
     return pd.concat(balanced).drop_duplicates()
 
-
 def get_stock_image_path(topic, article_id=None):
     """
     Return the path to a stock image for the given topic.
@@ -452,8 +512,9 @@ def get_stock_image_path(topic, article_id=None):
     # Map topics to their corresponding image prefixes
     topic_to_prefix = {
         "Top Technology News": "tech",
-        "Business Stories": "Economic",
-        "Global Politics": "educate",
+        "Business Stories": "business",
+        "Business and Economy": "business",
+        "Global Politics": "politics",
         "Climate and Environment": "climate",
         "Health and Wellness": "health",
         # "Education": "educate",
@@ -488,7 +549,7 @@ def display_article_image(topic, article_id=None, is_main=False):
         
         # Check if the file exists before trying to display it
         if os.path.exists(image_path):
-            st.image(image_path, width=width, use_container_width=True)
+            st.image(image_path, width=width, use_column_width=True)
             return True
         else:
             # Log that the file was not found
@@ -502,6 +563,7 @@ def display_article_image(topic, article_id=None, is_main=False):
         fallback_color = {
             "Top Technology News": "#007BFF",
             "Business Stories": "#6F42C1",
+            "Business and Economy": "#6F42C1",
             "Global Politics": "#DC3545",
             "Climate and Environment": "#28A745",
             "Health and Wellness": "#FD7E14",
@@ -677,7 +739,7 @@ def main():
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Navigation menu using Streamlit columns for reliability
-    cols = st.columns(7)
+    cols = st.columns(6)
     nav_items = ["POLITICS", "TECH", "BUSINESS", "OPINION", "HEALTH", "CLIMATE"]
     
     for i, item in enumerate(nav_items):
@@ -847,8 +909,8 @@ def main():
                 st.success("Click 'CURATE FRESH ARTICLES' to generate your personalized newspaper")
                 try:
                     # Try to show a sample inspire image if available
-                    if os.path.exists("health.jpg"):
-                        st.image("health.jpg", width=300)
+                    if os.path.exists("health1.jpg"):
+                        st.image("health1.jpg", width=300)
                 except:
                     pass
             
@@ -863,3 +925,6 @@ def main():
                 <p>Your newspaper will include featured articles, trending stories, and topic-specific sections with images.</p>
             </div>
             """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
