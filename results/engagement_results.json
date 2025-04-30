@@ -1,34 +1,34 @@
 {
   "headline1": {
     "original": {
-      "headline": "obsoletely flawless: from smart glasses to 3d tvs, the tech products from the start of the decade that haven't stood the test of time",
+      "headline": "still an 'act of god?' climate change increasingly seen as risk to business, economy",
       "features": {
-        "length": 133.0,
-        "word_count": 24.0,
-        "flesch_reading_ease": 72.5,
-        "flesch_kincaid_grade": 9.1,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.20833333333333334,
-        "avg_word_length": 4.583333333333333
+        "length": 84.0,
+        "word_count": 14.0,
+        "flesch_reading_ease": 64.37,
+        "flesch_kincaid_grade": 6.0,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.21428571428571427,
+        "avg_word_length": 5.071428571428571
       },
-      "predicted_ctr": 0.024856250000000003
+      "predicted_ctr": 0.02703682142857143
     },
     "rewritten": {
-      "headline": "\"Tech Flops: Smart Glasses and 3D TVs Fail to Stand Test of Time\"",
+      "headline": "Climate Change Poses Growing Risk to Business and Economy, No Longer 'Act of God'",
       "features": {
-        "length": 65.0,
-        "word_count": 13.0,
-        "flesch_reading_ease": 92.12,
-        "flesch_kincaid_grade": 3.6,
-        "complex_words": 1.0,
-        "complex_word_percentage": 0.07692307692307693,
-        "avg_word_length": 4.076923076923077
+        "length": 81.0,
+        "word_count": 14.0,
+        "flesch_reading_ease": 57.27,
+        "flesch_kincaid_grade": 8.8,
+        "complex_words": 5.0,
+        "complex_word_percentage": 0.35714285714285715,
+        "avg_word_length": 4.857142857142857
       },
-      "predicted_ctr": 0.03420776923076923
+      "predicted_ctr": 0.024475035714285717
     },
     "improvements": {
-      "absolute": 0.009351519230769226,
-      "relative_percent": 37.622405756174906
+      "absolute": -0.0025617857142857144,
+      "relative_percent": -9.475173407694005
     }
   },
   "headline2": {
@@ -46,216 +46,88 @@
       "predicted_ctr": 0.03368853846153846
     },
     "rewritten": {
-      "headline": "\"Discover 15 nostalgic household items disappearing from modern homes\"",
+      "headline": "\"Rediscover 15 nostalgic household items missing from modern homes\"",
       "features": {
-        "length": 70.0,
+        "length": 67.0,
         "word_count": 9.0,
-        "flesch_reading_ease": 20.04,
-        "flesch_kincaid_grade": 12.7,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.5555555555555556,
-        "avg_word_length": 6.888888888888889
+        "flesch_reading_ease": 28.5,
+        "flesch_kincaid_grade": 11.5,
+        "complex_words": 6.0,
+        "complex_word_percentage": 0.6666666666666666,
+        "avg_word_length": 6.555555555555555
       },
-      "predicted_ctr": 0.014759000000000001
+      "predicted_ctr": 0.0159125
     },
     "improvements": {
-      "absolute": -0.018929538461538456,
-      "relative_percent": -56.18984772269043
+      "absolute": -0.017776038461538458,
+      "relative_percent": -52.765834534000376
     }
   },
   "headline3": {
     "original": {
-      "headline": "facebook says it will deliver news corp stories",
+      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
       "features": {
-        "length": 47.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": 71.82,
-        "flesch_kincaid_grade": 5.2,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.25,
-        "avg_word_length": 5.0
+        "length": 64.0,
+        "word_count": 11.0,
+        "flesch_reading_ease": 68.77,
+        "flesch_kincaid_grade": 6.4,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.2727272727272727,
+        "avg_word_length": 4.909090909090909
       },
-      "predicted_ctr": 0.028472000000000004
+      "predicted_ctr": 0.027632340909090912
     },
     "rewritten": {
-      "headline": "Facebook to Feature News Corp's Wall Street Journal Stories in New Tab.",
+      "headline": "\"Ex-U.S. Ambassador Warns of Trump's War-Driven Diplomacy Shift\"",
       "features": {
-        "length": 71.0,
-        "word_count": 12.0,
-        "flesch_reading_ease": 84.68,
-        "flesch_kincaid_grade": 4.4,
-        "complex_words": 3.0,
+        "length": 64.0,
+        "word_count": 8.0,
+        "flesch_reading_ease": 37.98,
+        "flesch_kincaid_grade": 10.0,
+        "complex_words": 2.0,
         "complex_word_percentage": 0.25,
-        "avg_word_length": 5.0
+        "avg_word_length": 7.125
       },
-      "predicted_ctr": 0.031365500000000004
+      "predicted_ctr": 0.020858
     },
     "improvements": {
-      "absolute": 0.0028935000000000002,
-      "relative_percent": 10.162615903343635
+      "absolute": -0.00677434090909091,
+      "relative_percent": -24.515986290767657
     }
   },
   "headline4": {
     "original": {
-      "headline": "post premium: our best stories for the week of nov. 4   10",
+      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
       "features": {
-        "length": 58.0,
-        "word_count": 12.0,
-        "flesch_reading_ease": 84.68,
-        "flesch_kincaid_grade": 4.4,
-        "complex_words": 1.0,
-        "complex_word_percentage": 0.08333333333333333,
-        "avg_word_length": 3.75
+        "length": 64.0,
+        "word_count": 11.0,
+        "flesch_reading_ease": 68.77,
+        "flesch_kincaid_grade": 6.4,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.2727272727272727,
+        "avg_word_length": 4.909090909090909
       },
-      "predicted_ctr": 0.0324905
+      "predicted_ctr": 0.027632340909090912
     },
     "rewritten": {
-      "headline": "\"Top Denver Post Stories: Nov. 4-10 Highlighted with Sunday Lead Story\"",
+      "headline": "\"Concerns Mount Over Trump's Diplomatic Approach Amid Ousting of Ambassador\"",
       "features": {
-        "length": 71.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 74.35,
-        "flesch_kincaid_grade": 4.3,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.18181818181818182,
-        "avg_word_length": 5.545454545454546
+        "length": 76.0,
+        "word_count": 10.0,
+        "flesch_reading_ease": 19.03,
+        "flesch_kincaid_grade": 13.1,
+        "complex_words": 6.0,
+        "complex_word_percentage": 0.6,
+        "avg_word_length": 6.7
       },
-      "predicted_ctr": 0.02950147727272727
+      "predicted_ctr": 0.014231750000000001
     },
     "improvements": {
-      "absolute": -0.002989022727272729,
-      "relative_percent": -9.199682144850739
+      "absolute": -0.01340059090909091,
+      "relative_percent": -48.496039308353275
     }
   },
   "headline5": {
-    "original": {
-      "headline": "still an 'act of god?' climate change increasingly seen as risk to business, economy",
-      "features": {
-        "length": 84.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 64.37,
-        "flesch_kincaid_grade": 6.0,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.21428571428571427,
-        "avg_word_length": 5.071428571428571
-      },
-      "predicted_ctr": 0.02703682142857143
-    },
-    "rewritten": {
-      "headline": "Climate change emerges as growing threat to business and economy, not just 'act of god'",
-      "features": {
-        "length": 87.0,
-        "word_count": 15.0,
-        "flesch_reading_ease": 64.71,
-        "flesch_kincaid_grade": 8.0,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.26666666666666666,
-        "avg_word_length": 4.866666666666666
-      },
-      "predicted_ctr": 0.02675975
-    },
-    "improvements": {
-      "absolute": -0.0002770714285714321,
-      "relative_percent": -1.024792908084358
-    }
-  },
-  "headline6": {
-    "original": {
-      "headline": "climate anxiety groups are the new self-care",
-      "features": {
-        "length": 44.0,
-        "word_count": 7.0,
-        "flesch_reading_ease": 55.91,
-        "flesch_kincaid_grade": 7.2,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.2857142857142857,
-        "avg_word_length": 5.428571428571429
-      },
-      "predicted_ctr": 0.02465117857142857
-    },
-    "rewritten": {
-      "headline": "\"Climate Anxiety Groups: Unconventional Self-Care Trend Sweeps Global Community\"",
-      "features": {
-        "length": 80.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": -5.35,
-        "flesch_kincaid_grade": 16.2,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.5555555555555556,
-        "avg_word_length": 8.0
-      },
-      "predicted_ctr": 0.00904625
-    },
-    "improvements": {
-      "absolute": -0.01560492857142857,
-      "relative_percent": -63.30297160524054
-    }
-  },
-  "headline7": {
-    "original": {
-      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
-      "features": {
-        "length": 64.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 68.77,
-        "flesch_kincaid_grade": 6.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.909090909090909
-      },
-      "predicted_ctr": 0.027632340909090912
-    },
-    "rewritten": {
-      "headline": "\"Former Ambassador Warns of War Over Diplomacy in Trump Administration\"",
-      "features": {
-        "length": 71.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 10.56,
-        "flesch_kincaid_grade": 14.3,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.4,
-        "avg_word_length": 6.2
-      },
-      "predicted_ctr": 0.013676
-    },
-    "improvements": {
-      "absolute": -0.013956340909090911,
-      "relative_percent": -50.507269561441106
-    }
-  },
-  "headline8": {
-    "original": {
-      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
-      "features": {
-        "length": 64.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 68.77,
-        "flesch_kincaid_grade": 6.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.909090909090909
-      },
-      "predicted_ctr": 0.027632340909090912
-    },
-    "rewritten": {
-      "headline": "\"Trump's Removal of Diplomat Raises Concerns Over War vs. Diplomacy Approach\"",
-      "features": {
-        "length": 77.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 18.01,
-        "flesch_kincaid_grade": 13.5,
-        "complex_words": 7.0,
-        "complex_word_percentage": 0.6363636363636364,
-        "avg_word_length": 6.090909090909091
-      },
-      "predicted_ctr": 0.013756795454545456
-    },
-    "improvements": {
-      "absolute": -0.013875545454545456,
-      "relative_percent": -50.2148750270393
-    }
-  },
-  "headline9": {
     "original": {
       "headline": "still an 'act of god?' climate change increasingly seen as risk to business, economy",
       "features": {
@@ -287,7 +159,7 @@
       "relative_percent": -30.784208308510486
     }
   },
-  "headline10": {
+  "headline6": {
     "original": {
       "headline": "climate anxiety groups are the new self-care",
       "features": {
@@ -319,7 +191,7 @@
       "relative_percent": -60.85075619392292
     }
   },
-  "headline11": {
+  "headline7": {
     "original": {
       "headline": "to crack or not to crack: the regional climate change battle is joined",
       "features": {
@@ -351,7 +223,7 @@
       "relative_percent": -52.85810901267374
     }
   },
-  "headline12": {
+  "headline8": {
     "original": {
       "headline": "climate warning: california continues to burn, new data triples estimates of global flooding",
       "features": {
@@ -383,7 +255,7 @@
       "relative_percent": 18.46679200625253
     }
   },
-  "headline13": {
+  "headline9": {
     "original": {
       "headline": "decades of detailed weather reports pulled from old sailor's logs",
       "features": {
@@ -415,7 +287,7 @@
       "relative_percent": -11.59881863884235
     }
   },
-  "headline14": {
+  "headline10": {
     "original": {
       "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
       "features": {
@@ -447,7 +319,7 @@
       "relative_percent": -50.507269561441106
     }
   },
-  "headline15": {
+  "headline11": {
     "original": {
       "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
       "features": {
@@ -479,7 +351,7 @@
       "relative_percent": -96.38105217618025
     }
   },
-  "headline16": {
+  "headline12": {
     "original": {
       "headline": "diplomat says politicization of foreign policy disturbed him",
       "features": {
@@ -511,7 +383,7 @@
       "relative_percent": 163.3785625070966
     }
   },
-  "headline17": {
+  "headline13": {
     "original": {
       "headline": "us, china spar at southeast asian regional summit",
       "features": {
@@ -543,7 +415,7 @@
       "relative_percent": -22.777205000560798
     }
   },
-  "headline18": {
+  "headline14": {
     "original": {
       "headline": "hong kong protesters call for u.s. help. china sees a conspiracy.",
       "features": {
@@ -575,7 +447,7 @@
       "relative_percent": -47.89243990092945
     }
   },
-  "headline19": {
+  "headline15": {
     "original": {
       "headline": "the biggest medical advances of the decade",
       "features": {
@@ -607,7 +479,7 @@
       "relative_percent": -60.10569503263555
     }
   },
-  "headline20": {
+  "headline16": {
     "original": {
       "headline": "st. louis doctor calls new cdc vaping findings 'a huge discovery'",
       "features": {
@@ -639,7 +511,7 @@
       "relative_percent": -4.003594551086262
     }
   },
-  "headline21": {
+  "headline17": {
     "original": {
       "headline": "angelina jolie: medical advances in women's health are important. but they're only part of the picture",
       "features": {
@@ -671,7 +543,7 @@
       "relative_percent": -65.52590553744069
     }
   },
-  "headline22": {
+  "headline18": {
     "original": {
       "headline": "info about your health is more accessible than ever. but does it help?",
       "features": {
@@ -703,7 +575,7 @@
       "relative_percent": -85.89334224497709
     }
   },
-  "headline23": {
+  "headline19": {
     "original": {
       "headline": "some medical devices more dangerous than first thought",
       "features": {
@@ -735,7 +607,7 @@
       "relative_percent": -68.50383322715989
     }
   },
-  "headline24": {
+  "headline20": {
     "original": {
       "headline": "facebook says it will deliver news corp stories",
       "features": {
@@ -767,7 +639,7 @@
       "relative_percent": 10.162615903343635
     }
   },
-  "headline25": {
+  "headline21": {
     "original": {
       "headline": "post premium: our best stories for the week of nov. 4   10",
       "features": {
@@ -799,7 +671,7 @@
       "relative_percent": 0.0
     }
   },
-  "headline26": {
+  "headline22": {
     "original": {
       "headline": "md good news: haunted house, pumpkin patches, swimming bear",
       "features": {
@@ -831,7 +703,7 @@
       "relative_percent": -14.304141923291153
     }
   },
-  "headline27": {
+  "headline23": {
     "original": {
       "headline": "wildfires; power shutoffs; bad santa; sesame place: ca stories",
       "features": {
@@ -863,7 +735,7 @@
       "relative_percent": -32.69310416235244
     }
   },
-  "headline28": {
+  "headline24": {
     "original": {
       "headline": "top seattle news: reward offered for info on school fire; report on luxury housing boom; more",
       "features": {
@@ -895,7 +767,7 @@
       "relative_percent": 5.508270747565455
     }
   },
-  "headline29": {
+  "headline25": {
     "original": {
       "headline": "obsoletely flawless: from smart glasses to 3d tvs, the tech products from the start of the decade that haven't stood the test of time",
       "features": {
@@ -927,7 +799,7 @@
       "relative_percent": 35.53347130616425
     }
   },
-  "headline30": {
+  "headline26": {
     "original": {
       "headline": "15 household mainstays from your childhood that you won't find in new homes",
       "features": {
@@ -959,7 +831,7 @@
       "relative_percent": -33.58868914558933
     }
   },
-  "headline31": {
+  "headline27": {
     "original": {
       "headline": "2020 energica ego and eva esseesse9 preview",
       "features": {
@@ -991,7 +863,7 @@
       "relative_percent": -67.93178424307705
     }
   },
-  "headline32": {
+  "headline28": {
     "original": {
       "headline": "incredible home gadgets of the future that are available now",
       "features": {
@@ -1023,7 +895,7 @@
       "relative_percent": 42.659887987413285
     }
   },
-  "headline33": {
+  "headline29": {
     "original": {
       "headline": "'geniuses' pitch anti-cancer drug, medical devices at ut health san antonio",
       "features": {
@@ -1056,12 +928,12 @@
     }
   },
   "summary": {
-    "average_original_ctr": 0.02480029080010898,
-    "average_rewritten_ctr": 0.018343778706142344,
-    "average_absolute_improvement": -0.006456512093966639,
-    "average_relative_improvement": -20.88719928174329,
-    "t_statistic": 3.6261764494682796,
-    "p_value": 0.0009881089425922568,
+    "average_original_ctr": 0.024411712683867857,
+    "average_rewritten_ctr": 0.017508601415825557,
+    "average_absolute_improvement": -0.006903111268042303,
+    "average_relative_improvement": -22.133661811328132,
+    "t_statistic": 3.720382143557684,
+    "p_value": 0.000884638849447448,
     "statistically_significant": "yes"
   }
 }
