@@ -14,21 +14,21 @@
       "predicted_ctr": 0.02703682142857143
     },
     "rewritten": {
-      "headline": "Climate Change Poses Growing Risk to Business and Economy, No Longer 'Act of God'",
+      "headline": "\"Climate Change: A Growing Threat to Business and Economy\"",
       "features": {
-        "length": 81.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 57.27,
-        "flesch_kincaid_grade": 8.8,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.35714285714285715,
-        "avg_word_length": 4.857142857142857
+        "length": 58.0,
+        "word_count": 9.0,
+        "flesch_reading_ease": 53.88,
+        "flesch_kincaid_grade": 8.0,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.3333333333333333,
+        "avg_word_length": 5.555555555555555
       },
-      "predicted_ctr": 0.024475035714285717
+      "predicted_ctr": 0.023873000000000002
     },
     "improvements": {
-      "absolute": -0.0025617857142857144,
-      "relative_percent": -9.475173407694005
+      "absolute": -0.003163821428571429,
+      "relative_percent": -11.701898601246183
     }
   },
   "headline2": {
@@ -46,15 +46,15 @@
       "predicted_ctr": 0.03368853846153846
     },
     "rewritten": {
-      "headline": "\"Rediscover 15 nostalgic household items missing from modern homes\"",
+      "headline": "\"Rediscover 15 nostalgic household treasures missing from modern homes\"",
       "features": {
-        "length": 67.0,
+        "length": 71.0,
         "word_count": 9.0,
         "flesch_reading_ease": 28.5,
         "flesch_kincaid_grade": 11.5,
         "complex_words": 6.0,
         "complex_word_percentage": 0.6666666666666666,
-        "avg_word_length": 6.555555555555555
+        "avg_word_length": 7.0
       },
       "predicted_ctr": 0.0159125
     },
@@ -78,21 +78,21 @@
       "predicted_ctr": 0.027632340909090912
     },
     "rewritten": {
-      "headline": "\"Ex-U.S. Ambassador Warns of Trump's War-Driven Diplomacy Shift\"",
+      "headline": "\"Concerns Rise Over Lack of Diplomacy in Trump Administration\"",
       "features": {
-        "length": 64.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": 37.98,
-        "flesch_kincaid_grade": 10.0,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.25,
-        "avg_word_length": 7.125
+        "length": 62.0,
+        "word_count": 9.0,
+        "flesch_reading_ease": 28.5,
+        "flesch_kincaid_grade": 11.5,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.3333333333333333,
+        "avg_word_length": 6.0
       },
-      "predicted_ctr": 0.020858
+      "predicted_ctr": 0.018162499999999998
     },
     "improvements": {
-      "absolute": -0.00677434090909091,
-      "relative_percent": -24.515986290767657
+      "absolute": -0.009469840909090914,
+      "relative_percent": -34.270860149873805
     }
   },
   "headline4": {
@@ -110,21 +110,21 @@
       "predicted_ctr": 0.027632340909090912
     },
     "rewritten": {
-      "headline": "\"Concerns Mount Over Trump's Diplomatic Approach Amid Ousting of Ambassador\"",
+      "headline": "\"Concerns Rise Over Trump's Diplomacy Approach Amid Ambassador Ousting\"",
       "features": {
-        "length": 76.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 19.03,
-        "flesch_kincaid_grade": 13.1,
+        "length": 71.0,
+        "word_count": 9.0,
+        "flesch_reading_ease": 11.58,
+        "flesch_kincaid_grade": 13.9,
         "complex_words": 6.0,
-        "complex_word_percentage": 0.6,
-        "avg_word_length": 6.7
+        "complex_word_percentage": 0.6666666666666666,
+        "avg_word_length": 7.0
       },
-      "predicted_ctr": 0.014231750000000001
+      "predicted_ctr": 0.012105500000000002
     },
     "improvements": {
-      "absolute": -0.01340059090909091,
-      "relative_percent": -48.496039308353275
+      "absolute": -0.01552684090909091,
+      "relative_percent": -56.19082711875001
     }
   },
   "headline5": {
@@ -929,11 +929,11 @@
   },
   "summary": {
     "average_original_ctr": 0.024411712683867857,
-    "average_rewritten_ctr": 0.017508601415825557,
-    "average_absolute_improvement": -0.006903111268042303,
-    "average_relative_improvement": -22.133661811328132,
-    "t_statistic": 3.720382143557684,
-    "p_value": 0.000884638849447448,
+    "average_rewritten_ctr": 0.017321574322229496,
+    "average_absolute_improvement": -0.007090138361638362,
+    "average_relative_improvement": -22.812157910054164,
+    "t_statistic": 3.7989283574811545,
+    "p_value": 0.0007185359201362385,
     "statistically_significant": "yes"
   }
 }
