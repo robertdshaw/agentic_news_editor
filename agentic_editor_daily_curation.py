@@ -124,6 +124,7 @@ for topic, query_text in editorial_queries.items():
     query_embedding = model.encode([query_text])
     D, I = index.search(np.array(query_embedding), k=5)
     topic_articles = articles_df.iloc[I[0]].copy()
+    topic_articles["original_title"] = topic_articles["title"]
 
     titles = topic_articles["title"].tolist()
     abstracts = topic_articles["abstract"].tolist()

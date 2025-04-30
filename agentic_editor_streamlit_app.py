@@ -3,7 +3,7 @@ import pandas as pd
 
 # --- Load Data ---
 st.set_page_config(page_title="Daily Curated News", layout="wide")
-st.title("🗞️ Agentic AI News Editor - Daily Curated Front Page")
+st.title("Agentic AI News Editor - Daily Curated Front Page")
 
 try:
     curated_df = pd.read_csv("curated_full_daily_output.csv")
