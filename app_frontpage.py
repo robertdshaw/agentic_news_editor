@@ -271,7 +271,11 @@ def rewrite_headline(client, title, abstract):
     
     Your task is to rewrite the following news headline to be more engaging, SEO-optimized, and still factually accurate based on the article abstract.
     
-    Use clear, active language and keep it under 15 words.
+    Use clear, active language and keep it under 10 words.
+    
+    Emphasize curiosity and engagement over formality
+    
+    Keep the emotional appeal and avoid making headlines too technical
     
     ---
     
