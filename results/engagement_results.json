@@ -14,24 +14,56 @@
       "predicted_ctr": 0.02703682142857143
     },
     "rewritten": {
-      "headline": "\"Climate Change: A Growing Threat to Business and Economy\"",
+      "headline": "\"Climate Change Threatens Business: A Sinister Revelation\"",
       "features": {
         "length": 58.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 53.88,
-        "flesch_kincaid_grade": 8.0,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.3333333333333333,
-        "avg_word_length": 5.555555555555555
+        "word_count": 7.0,
+        "flesch_reading_ease": 22.07,
+        "flesch_kincaid_grade": 11.9,
+        "complex_words": 4.0,
+        "complex_word_percentage": 0.5714285714285714,
+        "avg_word_length": 7.428571428571429
       },
-      "predicted_ctr": 0.023873000000000002
+      "predicted_ctr": 0.015108607142857146
     },
     "improvements": {
-      "absolute": -0.003163821428571429,
-      "relative_percent": -11.701898601246183
+      "absolute": -0.011928214285714285,
+      "relative_percent": -44.11840466242465
     }
   },
   "headline2": {
+    "original": {
+      "headline": "angelina jolie: medical advances in women's health are important. but they're only part of the picture",
+      "features": {
+        "length": 102.0,
+        "word_count": 16.0,
+        "flesch_reading_ease": 46.44,
+        "flesch_kincaid_grade": 8.8,
+        "complex_words": 5.0,
+        "complex_word_percentage": 0.3125,
+        "avg_word_length": 5.4375
+      },
+      "predicted_ctr": 0.021889625000000003
+    },
+    "rewritten": {
+      "headline": "\"Angelina Jolie: Exciting Breakthroughs Revolutionize Women's Health!\"",
+      "features": {
+        "length": 70.0,
+        "word_count": 7.0,
+        "flesch_reading_ease": -28.7,
+        "flesch_kincaid_grade": 19.0,
+        "complex_words": 5.0,
+        "complex_word_percentage": 0.7142857142857143,
+        "avg_word_length": 9.142857142857142
+      },
+      "predicted_ctr": 0.0027210714285714308
+    },
+    "improvements": {
+      "absolute": -0.019168553571428572,
+      "relative_percent": -87.56912725288154
+    }
+  },
+  "headline3": {
     "original": {
       "headline": "15 household mainstays from your childhood that you won't find in new homes",
       "features": {
@@ -63,775 +95,7 @@
       "relative_percent": -52.765834534000376
     }
   },
-  "headline3": {
-    "original": {
-      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
-      "features": {
-        "length": 64.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 68.77,
-        "flesch_kincaid_grade": 6.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.909090909090909
-      },
-      "predicted_ctr": 0.027632340909090912
-    },
-    "rewritten": {
-      "headline": "\"Concerns Rise Over Lack of Diplomacy in Trump Administration\"",
-      "features": {
-        "length": 62.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 28.5,
-        "flesch_kincaid_grade": 11.5,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.3333333333333333,
-        "avg_word_length": 6.0
-      },
-      "predicted_ctr": 0.018162499999999998
-    },
-    "improvements": {
-      "absolute": -0.009469840909090914,
-      "relative_percent": -34.270860149873805
-    }
-  },
   "headline4": {
-    "original": {
-      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
-      "features": {
-        "length": 64.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 68.77,
-        "flesch_kincaid_grade": 6.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.909090909090909
-      },
-      "predicted_ctr": 0.027632340909090912
-    },
-    "rewritten": {
-      "headline": "\"Concerns Rise Over Trump's Diplomacy Approach Amid Ambassador Ousting\"",
-      "features": {
-        "length": 71.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 11.58,
-        "flesch_kincaid_grade": 13.9,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.6666666666666666,
-        "avg_word_length": 7.0
-      },
-      "predicted_ctr": 0.012105500000000002
-    },
-    "improvements": {
-      "absolute": -0.01552684090909091,
-      "relative_percent": -56.19082711875001
-    }
-  },
-  "headline5": {
-    "original": {
-      "headline": "still an 'act of god?' climate change increasingly seen as risk to business, economy",
-      "features": {
-        "length": 84.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 64.37,
-        "flesch_kincaid_grade": 6.0,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.21428571428571427,
-        "avg_word_length": 5.071428571428571
-      },
-      "predicted_ctr": 0.02703682142857143
-    },
-    "rewritten": {
-      "headline": "Climate Change Poses Growing Financial Risk to Business and Economy",
-      "features": {
-        "length": 67.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 35.95,
-        "flesch_kincaid_grade": 10.7,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.5,
-        "avg_word_length": 5.8
-      },
-      "predicted_ctr": 0.01871375
-    },
-    "improvements": {
-      "absolute": -0.00832307142857143,
-      "relative_percent": -30.784208308510486
-    }
-  },
-  "headline6": {
-    "original": {
-      "headline": "climate anxiety groups are the new self-care",
-      "features": {
-        "length": 44.0,
-        "word_count": 7.0,
-        "flesch_reading_ease": 55.91,
-        "flesch_kincaid_grade": 7.2,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.2857142857142857,
-        "avg_word_length": 5.428571428571429
-      },
-      "predicted_ctr": 0.02465117857142857
-    },
-    "rewritten": {
-      "headline": "\"Climate Anxiety Groups: Unconventional Self-Care Movement Takes Over\"",
-      "features": {
-        "length": 70.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": -4.33,
-        "flesch_kincaid_grade": 15.9,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.5,
-        "avg_word_length": 7.875
-      },
-      "predicted_ctr": 0.00965075
-    },
-    "improvements": {
-      "absolute": -0.01500042857142857,
-      "relative_percent": -60.85075619392292
-    }
-  },
-  "headline7": {
-    "original": {
-      "headline": "to crack or not to crack: the regional climate change battle is joined",
-      "features": {
-        "length": 70.0,
-        "word_count": 13.0,
-        "flesch_reading_ease": 83.66,
-        "flesch_kincaid_grade": 4.8,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.15384615384615385,
-        "avg_word_length": 4.461538461538462
-      },
-      "predicted_ctr": 0.031785038461538455
-    },
-    "rewritten": {
-      "headline": "Mayor Peduto Takes Stand Against Petrochemical Expansion, Sparks Climate Change Debate",
-      "features": {
-        "length": 86.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 18.01,
-        "flesch_kincaid_grade": 13.5,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.45454545454545453,
-        "avg_word_length": 6.909090909090909
-      },
-      "predicted_ctr": 0.014984068181818182
-    },
-    "improvements": {
-      "absolute": -0.016800970279720273,
-      "relative_percent": -52.85810901267374
-    }
-  },
-  "headline8": {
-    "original": {
-      "headline": "climate warning: california continues to burn, new data triples estimates of global flooding",
-      "features": {
-        "length": 92.0,
-        "word_count": 13.0,
-        "flesch_reading_ease": 24.44,
-        "flesch_kincaid_grade": 13.1,
-        "complex_words": 9.0,
-        "complex_word_percentage": 0.6923076923076923,
-        "avg_word_length": 6.153846153846154
-      },
-      "predicted_ctr": 0.014825923076923077
-    },
-    "rewritten": {
-      "headline": "California Wildfires Rage as Global Flooding Threat Triples, Climate Expert Warns",
-      "features": {
-        "length": 81.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 34.93,
-        "flesch_kincaid_grade": 11.1,
-        "complex_words": 7.0,
-        "complex_word_percentage": 0.6363636363636364,
-        "avg_word_length": 6.454545454545454
-      },
-      "predicted_ctr": 0.017563795454545457
-    },
-    "improvements": {
-      "absolute": 0.00273787237762238,
-      "relative_percent": 18.46679200625253
-    }
-  },
-  "headline9": {
-    "original": {
-      "headline": "decades of detailed weather reports pulled from old sailor's logs",
-      "features": {
-        "length": 65.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 69.79,
-        "flesch_kincaid_grade": 6.0,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.4,
-        "avg_word_length": 5.6
-      },
-      "predicted_ctr": 0.027002750000000002
-    },
-    "rewritten": {
-      "headline": "\"19th-century sailor logs reveal climate change trends over 150 years\"",
-      "features": {
-        "length": 70.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 52.87,
-        "flesch_kincaid_grade": 8.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.3,
-        "avg_word_length": 6.1
-      },
-      "predicted_ctr": 0.02387075
-    },
-    "improvements": {
-      "absolute": -0.003132000000000003,
-      "relative_percent": -11.59881863884235
-    }
-  },
-  "headline10": {
-    "original": {
-      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
-      "features": {
-        "length": 64.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 68.77,
-        "flesch_kincaid_grade": 6.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.909090909090909
-      },
-      "predicted_ctr": 0.027632340909090912
-    },
-    "rewritten": {
-      "headline": "\"Former Ambassador Warns of War Over Diplomacy in Trump Administration\"",
-      "features": {
-        "length": 71.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 10.56,
-        "flesch_kincaid_grade": 14.3,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.4,
-        "avg_word_length": 6.2
-      },
-      "predicted_ctr": 0.013676
-    },
-    "improvements": {
-      "absolute": -0.013956340909090911,
-      "relative_percent": -50.507269561441106
-    }
-  },
-  "headline11": {
-    "original": {
-      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
-      "features": {
-        "length": 64.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 68.77,
-        "flesch_kincaid_grade": 6.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.909090909090909
-      },
-      "predicted_ctr": 0.027632340909090912
-    },
-    "rewritten": {
-      "headline": "\"Trump's Diplomatic Crisis: Ambassador Ousted Amid Giuliani's Influence\"",
-      "features": {
-        "length": 72.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": -38.17,
-        "flesch_kincaid_grade": 20.6,
-        "complex_words": 7.0,
-        "complex_word_percentage": 0.875,
-        "avg_word_length": 8.125
-      },
-      "predicted_ctr": 0.001
-    },
-    "improvements": {
-      "absolute": -0.02663234090909091,
-      "relative_percent": -96.38105217618025
-    }
-  },
-  "headline12": {
-    "original": {
-      "headline": "diplomat says politicization of foreign policy disturbed him",
-      "features": {
-        "length": 60.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": -4.33,
-        "flesch_kincaid_grade": 15.9,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.625,
-        "avg_word_length": 6.625
-      },
-      "predicted_ctr": 0.008807
-    },
-    "rewritten": {
-      "headline": "Diplomat George Kent Testifies on Ukraine in Trump Impeachment Probe",
-      "features": {
-        "length": 68.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 52.87,
-        "flesch_kincaid_grade": 8.4,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.4,
-        "avg_word_length": 5.9
-      },
-      "predicted_ctr": 0.02319575
-    },
-    "improvements": {
-      "absolute": 0.01438875,
-      "relative_percent": 163.3785625070966
-    }
-  },
-  "headline13": {
-    "original": {
-      "headline": "us, china spar at southeast asian regional summit",
-      "features": {
-        "length": 49.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": 46.44,
-        "flesch_kincaid_grade": 8.8,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.5,
-        "avg_word_length": 5.25
-      },
-      "predicted_ctr": 0.021074000000000002
-    },
-    "rewritten": {
-      "headline": "US and China clash over Asia-Pacific influence at Southeast Asian summit",
-      "features": {
-        "length": 72.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 26.47,
-        "flesch_kincaid_grade": 12.3,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.5454545454545454,
-        "avg_word_length": 5.636363636363637
-      },
-      "predicted_ctr": 0.01627393181818182
-    },
-    "improvements": {
-      "absolute": -0.004800068181818183,
-      "relative_percent": -22.777205000560798
-    }
-  },
-  "headline14": {
-    "original": {
-      "headline": "hong kong protesters call for u.s. help. china sees a conspiracy.",
-      "features": {
-        "length": 65.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 74.35,
-        "flesch_kincaid_grade": 4.3,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.18181818181818182,
-        "avg_word_length": 5.0
-      },
-      "predicted_ctr": 0.02950147727272727
-    },
-    "rewritten": {
-      "headline": "\"Hong Kong Protesters Seek U.S. Support Amid China's Conspiracy Allegations\"",
-      "features": {
-        "length": 76.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 24.1,
-        "flesch_kincaid_grade": 11.1,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.6,
-        "avg_word_length": 6.7
-      },
-      "predicted_ctr": 0.0153725
-    },
-    "improvements": {
-      "absolute": -0.014128977272727269,
-      "relative_percent": -47.89243990092945
-    }
-  },
-  "headline15": {
-    "original": {
-      "headline": "the biggest medical advances of the decade",
-      "features": {
-        "length": 42.0,
-        "word_count": 7.0,
-        "flesch_reading_ease": 38.99,
-        "flesch_kincaid_grade": 9.6,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.5714285714285714,
-        "avg_word_length": 5.142857142857143
-      },
-      "predicted_ctr": 0.018915607142857144
-    },
-    "rewritten": {
-      "headline": "\"Decade's Top Medical Breakthroughs: Cancer and Diabetes Treatments Revolutionized\"",
-      "features": {
-        "length": 83.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": -5.35,
-        "flesch_kincaid_grade": 16.2,
-        "complex_words": 7.0,
-        "complex_word_percentage": 0.7777777777777778,
-        "avg_word_length": 8.333333333333334
-      },
-      "predicted_ctr": 0.007546250000000001
-    },
-    "improvements": {
-      "absolute": -0.011369357142857143,
-      "relative_percent": -60.10569503263555
-    }
-  },
-  "headline16": {
-    "original": {
-      "headline": "st. louis doctor calls new cdc vaping findings 'a huge discovery'",
-      "features": {
-        "length": 65.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 34.93,
-        "flesch_kincaid_grade": 11.1,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.45454545454545453,
-        "avg_word_length": 5.0
-      },
-      "predicted_ctr": 0.01879106818181818
-    },
-    "rewritten": {
-      "headline": "St. Louis Doctor Hails CDC Vaping Findings as 'Major Breakthrough'",
-      "features": {
-        "length": 66.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 35.95,
-        "flesch_kincaid_grade": 10.7,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.6,
-        "avg_word_length": 5.7
-      },
-      "predicted_ctr": 0.018038750000000003
-    },
-    "improvements": {
-      "absolute": -0.0007523181818181769,
-      "relative_percent": -4.003594551086262
-    }
-  },
-  "headline17": {
-    "original": {
-      "headline": "angelina jolie: medical advances in women's health are important. but they're only part of the picture",
-      "features": {
-        "length": 102.0,
-        "word_count": 16.0,
-        "flesch_reading_ease": 46.44,
-        "flesch_kincaid_grade": 8.8,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.3125,
-        "avg_word_length": 5.4375
-      },
-      "predicted_ctr": 0.021889625000000003
-    },
-    "rewritten": {
-      "headline": "Angelina Jolie Emphasizes Rapid Progress in Women's Health Technology",
-      "features": {
-        "length": 69.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": -5.35,
-        "flesch_kincaid_grade": 16.2,
-        "complex_words": 7.0,
-        "complex_word_percentage": 0.7777777777777778,
-        "avg_word_length": 6.777777777777778
-      },
-      "predicted_ctr": 0.007546250000000001
-    },
-    "improvements": {
-      "absolute": -0.014343375000000002,
-      "relative_percent": -65.52590553744069
-    }
-  },
-  "headline18": {
-    "original": {
-      "headline": "info about your health is more accessible than ever. but does it help?",
-      "features": {
-        "length": 70.0,
-        "word_count": 13.0,
-        "flesch_reading_ease": 73.34,
-        "flesch_kincaid_grade": 4.6,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.15384615384615385,
-        "avg_word_length": 4.461538461538462
-      },
-      "predicted_ctr": 0.029463038461538464
-    },
-    "rewritten": {
-      "headline": "\"Enhanced Health Information Accessibility: Impact and Potential Drawbacks\"",
-      "features": {
-        "length": 75.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": -21.25,
-        "flesch_kincaid_grade": 18.2,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.75,
-        "avg_word_length": 8.5
-      },
-      "predicted_ctr": 0.00415625
-    },
-    "improvements": {
-      "absolute": -0.025306788461538464,
-      "relative_percent": -85.89334224497709
-    }
-  },
-  "headline19": {
-    "original": {
-      "headline": "some medical devices more dangerous than first thought",
-      "features": {
-        "length": 54.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": 46.44,
-        "flesch_kincaid_grade": 8.8,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.25,
-        "avg_word_length": 5.875
-      },
-      "predicted_ctr": 0.0227615
-    },
-    "rewritten": {
-      "headline": "\"Hidden Dangers Uncovered in Common Medical Devices, FDA Insider Reveals\"",
-      "features": {
-        "length": 73.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": -6.36,
-        "flesch_kincaid_grade": 16.6,
-        "complex_words": 8.0,
-        "complex_word_percentage": 0.8,
-        "avg_word_length": 6.4
-      },
-      "predicted_ctr": 0.007169000000000001
-    },
-    "improvements": {
-      "absolute": -0.015592499999999999,
-      "relative_percent": -68.50383322715989
-    }
-  },
-  "headline20": {
-    "original": {
-      "headline": "facebook says it will deliver news corp stories",
-      "features": {
-        "length": 47.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": 71.82,
-        "flesch_kincaid_grade": 5.2,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.25,
-        "avg_word_length": 5.0
-      },
-      "predicted_ctr": 0.028472000000000004
-    },
-    "rewritten": {
-      "headline": "Facebook to Showcase News Corp's Wall Street Journal Stories in New Tab",
-      "features": {
-        "length": 71.0,
-        "word_count": 12.0,
-        "flesch_reading_ease": 84.68,
-        "flesch_kincaid_grade": 4.4,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.25,
-        "avg_word_length": 5.0
-      },
-      "predicted_ctr": 0.031365500000000004
-    },
-    "improvements": {
-      "absolute": 0.0028935000000000002,
-      "relative_percent": 10.162615903343635
-    }
-  },
-  "headline21": {
-    "original": {
-      "headline": "post premium: our best stories for the week of nov. 4   10",
-      "features": {
-        "length": 58.0,
-        "word_count": 12.0,
-        "flesch_reading_ease": 84.68,
-        "flesch_kincaid_grade": 4.4,
-        "complex_words": 1.0,
-        "complex_word_percentage": 0.08333333333333333,
-        "avg_word_length": 3.75
-      },
-      "predicted_ctr": 0.0324905
-    },
-    "rewritten": {
-      "headline": "Top Stories of the Week: Denver Post's Sunday Lead Story and More!",
-      "features": {
-        "length": 66.0,
-        "word_count": 12.0,
-        "flesch_reading_ease": 84.68,
-        "flesch_kincaid_grade": 4.4,
-        "complex_words": 1.0,
-        "complex_word_percentage": 0.08333333333333333,
-        "avg_word_length": 4.583333333333333
-      },
-      "predicted_ctr": 0.0324905
-    },
-    "improvements": {
-      "absolute": 0.0,
-      "relative_percent": 0.0
-    }
-  },
-  "headline22": {
-    "original": {
-      "headline": "md good news: haunted house, pumpkin patches, swimming bear",
-      "features": {
-        "length": 59.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 62.34,
-        "flesch_kincaid_grade": 6.8,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.3333333333333333,
-        "avg_word_length": 5.666666666666667
-      },
-      "predicted_ctr": 0.025776500000000004
-    },
-    "rewritten": {
-      "headline": "Exciting Updates in Maryland: Talent Show Win, TV Pilot, New Restaurants, and $100k Prize",
-      "features": {
-        "length": 89.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 48.81,
-        "flesch_kincaid_grade": 9.9,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.42857142857142855,
-        "avg_word_length": 5.428571428571429
-      },
-      "predicted_ctr": 0.02208939285714286
-    },
-    "improvements": {
-      "absolute": -0.0036871071428571447,
-      "relative_percent": -14.304141923291153
-    }
-  },
-  "headline23": {
-    "original": {
-      "headline": "wildfires; power shutoffs; bad santa; sesame place: ca stories",
-      "features": {
-        "length": 62.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 36.96,
-        "flesch_kincaid_grade": 10.3,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.4444444444444444,
-        "avg_word_length": 6.0
-      },
-      "predicted_ctr": 0.019316
-    },
-    "rewritten": {
-      "headline": "California's Top Stories: Wildfires, Power Outages, Bad Santa, Sesame Place",
-      "features": {
-        "length": 75.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 10.56,
-        "flesch_kincaid_grade": 14.3,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.5,
-        "avg_word_length": 6.6
-      },
-      "predicted_ctr": 0.013001000000000002
-    },
-    "improvements": {
-      "absolute": -0.006314999999999998,
-      "relative_percent": -32.69310416235244
-    }
-  },
-  "headline24": {
-    "original": {
-      "headline": "top seattle news: reward offered for info on school fire; report on luxury housing boom; more",
-      "features": {
-        "length": 93.0,
-        "word_count": 16.0,
-        "flesch_reading_ease": 55.24,
-        "flesch_kincaid_grade": 9.5,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.3125,
-        "avg_word_length": 4.875
-      },
-      "predicted_ctr": 0.023869625000000002
-    },
-    "rewritten": {
-      "headline": "Seattle's Top News: Reward for School Fire Info, Luxury Housing Boom Report & More",
-      "features": {
-        "length": 82.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 58.28,
-        "flesch_kincaid_grade": 8.4,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.2857142857142857,
-        "avg_word_length": 4.928571428571429
-      },
-      "predicted_ctr": 0.025184428571428573
-    },
-    "improvements": {
-      "absolute": 0.001314803571428571,
-      "relative_percent": 5.508270747565455
-    }
-  },
-  "headline25": {
-    "original": {
-      "headline": "obsoletely flawless: from smart glasses to 3d tvs, the tech products from the start of the decade that haven't stood the test of time",
-      "features": {
-        "length": 133.0,
-        "word_count": 24.0,
-        "flesch_reading_ease": 72.5,
-        "flesch_kincaid_grade": 9.1,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.20833333333333334,
-        "avg_word_length": 4.583333333333333
-      },
-      "predicted_ctr": 0.024856250000000003
-    },
-    "rewritten": {
-      "headline": "\"Tech Flops: Smart Glasses and 3D TVs That Failed to Last the Decade\"",
-      "features": {
-        "length": 69.0,
-        "word_count": 13.0,
-        "flesch_reading_ease": 92.12,
-        "flesch_kincaid_grade": 3.6,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.15384615384615385,
-        "avg_word_length": 4.384615384615385
-      },
-      "predicted_ctr": 0.03368853846153846
-    },
-    "improvements": {
-      "absolute": 0.008832288461538454,
-      "relative_percent": 35.53347130616425
-    }
-  },
-  "headline26": {
-    "original": {
-      "headline": "15 household mainstays from your childhood that you won't find in new homes",
-      "features": {
-        "length": 75.0,
-        "word_count": 13.0,
-        "flesch_reading_ease": 92.12,
-        "flesch_kincaid_grade": 3.6,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.15384615384615385,
-        "avg_word_length": 4.846153846153846
-      },
-      "predicted_ctr": 0.03368853846153846
-    },
-    "rewritten": {
-      "headline": "\"Retro household items making a comeback in modern homes\"",
-      "features": {
-        "length": 57.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 53.88,
-        "flesch_kincaid_grade": 8.0,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.5555555555555556,
-        "avg_word_length": 5.444444444444445
-      },
-      "predicted_ctr": 0.022373000000000004
-    },
-    "improvements": {
-      "absolute": -0.011315538461538453,
-      "relative_percent": -33.58868914558933
-    }
-  },
-  "headline27": {
     "original": {
       "headline": "2020 energica ego and eva esseesse9 preview",
       "features": {
@@ -846,94 +110,62 @@
       "predicted_ctr": 0.01604782142857143
     },
     "rewritten": {
-      "headline": "\"Revolutionary 2020 Energica Ego and Eva Esseesse9 Unveiled with Game-Changing Battery Technology\"",
+      "headline": "\"Revolutionary 2020 Energica Bikes Unveiled with Game-Changing Battery Upgrade\"",
       "features": {
-        "length": 98.0,
-        "word_count": 12.0,
-        "flesch_reading_ease": -16.85,
-        "flesch_kincaid_grade": 18.6,
-        "complex_words": 9.0,
-        "complex_word_percentage": 0.75,
-        "avg_word_length": 7.25
+        "length": 79.0,
+        "word_count": 9.0,
+        "flesch_reading_ease": -5.35,
+        "flesch_kincaid_grade": 16.2,
+        "complex_words": 6.0,
+        "complex_word_percentage": 0.6666666666666666,
+        "avg_word_length": 7.888888888888889
       },
-      "predicted_ctr": 0.0051462500000000015
+      "predicted_ctr": 0.00829625
     },
     "improvements": {
-      "absolute": -0.010901571428571427,
-      "relative_percent": -67.93178424307705
+      "absolute": -0.007751571428571429,
+      "relative_percent": -48.30295166900714
     }
   },
-  "headline28": {
+  "headline5": {
     "original": {
-      "headline": "incredible home gadgets of the future that are available now",
+      "headline": "bill gates, elizabeth warren on same side of wealth tax debate",
       "features": {
-        "length": 60.0,
-        "word_count": 10.0,
-        "flesch_reading_ease": 44.41,
-        "flesch_kincaid_grade": 9.6,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.4,
-        "avg_word_length": 5.1
+        "length": 62.0,
+        "word_count": 11.0,
+        "flesch_reading_ease": 68.77,
+        "flesch_kincaid_grade": 6.4,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.2727272727272727,
+        "avg_word_length": 4.7272727272727275
       },
-      "predicted_ctr": 0.02129225
+      "predicted_ctr": 0.027632340909090912
     },
     "rewritten": {
-      "headline": "\"Top Smart Home Gadgets Shaping Daily Life Now\"",
+      "headline": "\"Bill Gates and Elizabeth Warren Unite on Wealth Tax\"",
       "features": {
-        "length": 47.0,
-        "word_count": 8.0,
-        "flesch_reading_ease": 80.28,
-        "flesch_kincaid_grade": 4.1,
-        "complex_words": 2.0,
-        "complex_word_percentage": 0.25,
+        "length": 53.0,
+        "word_count": 9.0,
+        "flesch_reading_ease": 62.34,
+        "flesch_kincaid_grade": 6.8,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.3333333333333333,
         "avg_word_length": 5.0
       },
-      "predicted_ctr": 0.030375500000000003
+      "predicted_ctr": 0.025776500000000004
     },
     "improvements": {
-      "absolute": 0.009083250000000005,
-      "relative_percent": 42.659887987413285
-    }
-  },
-  "headline29": {
-    "original": {
-      "headline": "'geniuses' pitch anti-cancer drug, medical devices at ut health san antonio",
-      "features": {
-        "length": 75.0,
-        "word_count": 11.0,
-        "flesch_reading_ease": 18.01,
-        "flesch_kincaid_grade": 13.5,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.5454545454545454,
-        "avg_word_length": 5.909090909090909
-      },
-      "predicted_ctr": 0.01437043181818182
-    },
-    "rewritten": {
-      "headline": "\"Breakthrough anti-cancer drug and medical devices pitched by 'geniuses' at UT Health San Antonio\"",
-      "features": {
-        "length": 98.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 31.89,
-        "flesch_kincaid_grade": 12.3,
-        "complex_words": 7.0,
-        "complex_word_percentage": 0.5,
-        "avg_word_length": 6.071428571428571
-      },
-      "predicted_ctr": 0.01780025
-    },
-    "improvements": {
-      "absolute": 0.0034298181818181797,
-      "relative_percent": 23.867189415134277
+      "absolute": -0.0018558409090909077,
+      "relative_percent": -6.716191419310206
     }
   },
   "summary": {
-    "average_original_ctr": 0.024411712683867857,
-    "average_rewritten_ctr": 0.017321574322229496,
-    "average_absolute_improvement": -0.007090138361638362,
-    "average_relative_improvement": -22.812157910054164,
-    "t_statistic": 3.7989283574811545,
-    "p_value": 0.0007185359201362385,
+    "average_original_ctr": 0.02525902944555445,
+    "average_rewritten_ctr": 0.013562985714285717,
+    "average_absolute_improvement": -0.01169604373126873,
+    "average_relative_improvement": -47.89450190752478,
+    "t_statistic": 3.6510305843659068,
+    "p_value": 0.021751674769419894,
     "statistically_significant": "yes"
   }
 }
