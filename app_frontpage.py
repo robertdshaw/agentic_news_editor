@@ -1,11 +1,6 @@
 import os
 # os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
-# Import disable_torch_watch conditionally to avoid errors
-try:
-    import disable_torch_watch
-except ImportError:
-    pass  # Silently continue if not available
-
+import disable_torch_watch
 import streamlit as st
 import json
 import pandas as pd
@@ -277,6 +272,102 @@ def generate_explanation(client, title, abstract):
     except Exception as e:
         logging.error(f"Error generating explanation: {e}")
         return "This article provides important information for our readers."
+    
+def classify_user_need(title, abstract):
+    """User need classification based on content"""
+    text = f"{title} {abstract}".lower()
+    if any(word in text for word in [
+    "explained",
+    "analysis",
+    "guide",
+    "research",
+    "investigation",
+    "study",
+    "insights",
+    "perspective",
+    "history",
+    "breakdown",
+    "deep-dive",
+    "examination",
+    "background",
+    "context",
+    "tutorial"
+]):
+        return "Educate"
+    elif any(word in text for word in [
+    "report",
+    "announcement",
+    "development",
+    "statement",
+    "decision",
+    "policy",
+    "measure",
+    "conference",
+    "meeting",
+    "launch",
+    "release",
+    "investigation",
+    "evidence",
+    "survey",
+    "statistics"
+]):
+        return "Inform" 
+    elif any(word in text for word in [
+    "breaking",
+    "alert",
+    "latest",
+    "update",
+    "just in",
+    "now",
+    "developing",
+    "live",
+    "ongoing",
+    "today",
+    "this morning",
+    "recent",
+    "hourly",
+    "fresh",
+    "emerging"
+]):
+        return "Update"
+    elif any(word in text for word in [
+    "success",
+    "breakthrough",
+    "overcome",
+    "achievement",
+    "impact",
+    "innovation",
+    "initiative",
+    "triumph",
+    "progress",
+    "discovery",
+    "leadership",
+    "change",
+    "vision",
+    "community",
+    "transformation"
+]):
+        return "Inspire"
+    elif any(word in text for word in [
+    "feature",
+    "profile",
+    "interview",
+    "review",
+    "lifestyle",
+    "culture",
+    "celebrity",
+    "trends",
+    "quiz",
+    "humor",
+    "oddity",
+    "adventure",
+    "recreation",
+    "hobby",
+    "experience"
+]):
+        return "Divert" 
+    else:
+        return "Utility"  # fallback default
 
 def curate_articles_for_topic(query_text, index, articles_df, model, openai_client, k=5, progress_bar=None):
     """Find and enhance articles for a given topic"""
@@ -304,7 +395,10 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
         
         # Store original title explicitly
         topic_articles["original_title"] = topic_articles["title"].copy()
-        
+        topic_articles["user_need"] = topic_articles.apply(
+            lambda row: classify_user_need(row["title"], row["abstract"]), axis=1
+        )
+
         # Process each article individually
         total = len(topic_articles)
         
@@ -341,6 +435,14 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
         logging.error(f"Error curating articles: {e}")
         st.error(f"Error while curating articles: {str(e)}")
         return pd.DataFrame()
+    
+def enforce_user_need_balance(df, quota={"Inspire": 1, "Educate": 2, "Update": 1, "Inform": 2, "Divert": 1}):
+    balanced = []
+    for need, count in quota.items():
+        need_articles = df[df["user_need"] == need].head(count)
+        balanced.append(need_articles)
+    return pd.concat(balanced).drop_duplicates()
+
 
 def get_stock_image_path(topic, article_id=None):
     """
@@ -350,7 +452,7 @@ def get_stock_image_path(topic, article_id=None):
     # Map topics to their corresponding image prefixes
     topic_to_prefix = {
         "Top Technology News": "tech",
-        "Inspiring Stories": "inspire",
+        "Business Stories": "Economic",
         "Global Politics": "educate",
         "Climate and Environment": "climate",
         "Health and Wellness": "health",
@@ -399,7 +501,7 @@ def display_article_image(topic, article_id=None, is_main=False):
         # Fallback to a colored box with topic name
         fallback_color = {
             "Top Technology News": "#007BFF",
-            "Inspiring Stories": "#6F42C1",
+            "Business Stories": "#6F42C1",
             "Global Politics": "#DC3545",
             "Climate and Environment": "#28A745",
             "Health and Wellness": "#FD7E14",
@@ -458,7 +560,7 @@ def main():
         # Editorial queries
         editorial_queries = {
             "Top Technology News": "latest breakthroughs in technology and innovation",
-            "Inspiring Stories": "positive and uplifting news stories",
+            "Business and Economy": "coverage of finance, jobs, inflation, innovation economics",
             "Global Politics": "latest news about world politics and diplomacy",
             "Climate and Environment": "climate change news and environment protection",
             "Health and Wellness": "advances in healthcare and medical discoveries"
@@ -474,10 +576,10 @@ def main():
         # Article count per topic
         articles_per_topic = st.slider("Articles per topic", 1, 10, 3, 1)
         
-        # Display settings - use checkbox instead of toggle for compatibility
+        # Display settings
         st.subheader("Display Settings")
-        show_headline_comparison = st.checkbox("Show headline comparison", value=True, 
-                                           help="Display both original and AI-rewritten headlines")
+        show_headline_comparison = st.toggle("Show headline comparison", value=True, 
+                                          help="Display both original and AI-rewritten headlines")
         
         # Action buttons
         curate_button = st.button("CURATE FRESH ARTICLES", use_container_width=True)
@@ -525,6 +627,7 @@ def main():
                     if all_curated_articles:
                         progress_bar.progress(0.9, text="Saving curated articles...")
                         full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
+                        full_curated_df = enforce_user_need_balance(full_curated_df)
                         full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
                         
                         # Update memory for future reference
@@ -558,8 +661,8 @@ def main():
         st.write("This tool checks if your stock images are accessible.")
         
         # Check a few sample paths
-        sample_paths = ["tech1.jpg", "tech2.jpg", "inspire1.jpg", "inspire2.jpg", "health1.jpg", 
-                        "health2.jpg", "educate1.jpg", "educate2.jpg", "climate1.jpg", 
+        sample_paths = ["tech1.jpg", "tech2.jpg", "business1.jpg", "business2.jpg", "health1.jpg", 
+                        "health2.jpg", "politics1.jpg", "politics2.jpg", "climate1.jpg", 
                         "climate2.jpg"]
         for path in sample_paths:
             if os.path.exists(path):
@@ -575,13 +678,13 @@ def main():
     
     # Navigation menu using Streamlit columns for reliability
     cols = st.columns(7)
-    nav_items = ["POLITICS", "ENTERTAINMENT", "TECH", "SPORTS", "OPINION", "HEALTH", "WORLD"]
+    nav_items = ["POLITICS", "TECH", "BUSINESS", "OPINION", "HEALTH", "CLIMATE"]
     
     for i, item in enumerate(nav_items):
         with cols[i]:
             st.markdown(f'<div class="nav-item">{item}</div>', unsafe_allow_html=True)
     
-    # Get headline comparison preference (with fallback)
+    # Get headline comparison preference
     show_comparison = st.session_state.get('show_headline_comparison', True)
     
     # Check if we have articles to display
@@ -604,9 +707,7 @@ def main():
                 
                 # Title comparison - either use the new comparison function or the old way
                 if show_comparison:
-                    # Check if original_title exists, fallback to title if not
-                    original_title = main_article.get('original_title', main_article['title'])
-                    display_headline_comparison(original_title, main_article['rewritten_title'])
+                    display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
                 else:
                     st.subheader(main_article['rewritten_title'])
                 
@@ -652,9 +753,7 @@ def main():
                     
                     # Title comparison 
                     if show_comparison:
-                        # Check if original_title exists, fallback to title if not
-                        original_title = article.get('original_title', article['title'])
-                        display_headline_comparison(original_title, article['rewritten_title'])
+                        display_headline_comparison(article['original_title'], article['rewritten_title'])
                     else:
                         st.markdown(f"### {article['rewritten_title']}")
                     
@@ -693,9 +792,7 @@ def main():
                         
                         # Title comparison for topic sections (was missing in original)
                         if show_comparison:
-                            # Check if original_title exists, fallback to title if not
-                            original_title = article.get('original_title', article['title'])
-                            display_headline_comparison(original_title, article['rewritten_title'])
+                            display_headline_comparison(article['original_title'], article['rewritten_title'])
                         else:
                             st.markdown(f"### {article['rewritten_title']}")
                         
@@ -705,7 +802,7 @@ def main():
                         # Short abstract
                         abstract = article['abstract']
                         if abstract and len(abstract) > 100:
-                            abstract = article['abstract'][:100] + "..."
+                            abstract = abstract[:100] + "..."
                         st.write(abstract)
                         
                         # Read more link
@@ -750,8 +847,8 @@ def main():
                 st.success("Click 'CURATE FRESH ARTICLES' to generate your personalized newspaper")
                 try:
                     # Try to show a sample inspire image if available
-                    if os.path.exists("inspire1.jpg"):
-                        st.image("inspire1.jpg", width=300)
+                    if os.path.exists("health.jpg"):
+                        st.image("health.jpg", width=300)
                 except:
                     pass
             
@@ -766,17 +863,3 @@ def main():
                 <p>Your newspaper will include featured articles, trending stories, and topic-specific sections with images.</p>
             </div>
             """, unsafe_allow_html=True)
-
-# Make sure to create these session state variables
-if 'curation_started' not in st.session_state:
-    st.session_state.curation_started = False
-if 'curation_complete' not in st.session_state:
-    st.session_state.curation_complete = False
-if 'show_headline_comparison' not in st.session_state:
-    st.session_state.show_headline_comparison = True
-    
-show_debug_info()
-
-# Run the main application
-if __name__ == "__main__":
-    main()
