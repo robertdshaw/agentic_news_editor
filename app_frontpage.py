@@ -5,6 +5,9 @@ import streamlit as st
 import json
 import pandas as pd
 import numpy as np
+from headline_metrics import HeadlineMetrics
+from headline_learning import HeadlineLearningLoop
+
 # Import FAISS conditionally to avoid conflicts
 try:
     import faiss
@@ -35,6 +38,8 @@ st.set_page_config(
     layout="wide",  # Use wide layout by default
     initial_sidebar_state="expanded"
 )
+
+headline_learner = HeadlineLearningLoop()
 
 def apply_custom_css():
     st.markdown("""
@@ -160,9 +165,44 @@ def apply_custom_css():
         background-color: #f9f9f9;
         border-top: 1px solid #ddd;
     }
-    </style>
+    
+    /* Headline metrics styling */
+    .headline-metrics {
+        margin-top: 5px;
+        font-size: 0.85em;
+        background-color: #f8f9fa;
+        padding: 4px 8px;
+        border-radius: 3px;
+    }
+    
+    .metrics-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2px;
+    }
+    
+    .metric-label {
+        color: #666;
+        font-weight: bold;
+    }
+    
+    .metric-value {
+        color: #333;
+    }
+    
+    .metric-change {
+        font-weight: bold;
+    }
+    
+    .metrics-factors {
+        font-style: italic;
+        color: #666;
+        border-top: 1px dotted #ddd;
+        padding-top: 2px;
+        margin-top: 2px;
+    }
+      </style>
     """, unsafe_allow_html=True)
-
 apply_custom_css()
 
 # --- Functions ---
@@ -262,44 +302,246 @@ def get_openai_client():
         st.sidebar.error(f"Error initializing OpenAI: {e}")
         return None
 
-def rewrite_headline(client, title, abstract):
-    """Rewrite a single headline using OpenAI"""
+def rewrite_headline(client, title, abstract, category=None):
+    """Rewrite a single headline using OpenAI with an enhanced prompt"""
     if client is None:
         return title
     
-    prompt = f"""You are an expert news editor.
-    
-    Your task is to rewrite the following news headline to be more engaging, SEO-optimized, and still factually accurate based on the article abstract.
-    
-    Use clear, active language and keep it under 8 words.
-    
-    Emphasize curiosity and engagement over formality
-    
-    ---
-    
-    Title: {title}
-    
-    Abstract: {abstract}
-    
-    Rewritten Headline:"""
+    prompt = f"""You are an expert digital news editor specializing in crafting high-engagement headlines.
+
+HEADLINE REWRITING TASK:
+Transform the following news headline into a version that will achieve significantly higher click-through rates while maintaining factual accuracy.
+
+ORIGINAL HEADLINE: "{title}"
+
+ARTICLE ABSTRACT: "{abstract}"
+
+CATEGORY: "{category if category else 'General News'}"
+
+HEADLINE WRITING PRINCIPLES:
+1. Use specific, concrete language rather than vague terms
+2. Create a curiosity gap that intrigues readers without being misleading
+3. Signal value to readers by suggesting what they'll gain from reading
+4. Include numbers when relevant (research shows this increases CTR)
+5. Use active voice and strong verbs
+6. Keep headlines under 70 characters for optimal display
+7. Avoid clickbait tactics that would damage credibility
+
+EXAMPLES OF GREAT HEADLINE TRANSFORMATIONS:
+Original: "Scientists Discover New Planet That Could Potentially Support Life"
+Better: "Earth 2.0: Scientists Find Planet With 95% Match to Our Atmosphere"
+
+Original: "Company Reports Quarterly Earnings Above Expectations"
+Better: "Tech Giant Shatters Profit Records as Stock Jumps 7%"
+
+Original: "Study Shows Increased Exercise Linked to Better Cognitive Function"
+Better: "30-Minute Daily Walks Boost Brain Function by 32%, Study Reveals"
+
+Your revised headline should be notably more compelling than the original while preserving the core information. Create only ONE headline, not multiple options.
+
+REWRITTEN HEADLINE:"""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a professional news editor."},
+                {"role": "system", "content": "You are a professional digital news editor who specializes in writing high-engagement headlines that drive clicks while maintaining journalistic integrity."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
-            max_tokens=50,
+            temperature=0.7,
+            max_tokens=60,
         )
         rewritten = response.choices[0].message.content.strip()
+        
+        # Remove any quotation marks the model might add
+        rewritten = rewritten.replace('"', '').replace('"', '').replace('"', '')
+        
+        # Check for basic quality control
         if len(rewritten) < 5 or rewritten.lower() in ["", "the new york times"]:
             rewritten = title
+            
         return rewritten
     except Exception as e:
         logging.error(f"Error rewriting headline: {e}")
         return title
+    
+def balance_headline_types(df, client):
+    """
+    Balance headline types to ensure variety and engagement across different styles.
+    Analyzes existing headlines and adds style tags to guide rewriting.
+    
+    Args:
+        df: DataFrame with curated articles
+        client: OpenAI client
+    
+    Returns:
+        DataFrame with balanced headline styles
+    """
+    if len(df) == 0:
+        return df
+    
+    # Copy dataframe to avoid modifying the original
+    balanced_df = df.copy()
+    
+    # Step 1: Analyze current headline distribution
+    headline_types = {
+        "question": 0,
+        "number": 0,
+        "how_to": 0,
+        "surprising": 0,
+        "emotional": 0,
+        "direct": 0
+    }
+    
+    # Count existing headline types
+    for _, row in balanced_df.iterrows():
+        headline = row.get('rewritten_title', '') or row.get('title', '')
+        headline_lower = headline.lower()
+        
+        if "?" in headline:
+            headline_types["question"] += 1
+        elif any(char.isdigit() for char in headline):
+            headline_types["number"] += 1
+        elif "how to" in headline_lower or "how you can" in headline_lower:
+            headline_types["how_to"] += 1
+        elif any(word in headline_lower for word in ["surprising", "unexpected", "shock", "stunned"]):
+            headline_types["surprising"] += 1
+        elif any(word in headline_lower for word in ["amazing", "incredible", "best", "worst"]):
+            headline_types["emotional"] += 1
+        else:
+            headline_types["direct"] += 1
+    
+    # Step 2: Determine desired distribution based on total articles
+    # Ideal distribution depends on article count
+    total = len(balanced_df)
+    
+    if total <= 5:
+        # For small sets, focus on direct and emotional
+        target = {
+            "question": max(1, int(total * 0.2)),
+            "number": max(1, int(total * 0.2)),
+            "how_to": 0,
+            "surprising": 0,
+            "emotional": max(1, int(total * 0.3)),
+            "direct": max(1, int(total * 0.3))
+        }
+    elif total <= 10:
+        # For medium sets, more variety
+        target = {
+            "question": max(1, int(total * 0.2)),
+            "number": max(1, int(total * 0.2)),
+            "how_to": max(1, int(total * 0.1)),
+            "surprising": max(1, int(total * 0.1)),
+            "emotional": max(1, int(total * 0.2)),
+            "direct": max(1, int(total * 0.2))
+        }
+    else:
+        # For large sets, full variety
+        target = {
+            "question": max(2, int(total * 0.15)),
+            "number": max(3, int(total * 0.25)),
+            "how_to": max(1, int(total * 0.1)),
+            "surprising": max(2, int(total * 0.15)),
+            "emotional": max(2, int(total * 0.15)),
+            "direct": max(3, int(total * 0.2))
+        }
+    
+    # Step 3: Identify gaps and rewrite selected headlines
+    gaps = {style: max(0, target[style] - headline_types[style]) for style in headline_types}
+    
+    # Determine which headlines to rewrite and what style to use
+    for style, needed in gaps.items():
+        if needed <= 0:
+            continue
+            
+        # Find candidates for rewriting (prioritize direct headlines first)
+        candidates = []
+        for i, row in balanced_df.iterrows():
+            headline = row.get('rewritten_title', '') or row.get('title', '')
+            headline_lower = headline.lower()
+            
+            # Skip headlines that already have a strong style
+            if ("?" in headline) or \
+               ("how to" in headline_lower) or \
+               (any(word in headline_lower for word in ["surprising", "unexpected", "shock", "stunned"])):
+                continue
+                
+            # Rank by topic relevance
+            relevance = 0
+            if style == "question" and "who" in row.get('abstract', '').lower():
+                relevance += 2
+            elif style == "number" and any(char.isdigit() for char in row.get('abstract', '')):
+                relevance += 2
+            elif style == "how_to" and row.get('user_need', '') == "Educate":
+                relevance += 3
+            elif style == "surprising" and row.get('user_need', '') == "Update":
+                relevance += 2
+            elif style == "emotional" and row.get('user_need', '') in ["Inspire", "Divert"]:
+                relevance += 3
+            
+            candidates.append((i, relevance))
+        
+        # Sort candidates by relevance
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        
+        # Rewrite the top candidates
+        for i, (idx, _) in enumerate(candidates):
+            if i >= needed:
+                break
+                
+            # Add style guidance for rewriting
+            style_guidance = ""
+            if style == "question":
+                style_guidance = "Format as a compelling question that creates curiosity"
+            elif style == "number":
+                style_guidance = "Include a specific number or statistic from the article"
+            elif style == "how_to":
+                style_guidance = "Frame as a 'how to' or solution-oriented headline"
+            elif style == "surprising":
+                style_guidance = "Emphasize the surprising or unexpected aspect"
+            elif style == "emotional":
+                style_guidance = "Use emotionally powerful language that resonates"
+            
+            # Store the style guidance for later headline generation
+            balanced_df.at[idx, 'headline_style'] = style
+            balanced_df.at[idx, 'headline_guidance'] = style_guidance
+    
+    # Step 4: Apply the guided rewriting
+    for i, row in balanced_df.iterrows():
+        if 'headline_guidance' in row and pd.notna(row['headline_guidance']):
+            try:
+                # Enhanced prompt with style guidance
+                prompt = f"""Rewrite this headline in a specific style:
+                
+                Original Headline: {row['title']}
+                
+                Abstract: {row['abstract']}
+                
+                Style Guidance: {row['headline_guidance']}
+                
+                Rewritten Headline:"""
+                
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",  # We can use the cheaper model for style variations
+                    messages=[
+                        {"role": "system", "content": "You are a news editor who specializes in writing engaging headlines."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=60,
+                )
+                
+                rewritten = response.choices[0].message.content.strip()
+                # Remove any quotation marks
+                rewritten = rewritten.replace('"', '').replace('"', '').replace('"', '')
+                
+                if len(rewritten) > 5:
+                    balanced_df.at[i, 'rewritten_title'] = rewritten
+                    
+            except Exception as e:
+                logging.error(f"Error in headline balancing: {e}")
+    
+    return balanced_df
 
 def generate_explanation(client, title, abstract):
     """Generate explanation for why the article is important"""
@@ -435,7 +677,7 @@ def classify_user_need(title, abstract):
 def curate_articles_for_topic(query_text, index, articles_df, model, openai_client, k=5, progress_bar=None):
     """Find and enhance articles for a given topic"""
     try:
-        # Create query embedding and search - wrap in try/except
+        # Create query embedding and search
         try:
             query_embedding = model.encode([query_text])
             D, I = index.search(np.array(query_embedding), k=k)
@@ -478,7 +720,7 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
             # Process with OpenAI
             try:
                 topic_articles.at[idx, 'rewritten_title'] = rewrite_headline(
-                    openai_client, row['title'], row['abstract']
+                    openai_client, row['title'], row['abstract'], category=query_text
                 )
                 topic_articles.at[idx, 'explanation'] = generate_explanation(
                     openai_client, row['title'], row['abstract']
@@ -489,11 +731,28 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
                 topic_articles.at[idx, 'rewritten_title'] = row['title']
                 topic_articles.at[idx, 'explanation'] = "This article contains important information relevant to the topic."
         
+        # Balance headline styles for better variety
+        if total >= 3:  # Only apply balancing when we have enough articles
+            try:
+                # Apply headline style balancing
+                topic_articles = balance_headline_types(topic_articles, openai_client)
+                logging.info(f"Applied headline style balancing to {query_text} articles")
+            except Exception as e:
+                logging.error(f"Error applying headline balancing: {e}")
+        
         if progress_bar is not None:
             progress_bar.progress(1.0, text="Processing complete!")
             time.sleep(0.5)  # Give user time to see the completed progress
+    
+         # Analyze headline effectiveness (add metrics to dataframe)
+        try:
+            topic_articles = analyze_headline_effectiveness(topic_articles, openai_client)
+            logging.info(f"Added headline metrics analysis for {query_text} articles")
+        except Exception as e:
+            logging.error(f"Error analyzing headline effectiveness: {e}")
         
         return topic_articles
+
     except Exception as e:
         logging.error(f"Error curating articles: {e}")
         st.error(f"Error while curating articles: {str(e)}")
@@ -505,6 +764,36 @@ def enforce_user_need_balance(df, quota={"Inspire": 1, "Educate": 2, "Update": 1
         need_articles = df[df["user_need"] == need].head(count)
         balanced.append(need_articles)
     return pd.concat(balanced).drop_duplicates()
+
+def update_headline_learning(df, topic=None):
+    """
+    Update the headline learning system with newly processed articles
+    
+    Args:
+        df: DataFrame with processed articles
+        topic: Optional topic name
+        
+    Returns:
+        int: Number of headline pairs added
+    """
+    global headline_learner
+    
+    if not isinstance(df, pd.DataFrame) or len(df) == 0:
+        return 0
+    
+    # Check if we have the required metrics columns
+    required_columns = ['title', 'rewritten_title', 'headline_score_original', 
+                       'headline_score_rewritten', 'headline_improvement']
+    
+    if not all(col in df.columns for col in required_columns):
+        # We need to ensure the metrics are calculated first
+        df = analyze_headline_effectiveness(df)
+    
+    # Add all headlines to the learning system
+    count = headline_learner.add_headlines_from_dataframe(df, topic_column='topic')
+    
+    logging.info(f"Added {count} headline pairs to learning system")
+    return count
 
 def get_stock_image_path(topic, article_id=None):
     """
@@ -602,6 +891,43 @@ def display_headline_comparison(original_title, rewritten_title):
         <div class="rewritten-headline">{rewritten_title}</div>
     </div>
     """, unsafe_allow_html=True)
+    
+def display_headline_with_metrics(original_title, rewritten_title, metrics=None):
+    """Display original and rewritten titles with improvement metrics"""
+    
+    # Base display for headlines
+    st.markdown(f"""
+    <div class="title-comparison">
+        <div class="original-headline">Original: {original_title}</div>
+        <div class="rewritten-headline">{rewritten_title}</div>
+    """, unsafe_allow_html=True)
+    
+    # Add metrics if available
+    if metrics is not None and isinstance(metrics, dict):
+        improvement = metrics.get('headline_improvement', 0)
+        ctr_original = metrics.get('headline_ctr_original', 0)
+        ctr_rewritten = metrics.get('headline_ctr_rewritten', 0)
+        key_factors = metrics.get('headline_key_factors', "")
+        
+        # Only show metrics if we have improvement data
+        if improvement != 0:
+            # Color based on improvement
+            color = "#28a745" if improvement > 0 else "#dc3545"
+            
+            st.markdown(f"""
+            <div class="headline-metrics">
+                <div class="metrics-row">
+                    <span class="metric-label">Predicted CTR:</span>
+                    <span class="metric-value">{ctr_original:.1f}% → {ctr_rewritten:.1f}%</span>
+                    <span class="metric-change" style="color: {color};">
+                        {'+' if improvement > 0 else ''}{improvement:.1f}%
+                    </span>
+                </div>
+                <div class="metrics-factors">{key_factors}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def load_curated_articles():
     """Load previously curated articles if available"""
@@ -612,6 +938,61 @@ def load_curated_articles():
     except Exception as e:
         logging.error(f"Error loading curated articles: {e}")
         return None
+    
+def analyze_headline_effectiveness(df, openai_client=None):
+    """
+    Analyze the effectiveness of headline rewrites and add metrics to the dataframe
+    
+    Args:
+        df: DataFrame with original and rewritten headlines
+        openai_client: Optional OpenAI client for AI-powered analysis
+        
+    Returns:
+        DataFrame with added metrics columns
+    """
+    if len(df) == 0:
+        return df
+    
+    # Initialize the metrics analyzer
+    metrics_analyzer = HeadlineMetrics(client=openai_client)
+    
+    # Create columns for metrics
+    df['headline_score_original'] = 0.0
+    df['headline_score_rewritten'] = 0.0
+    df['headline_ctr_original'] = 0.0
+    df['headline_ctr_rewritten'] = 0.0
+    df['headline_improvement'] = 0.0
+    df['headline_key_factors'] = ""
+    
+    # Analyze each headline pair
+    for i, row in df.iterrows():
+        if pd.isna(row['title']) or pd.isna(row['rewritten_title']):
+            continue
+            
+        try:
+            # Get comparison metrics
+            comparison = metrics_analyzer.compare_headlines(
+                row['title'], 
+                row['rewritten_title']
+            )
+            
+            # Store metrics in dataframe
+            df.at[i, 'headline_score_original'] = comparison['original_score']
+            df.at[i, 'headline_score_rewritten'] = comparison['rewritten_score']
+            df.at[i, 'headline_ctr_original'] = comparison['original_ctr'] * 100  # Convert to percentage
+            df.at[i, 'headline_ctr_rewritten'] = comparison['rewritten_ctr'] * 100  # Convert to percentage
+            df.at[i, 'headline_improvement'] = comparison['score_percent_change']
+            
+            # Store key improvement factors
+            if comparison['key_improvements']:
+                df.at[i, 'headline_key_factors'] = ", ".join(comparison['key_improvements'])
+            else:
+                df.at[i, 'headline_key_factors'] = "No major improvements identified"
+                
+        except Exception as e:
+            logging.error(f"Error analyzing headlines for row {i}: {e}")
+    
+    return df
 
 # --- Main Application Logic ---
 def main():
@@ -701,6 +1082,15 @@ def main():
                         st.session_state.loaded_articles = full_curated_df
                         st.session_state.curation_complete = True
                         
+                        # Update the headline learning system
+                        try:
+                            headline_count = update_headline_learning(full_curated_df)
+                            if headline_count > 0:
+                                st.sidebar.success(f"✅ Added {headline_count} headlines to learning system")
+                        except Exception as e:
+                            logging.error(f"Error updating headline learning system: {e}")
+                            st.sidebar.warning("Could not update headline learning system")
+                        
                         progress_bar.progress(1.0, text="Curation complete!")
                         st.success("✅ Articles curated successfully!")
                     else:
@@ -718,6 +1108,28 @@ def main():
         
         # Store headline comparison preference in session state
         st.session_state.show_headline_comparison = show_headline_comparison
+        
+        # Headline Learning System section
+        st.markdown("---")
+        st.subheader("📊 Headline Learning System")
+        
+        if st.button("Generate Headline Report", use_container_width=True):
+            try:
+                if headline_learner.prompt_improvement_report():
+                    st.success("✅ Headline improvement report generated!")
+                    with open("headline_improvement_report.md", "r") as f:
+                        report_content = f.read()
+                        
+                    st.download_button(
+                        label="Download Report",
+                        data=report_content,
+                        file_name="headline_improvement_report.md",
+                        mime="text/markdown"
+                    )
+                else:
+                    st.error("Failed to generate report")
+            except Exception as e:
+                st.error(f"Error generating report: {str(e)}")
         
         # Image path check
         st.markdown("---")
@@ -769,9 +1181,23 @@ def main():
                 # Article tag
                 st.markdown(f'<div class="article-tag">{main_article["topic"]}</div>', unsafe_allow_html=True)
                 
-                # Title comparison - either use the new comparison function or the old way
+                # Title comparison - check if we have metrics data
                 if show_comparison:
-                    display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
+                    # Check if we have headline metrics available
+                    if 'headline_improvement' in main_article and 'headline_ctr_original' in main_article:
+                        display_headline_with_metrics(
+                            main_article['original_title'], 
+                            main_article['rewritten_title'],
+                            {
+                                'headline_improvement': main_article.get('headline_improvement', 0),
+                                'headline_ctr_original': main_article.get('headline_ctr_original', 0),
+                                'headline_ctr_rewritten': main_article.get('headline_ctr_rewritten', 0),
+                                'headline_key_factors': main_article.get('headline_key_factors', "")
+                            }
+                        )
+                    else:
+                        # Fallback to simple comparison
+                        display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
                 else:
                     st.subheader(main_article['rewritten_title'])
                 
@@ -854,7 +1280,7 @@ def main():
                     with cols[i % 2]:
                         st.markdown('<div class="article-box">', unsafe_allow_html=True)
                         
-                        # Title comparison for topic sections (was missing in original)
+                        # Title comparison for topic sections
                         if show_comparison:
                             display_headline_comparison(article['original_title'], article['rewritten_title'])
                         else:

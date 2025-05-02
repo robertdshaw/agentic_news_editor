@@ -1,70 +1,6 @@
 {
   "headline1": {
     "original": {
-      "headline": "still an 'act of god?' climate change increasingly seen as risk to business, economy",
-      "features": {
-        "length": 84.0,
-        "word_count": 14.0,
-        "flesch_reading_ease": 64.37,
-        "flesch_kincaid_grade": 6.0,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.21428571428571427,
-        "avg_word_length": 5.071428571428571
-      },
-      "predicted_ctr": 0.02703682142857143
-    },
-    "rewritten": {
-      "headline": "\"Climate Change Threatens Business: A Sinister Revelation\"",
-      "features": {
-        "length": 58.0,
-        "word_count": 7.0,
-        "flesch_reading_ease": 22.07,
-        "flesch_kincaid_grade": 11.9,
-        "complex_words": 4.0,
-        "complex_word_percentage": 0.5714285714285714,
-        "avg_word_length": 7.428571428571429
-      },
-      "predicted_ctr": 0.015108607142857146
-    },
-    "improvements": {
-      "absolute": -0.011928214285714285,
-      "relative_percent": -44.11840466242465
-    }
-  },
-  "headline2": {
-    "original": {
-      "headline": "angelina jolie: medical advances in women's health are important. but they're only part of the picture",
-      "features": {
-        "length": 102.0,
-        "word_count": 16.0,
-        "flesch_reading_ease": 46.44,
-        "flesch_kincaid_grade": 8.8,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.3125,
-        "avg_word_length": 5.4375
-      },
-      "predicted_ctr": 0.021889625000000003
-    },
-    "rewritten": {
-      "headline": "\"Angelina Jolie: Exciting Breakthroughs Revolutionize Women's Health!\"",
-      "features": {
-        "length": 70.0,
-        "word_count": 7.0,
-        "flesch_reading_ease": -28.7,
-        "flesch_kincaid_grade": 19.0,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.7142857142857143,
-        "avg_word_length": 9.142857142857142
-      },
-      "predicted_ctr": 0.0027210714285714308
-    },
-    "improvements": {
-      "absolute": -0.019168553571428572,
-      "relative_percent": -87.56912725288154
-    }
-  },
-  "headline3": {
-    "original": {
       "headline": "15 household mainstays from your childhood that you won't find in new homes",
       "features": {
         "length": 75.0,
@@ -78,94 +14,94 @@
       "predicted_ctr": 0.03368853846153846
     },
     "rewritten": {
-      "headline": "\"Rediscover 15 nostalgic household treasures missing from modern homes\"",
+      "headline": "\"Discover 15 nostalgic household treasures lost to modern homes\"",
       "features": {
-        "length": 71.0,
+        "length": 64.0,
         "word_count": 9.0,
-        "flesch_reading_ease": 28.5,
-        "flesch_kincaid_grade": 11.5,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.6666666666666666,
-        "avg_word_length": 7.0
+        "flesch_reading_ease": 45.42,
+        "flesch_kincaid_grade": 9.2,
+        "complex_words": 4.0,
+        "complex_word_percentage": 0.4444444444444444,
+        "avg_word_length": 6.222222222222222
       },
-      "predicted_ctr": 0.0159125
+      "predicted_ctr": 0.0212195
     },
     "improvements": {
-      "absolute": -0.017776038461538458,
-      "relative_percent": -52.765834534000376
+      "absolute": -0.012469038461538458,
+      "relative_percent": -37.0127023342794
     }
   },
-  "headline4": {
+  "headline2": {
     "original": {
-      "headline": "2020 energica ego and eva esseesse9 preview",
+      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
       "features": {
-        "length": 43.0,
-        "word_count": 7.0,
-        "flesch_reading_ease": 30.53,
-        "flesch_kincaid_grade": 10.7,
-        "complex_words": 5.0,
-        "complex_word_percentage": 0.7142857142857143,
-        "avg_word_length": 5.285714285714286
-      },
-      "predicted_ctr": 0.01604782142857143
-    },
-    "rewritten": {
-      "headline": "\"Revolutionary 2020 Energica Bikes Unveiled with Game-Changing Battery Upgrade\"",
-      "features": {
-        "length": 79.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": -5.35,
-        "flesch_kincaid_grade": 16.2,
-        "complex_words": 6.0,
-        "complex_word_percentage": 0.6666666666666666,
-        "avg_word_length": 7.888888888888889
-      },
-      "predicted_ctr": 0.00829625
-    },
-    "improvements": {
-      "absolute": -0.007751571428571429,
-      "relative_percent": -48.30295166900714
-    }
-  },
-  "headline5": {
-    "original": {
-      "headline": "bill gates, elizabeth warren on same side of wealth tax debate",
-      "features": {
-        "length": 62.0,
+        "length": 64.0,
         "word_count": 11.0,
         "flesch_reading_ease": 68.77,
         "flesch_kincaid_grade": 6.4,
         "complex_words": 3.0,
         "complex_word_percentage": 0.2727272727272727,
-        "avg_word_length": 4.7272727272727275
+        "avg_word_length": 4.909090909090909
       },
       "predicted_ctr": 0.027632340909090912
     },
     "rewritten": {
-      "headline": "\"Bill Gates and Elizabeth Warren Unite on Wealth Tax\"",
+      "headline": "\"Trump's Diplomacy Crisis: War Over Diplomacy Fears\"",
       "features": {
-        "length": 53.0,
-        "word_count": 9.0,
-        "flesch_reading_ease": 62.34,
-        "flesch_kincaid_grade": 6.8,
-        "complex_words": 3.0,
-        "complex_word_percentage": 0.3333333333333333,
-        "avg_word_length": 5.0
+        "length": 52.0,
+        "word_count": 7.0,
+        "flesch_reading_ease": 22.07,
+        "flesch_kincaid_grade": 11.9,
+        "complex_words": 2.0,
+        "complex_word_percentage": 0.2857142857142857,
+        "avg_word_length": 6.571428571428571
       },
-      "predicted_ctr": 0.025776500000000004
+      "predicted_ctr": 0.017037178571428575
     },
     "improvements": {
-      "absolute": -0.0018558409090909077,
-      "relative_percent": -6.716191419310206
+      "absolute": -0.010595162337662337,
+      "relative_percent": -38.34333968490009
+    }
+  },
+  "headline3": {
+    "original": {
+      "headline": "expert worries 'all we'll have is war, no diplomacy' under trump",
+      "features": {
+        "length": 64.0,
+        "word_count": 11.0,
+        "flesch_reading_ease": 68.77,
+        "flesch_kincaid_grade": 6.4,
+        "complex_words": 3.0,
+        "complex_word_percentage": 0.2727272727272727,
+        "avg_word_length": 4.909090909090909
+      },
+      "predicted_ctr": 0.027632340909090912
+    },
+    "rewritten": {
+      "headline": "\"Trump's Diplomacy Concerns Raised by Expert Testimony\"",
+      "features": {
+        "length": 55.0,
+        "word_count": 7.0,
+        "flesch_reading_ease": 22.07,
+        "flesch_kincaid_grade": 11.9,
+        "complex_words": 4.0,
+        "complex_word_percentage": 0.5714285714285714,
+        "avg_word_length": 7.0
+      },
+      "predicted_ctr": 0.015108607142857146
+    },
+    "improvements": {
+      "absolute": -0.012523733766233766,
+      "relative_percent": -45.32273905940961
     }
   },
   "summary": {
-    "average_original_ctr": 0.02525902944555445,
-    "average_rewritten_ctr": 0.013562985714285717,
-    "average_absolute_improvement": -0.01169604373126873,
-    "average_relative_improvement": -47.89450190752478,
-    "t_statistic": 3.6510305843659068,
-    "p_value": 0.021751674769419894,
+    "average_original_ctr": 0.029651073426573426,
+    "average_rewritten_ctr": 0.017788428571428573,
+    "average_absolute_improvement": -0.011862644855144855,
+    "average_relative_improvement": -40.2262603595297,
+    "t_statistic": 18.712628728937442,
+    "p_value": 0.0028436415555766407,
     "statistically_significant": "yes"
   }
 }
