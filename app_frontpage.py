@@ -207,26 +207,6 @@ apply_custom_css()
 
 # --- Functions ---
 
-def show_debug_info():
-    with st.expander("Debug Info"):
-        st.write("Screen Resolution", st.session_state.get('screen_resolution', 'Unknown'))
-        st.write("Browser Info", st.session_state.get('browser_info', 'Unknown'))
-        
-        st.markdown("""
-        <script>
-        window.parent.postMessage({
-            type: "streamlit:setSessionState",
-            data: {
-                screen_resolution: {
-                    width: window.screen.width,
-                    height: window.screen.height
-                },
-                browser_info: navigator.userAgent
-            }
-        }, "*");
-        </script>
-        """, unsafe_allow_html=True)
-
 def load_sentence_transformer():
     """Load the sentence transformer model separately to avoid conflicts"""
     try:
@@ -266,26 +246,6 @@ def load_models_and_data():
         logging.error(f"Error loading models and data: {e}")
         return None, None, None
 
-def load_topics(filename="memory_topics.json"):
-    """Load yesterday's topics from memory file"""
-    try:
-        if os.path.exists(filename):
-            with open(filename, "r") as f:
-                return json.load(f)
-        return []
-    except Exception as e:
-        logging.error(f"Error loading topics: {e}")
-        return []
-
-def save_topics(topics, filename="memory_topics.json"):
-    """Save today's topics to memory file"""
-    try:
-        with open(filename, "w") as f:
-            json.dump(topics, f)
-        logging.info(f"Saved {len(topics)} topics to memory")
-    except Exception as e:
-        logging.error(f"Error saving topics: {e}")
-
 def get_openai_client():
     """Initialize OpenAI client with API key"""
     try:
@@ -307,24 +267,39 @@ def rewrite_headline(client, title, abstract, category=None):
     if client is None:
         return title
     
-    prompt = f"""You are an expert at writing viral news headlines that get clicks.
+    prompt = f"""You are an expert digital news editor specializing in crafting high-engagement headlines.
 
-Original: "{title}"
-Context: "{abstract}"
+HEADLINE REWRITING TASK:
+Transform the following news headline into a version that will achieve significantly higher click-through rates while maintaining factual accuracy.
 
-Create a headline that:
-1. Creates curiosity without clickbait
-2. Uses power words that trigger emotion
-3. Includes specific numbers/data when available
-4. Promises clear value to the reader
-5. Uses active, urgent language
+ORIGINAL HEADLINE: "{title}"
 
-Examples of high-CTR headlines:
-- "7 Surprising Ways AI is Transforming Healthcare in 2024"
-- "Scientists Reveal: This Simple Habit Boosts Memory by 40%"
-- "Breaking: Major Tech Company's Bold Move Shakes Industry"
+ARTICLE ABSTRACT: "{abstract}"
 
-Rewritten headline:"""
+CATEGORY: "{category if category else 'General News'}"
+
+HEADLINE WRITING PRINCIPLES:
+1. Use specific, concrete language rather than vague terms
+2. Create a curiosity gap that intrigues readers without being misleading
+3. Signal value to readers by suggesting what they'll gain from reading
+4. Include numbers when relevant (research shows this increases CTR)
+5. Use active voice and strong verbs
+6. Keep headlines under 70 characters for optimal display
+7. Avoid clickbait tactics that would damage credibility
+
+EXAMPLES OF GREAT HEADLINE TRANSFORMATIONS:
+Original: "Scientists Discover New Planet That Could Potentially Support Life"
+Better: "Earth 2.0: Scientists Find Planet With 95% Match to Our Atmosphere"
+
+Original: "Company Reports Quarterly Earnings Above Expectations"
+Better: "Tech Giant Shatters Profit Records as Stock Jumps 7%"
+
+Original: "Study Shows Increased Exercise Linked to Better Cognitive Function"
+Better: "30-Minute Daily Walks Boost Brain Function by 32%, Study Reveals"
+
+Your revised headline should be notably more compelling than the original while preserving the core information. Create only ONE headline, not multiple options.
+
+REWRITTEN HEADLINE:"""
 
     try:
         response = client.chat.completions.create(
@@ -333,7 +308,7 @@ Rewritten headline:"""
                 {"role": "system", "content": "You are a professional digital news editor who specializes in writing high-engagement headlines that drive clicks while maintaining journalistic integrity."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.8,
+            temperature=0.8,  # Optimized for creativity
             max_tokens=60,
         )
         rewritten = response.choices[0].message.content.strip()
@@ -349,184 +324,6 @@ Rewritten headline:"""
     except Exception as e:
         logging.error(f"Error rewriting headline: {e}")
         return title
-    
-def balance_headline_types(df, client):
-    """
-    Balance headline types to ensure variety and engagement across different styles.
-    Analyzes existing headlines and adds style tags to guide rewriting.
-    
-    Args:
-        df: DataFrame with curated articles
-        client: OpenAI client
-    
-    Returns:
-        DataFrame with balanced headline styles
-    """
-    if len(df) == 0:
-        return df
-    
-    # Copy dataframe to avoid modifying the original
-    balanced_df = df.copy()
-    
-    # Step 1: Analyze current headline distribution
-    headline_types = {
-        "question": 0,
-        "number": 0,
-        "how_to": 0,
-        "surprising": 0,
-        "emotional": 0,
-        "direct": 0
-    }
-    
-    # Count existing headline types
-    for _, row in balanced_df.iterrows():
-        headline = row.get('rewritten_title', '') or row.get('title', '')
-        headline_lower = headline.lower()
-        
-        if "?" in headline:
-            headline_types["question"] += 1
-        elif any(char.isdigit() for char in headline):
-            headline_types["number"] += 1
-        elif "how to" in headline_lower or "how you can" in headline_lower:
-            headline_types["how_to"] += 1
-        elif any(word in headline_lower for word in ["surprising", "unexpected", "shock", "stunned"]):
-            headline_types["surprising"] += 1
-        elif any(word in headline_lower for word in ["amazing", "incredible", "best", "worst"]):
-            headline_types["emotional"] += 1
-        else:
-            headline_types["direct"] += 1
-    
-    # Step 2: Determine desired distribution based on total articles
-    # Ideal distribution depends on article count
-    total = len(balanced_df)
-    
-    if total <= 5:
-        # For small sets, focus on direct and emotional
-        target = {
-            "question": max(1, int(total * 0.2)),
-            "number": max(1, int(total * 0.2)),
-            "how_to": 0,
-            "surprising": 0,
-            "emotional": max(1, int(total * 0.3)),
-            "direct": max(1, int(total * 0.3))
-        }
-    elif total <= 10:
-        # For medium sets, more variety
-        target = {
-            "question": max(1, int(total * 0.2)),
-            "number": max(1, int(total * 0.2)),
-            "how_to": max(1, int(total * 0.1)),
-            "surprising": max(1, int(total * 0.1)),
-            "emotional": max(1, int(total * 0.2)),
-            "direct": max(1, int(total * 0.2))
-        }
-    else:
-        # For large sets, full variety
-        target = {
-            "question": max(2, int(total * 0.15)),
-            "number": max(3, int(total * 0.25)),
-            "how_to": max(1, int(total * 0.1)),
-            "surprising": max(2, int(total * 0.15)),
-            "emotional": max(2, int(total * 0.15)),
-            "direct": max(3, int(total * 0.2))
-        }
-    
-    # Step 3: Identify gaps and rewrite selected headlines
-    gaps = {style: max(0, target[style] - headline_types[style]) for style in headline_types}
-    
-    # Determine which headlines to rewrite and what style to use
-    for style, needed in gaps.items():
-        if needed <= 0:
-            continue
-            
-        # Find candidates for rewriting (prioritize direct headlines first)
-        candidates = []
-        for i, row in balanced_df.iterrows():
-            headline = row.get('rewritten_title', '') or row.get('title', '')
-            headline_lower = headline.lower()
-            
-            # Skip headlines that already have a strong style
-            if ("?" in headline) or \
-               ("how to" in headline_lower) or \
-               (any(word in headline_lower for word in ["surprising", "unexpected", "shock", "stunned"])):
-                continue
-                
-            # Rank by topic relevance
-            relevance = 0
-            if style == "question" and "who" in row.get('abstract', '').lower():
-                relevance += 2
-            elif style == "number" and any(char.isdigit() for char in row.get('abstract', '')):
-                relevance += 2
-            elif style == "how_to" and row.get('user_need', '') == "Educate":
-                relevance += 3
-            elif style == "surprising" and row.get('user_need', '') == "Update":
-                relevance += 2
-            elif style == "emotional" and row.get('user_need', '') in ["Inspire", "Divert"]:
-                relevance += 3
-            
-            candidates.append((i, relevance))
-        
-        # Sort candidates by relevance
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        
-        # Rewrite the top candidates
-        for i, (idx, _) in enumerate(candidates):
-            if i >= needed:
-                break
-                
-            # Add style guidance for rewriting
-            style_guidance = ""
-            if style == "question":
-                style_guidance = "Format as a compelling question that creates curiosity"
-            elif style == "number":
-                style_guidance = "Include a specific number or statistic from the article"
-            elif style == "how_to":
-                style_guidance = "Frame as a 'how to' or solution-oriented headline"
-            elif style == "surprising":
-                style_guidance = "Emphasize the surprising or unexpected aspect"
-            elif style == "emotional":
-                style_guidance = "Use emotionally powerful language that resonates"
-            
-            # Store the style guidance for later headline generation
-            balanced_df.at[idx, 'headline_style'] = style
-            balanced_df.at[idx, 'headline_guidance'] = style_guidance
-    
-    # Step 4: Apply the guided rewriting
-    for i, row in balanced_df.iterrows():
-        if 'headline_guidance' in row and pd.notna(row['headline_guidance']):
-            try:
-                # Enhanced prompt with style guidance
-                prompt = f"""Rewrite this headline in a specific style:
-                
-                Original Headline: {row['title']}
-                
-                Abstract: {row['abstract']}
-                
-                Style Guidance: {row['headline_guidance']}
-                
-                Rewritten Headline:"""
-                
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are a news editor who specializes in writing engaging headlines."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=60,
-                )
-                
-                rewritten = response.choices[0].message.content.strip()
-                # Remove any quotation marks
-                rewritten = rewritten.replace('"', '').replace('"', '').replace('"', '')
-                
-                if len(rewritten) > 5:
-                    balanced_df.at[i, 'rewritten_title'] = rewritten
-                    
-            except Exception as e:
-                logging.error(f"Error in headline balancing: {e}")
-    
-    return balanced_df
 
 def generate_explanation(client, title, abstract):
     """Generate explanation for why the article is important"""
@@ -549,12 +346,12 @@ def generate_explanation(client, title, abstract):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a professional editorial assistant."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
+            temperature=0.3,  # Lower for consistency
             max_tokens=60,
         )
         explanation = response.choices[0].message.content.strip()
@@ -562,314 +359,201 @@ def generate_explanation(client, title, abstract):
     except Exception as e:
         logging.error(f"Error generating explanation: {e}")
         return "This article provides important information for our readers."
-    
-def classify_user_need(title, abstract):
-    """User need classification based on content"""
-    text = f"{title} {abstract}".lower()
-    if any(word in text for word in [
-    "explained",
-    "analysis",
-    "guide",
-    "research",
-    "investigation",
-    "study",
-    "insights",
-    "perspective",
-    "history",
-    "breakdown",
-    "deep-dive",
-    "examination",
-    "background",
-    "context",
-    "tutorial"
-]):
-        return "Educate"
-    elif any(word in text for word in [
-    "report",
-    "announcement",
-    "development",
-    "statement",
-    "decision",
-    "policy",
-    "measure",
-    "conference",
-    "meeting",
-    "launch",
-    "release",
-    "investigation",
-    "evidence",
-    "survey",
-    "statistics"
-]):
-        return "Inform" 
-    elif any(word in text for word in [
-    "breaking",
-    "alert",
-    "latest",
-    "update",
-    "just in",
-    "now",
-    "developing",
-    "live",
-    "ongoing",
-    "today",
-    "this morning",
-    "recent",
-    "hourly",
-    "fresh",
-    "emerging"
-]):
-        return "Update"
-    elif any(word in text for word in [
-    "success",
-    "breakthrough",
-    "overcome",
-    "achievement",
-    "impact",
-    "innovation",
-    "initiative",
-    "triumph",
-    "progress",
-    "discovery",
-    "leadership",
-    "change",
-    "vision",
-    "community",
-    "transformation"
-]):
-        return "Inspire"
-    elif any(word in text for word in [
-    "feature",
-    "profile",
-    "interview",
-    "review",
-    "lifestyle",
-    "culture",
-    "celebrity",
-    "trends",
-    "quiz",
-    "humor",
-    "oddity",
-    "adventure",
-    "recreation",
-    "hobby",
-    "experience"
-]):
-        return "Divert" 
-    else:
-        return "Utility"  # fallback default
-
-def diversify_selection(articles_df, target_count):
-    """Select diverse articles to avoid too similar content"""
-    if len(articles_df) <= target_count:
-        return list(range(len(articles_df)))
-    
-    # Simple diversity algorithm: take every Nth article
-    step = len(articles_df) // target_count
-    indices = [i * step for i in range(target_count)]
-    
-    # Make sure we have exactly target_count indices
-    while len(indices) < target_count:
-        indices.append(len(indices))
-    
-    return indices[:target_count]
 
 def curate_articles_for_topic(query_text, index, articles_df, model, openai_client, k=5, progress_bar=None):
-    """Find and enhance articles for a given topic"""
+    """Find and enhance articles for a given topic - SIMPLIFIED"""
     try:
-        # Create query embedding and search for more articles than needed
-        try:
-            k_search = k * 2  # Search for double the articles
-            query_embedding = model.encode([query_text])
-            D, I = index.search(np.array(query_embedding), k=k_search)
-        except Exception as e:
-            logging.error(f"Error creating embeddings: {e}")
-            st.error(f"Error searching for articles: {str(e)}")
-            # Return a sample of random articles as fallback
-            random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
-            topic_articles = articles_df.iloc[random_indices].copy()
-            return topic_articles
+        # Get the top k articles
+        query_embedding = model.encode([query_text])
+        D, I = index.search(np.array(query_embedding), k=k)
         
         # Extract articles
-        topic_articles = articles_df.iloc[I[0]].copy() if len(I) > 0 and len(I[0]) > 0 else pd.DataFrame()
+        topic_articles = articles_df.iloc[I[0]].copy()
+        
         if len(topic_articles) == 0:
             logging.warning(f"No articles found for query: {query_text}")
-            st.warning(f"No articles found for {query_text}. Using random selection instead.")
-            # Fallback to random articles
-            random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
-            topic_articles = articles_df.iloc[random_indices].copy()
-        
-        # Apply diversity selection to get exactly k articles
-        if len(topic_articles) > k:
-            selected_indices = diversify_selection(topic_articles, k)
-            topic_articles = topic_articles.iloc[selected_indices].copy()
-        
-        # Store original title explicitly
-        topic_articles["original_title"] = topic_articles["title"].copy()
-        topic_articles["user_need"] = topic_articles.apply(
-            lambda row: classify_user_need(row["title"], row["abstract"]), axis=1
-        )
-
-        # Process each article individually
-        total = len(topic_articles)
-        
-        # Safety check
-        if total == 0:
             return pd.DataFrame()
         
+        # Store original title
+        topic_articles["original_title"] = topic_articles["title"].copy()
+        
+        # Process each article
+        total = len(topic_articles)
         for i, (idx, row) in enumerate(topic_articles.iterrows()):
-            # Update progress
             if progress_bar is not None:
                 progress_value = (i + 1) / total
                 progress_bar.progress(progress_value, text=f"Processing article {i + 1}/{total}")
             
-            # Process with OpenAI
-            try:
-                topic_articles.at[idx, 'rewritten_title'] = rewrite_headline(
-                    openai_client, row['title'], row['abstract'], category=query_text
-                )
-                topic_articles.at[idx, 'explanation'] = generate_explanation(
-                    openai_client, row['title'], row['abstract']
-                )
-            except Exception as e:
-                logging.error(f"Error processing article {idx}: {e}")
-                # Use original title as fallback
-                topic_articles.at[idx, 'rewritten_title'] = row['title']
-                topic_articles.at[idx, 'explanation'] = "This article contains important information relevant to the topic."
+            # Rewrite headline and generate explanation
+            topic_articles.at[idx, 'rewritten_title'] = rewrite_headline(
+                openai_client, row['title'], row['abstract'], category=query_text
+            )
+            topic_articles.at[idx, 'explanation'] = generate_explanation(
+                openai_client, row['title'], row['abstract']
+            )
         
-        # Balance headline styles for better variety
-        if total >= 3:  # Only apply balancing when we have enough articles
-            try:
-                # Apply headline style balancing
-                topic_articles = balance_headline_types(topic_articles, openai_client)
-                logging.info(f"Applied headline style balancing to {query_text} articles")
-            except Exception as e:
-                logging.error(f"Error applying headline balancing: {e}")
+        # Analyze headline effectiveness
+        topic_articles = analyze_headline_effectiveness(topic_articles, openai_client)
         
         if progress_bar is not None:
             progress_bar.progress(1.0, text="Processing complete!")
-            time.sleep(0.5)  # Give user time to see the completed progress
-    
-         # Analyze headline effectiveness (add metrics to dataframe)
-        try:
-            topic_articles = analyze_headline_effectiveness(topic_articles, openai_client)
-            logging.info(f"Added headline metrics analysis for {query_text} articles")
-        except Exception as e:
-            logging.error(f"Error analyzing headline effectiveness: {e}")
+            time.sleep(0.5)
         
         return topic_articles
-
+    
     except Exception as e:
         logging.error(f"Error curating articles: {e}")
-        st.error(f"Error while curating articles: {str(e)}")
         return pd.DataFrame()
-       
-def enforce_user_need_balance(df, quota={"Inspire": 1, "Educate": 2, "Update": 1, "Inform": 2, "Divert": 1}):
-    balanced = []
-    for need, count in quota.items():
-        need_articles = df[df["user_need"] == need].head(count)
-        balanced.append(need_articles)
-    return pd.concat(balanced).drop_duplicates()
 
-def update_headline_learning(df, topic=None):
-    """
-    Update the headline learning system with newly processed articles
+def analyze_headline_effectiveness(df, openai_client=None):
+    """Analyze the effectiveness of headline rewrites"""
+    if len(df) == 0:
+        return df
     
-    Args:
-        df: DataFrame with processed articles
-        topic: Optional topic name
-        
-    Returns:
-        int: Number of headline pairs added
-    """
+    metrics_analyzer = HeadlineMetrics(client=openai_client)
+    
+    # Create columns for metrics
+    df['headline_score_original'] = 0.0
+    df['headline_score_rewritten'] = 0.0
+    df['headline_ctr_original'] = 0.0
+    df['headline_ctr_rewritten'] = 0.0
+    df['headline_improvement'] = 0.0
+    df['headline_key_factors'] = ""
+    
+    # Analyze each headline pair
+    for i, row in df.iterrows():
+        if pd.isna(row['title']) or pd.isna(row['rewritten_title']):
+            continue
+            
+        try:
+            comparison = metrics_analyzer.compare_headlines(
+                row['title'], 
+                row['rewritten_title']
+            )
+            
+            df.at[i, 'headline_score_original'] = comparison['original_score']
+            df.at[i, 'headline_score_rewritten'] = comparison['rewritten_score']
+            df.at[i, 'headline_ctr_original'] = comparison['original_ctr'] * 100
+            df.at[i, 'headline_ctr_rewritten'] = comparison['rewritten_ctr'] * 100
+            df.at[i, 'headline_improvement'] = comparison['score_percent_change']
+            
+            if comparison['key_improvements']:
+                df.at[i, 'headline_key_factors'] = ", ".join(comparison['key_improvements'])
+            else:
+                df.at[i, 'headline_key_factors'] = "No major improvements identified"
+                
+        except Exception as e:
+            logging.error(f"Error analyzing headlines for row {i}: {e}")
+    
+    return df
+
+def calculate_evaluation_metrics(curated_articles):
+    """Simplified metrics for research questions"""
+    # RQ1: Basic retrieval check
+    valid_articles = (curated_articles['abstract'].str.len() > 100).mean()
+    
+    # RQ2: Headline improvement (the main focus)
+    headline_metrics = {
+        'avg_improvement': curated_articles['headline_improvement'].mean(),
+        'improved_count': (curated_articles['headline_improvement'] > 0).sum(),
+        'total_headlines': len(curated_articles),
+        'improvement_rate': (curated_articles['headline_improvement'] > 0).mean(),
+        'avg_ctr_change': (curated_articles['headline_ctr_rewritten'] - 
+                          curated_articles['headline_ctr_original']).mean()
+    }
+    
+    return {
+        'retrieval_success': valid_articles,
+        'headline_metrics': headline_metrics,
+        'num_articles': len(curated_articles),
+        'topics_covered': curated_articles['topic'].nunique()
+    }
+
+def generate_research_report(metrics):
+    """Generate a simplified research report"""
+    report = f"""
+# Research Evaluation Report
+Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+## RQ1: Article Retrieval Effectiveness
+
+### Metrics:
+- Retrieval Success Rate: {metrics['retrieval_success']:.1%}
+- Total Articles: {metrics['num_articles']}
+- Topics Covered: {metrics['topics_covered']}
+
+## RQ2: Headline Improvement Effectiveness
+
+### Metrics:
+- Average Improvement: {metrics['headline_metrics']['avg_improvement']:.1f}%
+- Headlines Improved: {metrics['headline_metrics']['improved_count']} out of {metrics['headline_metrics']['total_headlines']}
+- Improvement Rate: {metrics['headline_metrics']['improvement_rate']:.1%}
+- Average CTR Change: {metrics['headline_metrics']['avg_ctr_change']:.1f}%
+
+## Summary:
+The AI system successfully retrieved {metrics['num_articles']} articles across {metrics['topics_covered']} topics.
+Headline rewriting improved {metrics['headline_metrics']['improvement_rate']:.1%} of headlines with an average CTR improvement of {metrics['headline_metrics']['avg_improvement']:.1f}%.
+"""
+    
+    with open("research_evaluation_report.md", "w") as f:
+        f.write(report)
+    
+    return report
+
+def update_headline_learning(df):
+    """Update the headline learning system with newly processed articles"""
     global headline_learner
     
     if not isinstance(df, pd.DataFrame) or len(df) == 0:
         return 0
     
-    # Check if we have the required metrics columns
-    required_columns = ['title', 'rewritten_title', 'headline_score_original', 
-                       'headline_score_rewritten', 'headline_improvement']
-    
-    if not all(col in df.columns for col in required_columns):
-        # We need to ensure the metrics are calculated first
-        df = analyze_headline_effectiveness(df)
-    
-    # Add all headlines to the learning system
-    count = headline_learner.add_headlines_from_dataframe(df, topic_column='topic')
-    
+    count = headline_learner.add_headlines_from_dataframe(df)
     logging.info(f"Added {count} headline pairs to learning system")
     return count
 
 def get_stock_image_path(topic, article_id=None):
-    """
-    Return the path to a stock image for the given topic.
-    Uses article_id to consistently select the same image for the same article.
-    """
-    # Map topics to their corresponding image prefixes
+    """Return the path to a stock image for the given topic"""
     topic_to_prefix = {
         "Top Technology News": "tech",
-        "Business Stories": "business",
         "Business and Economy": "business",
         "Global Politics": "politics",
         "Climate and Environment": "climate",
         "Health and Wellness": "health",
-        # "Education": "educate",
-        # Add more topic mappings as needed
     }
     
-    # Get the prefix for this topic, or use a default
     prefix = topic_to_prefix.get(topic, "tech")
     
-    # Determine which image to use (1 or 2)
-    # If article_id is provided, use it to consistently select the same image
     if article_id is not None:
-        # Use the article_id to get a consistent image number
-        img_num = 1 + (hash(str(article_id)) % 2)  # Either 1 or 2
+        img_num = 1 + (hash(str(article_id)) % 2)
     else:
-        # Random selection between 1 and 2
         img_num = random.randint(1, 2)
     
-    # Build the full image path
-    image_path = f"{prefix}{img_num}.jpg"
-    
-    return image_path
+    return f"{prefix}{img_num}.jpg"
 
 def display_article_image(topic, article_id=None, is_main=False):
     """Display a stock image for an article with proper error handling"""
     try:
-        # Get the appropriate image path
         image_path = get_stock_image_path(topic, article_id)
-        
-        # Adjust width based on whether this is a main or secondary article
         width = 700 if is_main else 400
         
-        # Check if the file exists before trying to display it
         if os.path.exists(image_path):
             st.image(image_path, width=width, use_container_width=True)
             return True
         else:
-            # Log that the file was not found
-            logging.warning(f"Image file not found: {image_path}")
             raise FileNotFoundError(f"Image file not found: {image_path}")
     except Exception as e:
-        # Log the error
         logging.error(f"Error displaying stock image for {topic}: {e}")
         
-        # Fallback to a colored box with topic name
         fallback_color = {
             "Top Technology News": "#007BFF",
-            "Business Stories": "#6F42C1",
             "Business and Economy": "#6F42C1",
             "Global Politics": "#DC3545",
             "Climate and Environment": "#28A745",
             "Health and Wellness": "#FD7E14",
-            "Education": "#17A2B8"
         }.get(topic, "#6C757D")
         
         height = 350 if is_main else 200
         
-        # Create a colored box with the topic name
         st.markdown(f"""
         <div style="
             height: {height}px; 
@@ -897,27 +581,22 @@ def display_headline_comparison(original_title, rewritten_title):
         <div class="rewritten-headline">{rewritten_title}</div>
     </div>
     """, unsafe_allow_html=True)
-    
+
 def display_headline_with_metrics(original_title, rewritten_title, metrics=None):
     """Display original and rewritten titles with improvement metrics"""
-    
-    # Base display for headlines
     st.markdown(f"""
     <div class="title-comparison">
         <div class="original-headline">Original: {original_title}</div>
         <div class="rewritten-headline">{rewritten_title}</div>
     """, unsafe_allow_html=True)
     
-    # Add metrics if available
     if metrics is not None and isinstance(metrics, dict):
         improvement = metrics.get('headline_improvement', 0)
         ctr_original = metrics.get('headline_ctr_original', 0)
         ctr_rewritten = metrics.get('headline_ctr_rewritten', 0)
         key_factors = metrics.get('headline_key_factors', "")
         
-        # Only show metrics if we have improvement data
         if improvement != 0:
-            # Color based on improvement
             color = "#28a745" if improvement > 0 else "#dc3545"
             
             st.markdown(f"""
@@ -944,154 +623,6 @@ def load_curated_articles():
     except Exception as e:
         logging.error(f"Error loading curated articles: {e}")
         return None
-    
-def analyze_headline_effectiveness(df, openai_client=None):
-    """
-    Analyze the effectiveness of headline rewrites and add metrics to the dataframe
-    
-    Args:
-        df: DataFrame with original and rewritten headlines
-        openai_client: Optional OpenAI client for AI-powered analysis
-        
-    Returns:
-        DataFrame with added metrics columns
-    """
-    if len(df) == 0:
-        return df
-    
-    # Initialize the metrics analyzer
-    metrics_analyzer = HeadlineMetrics(client=openai_client)
-    
-    # Create columns for metrics
-    df['headline_score_original'] = 0.0
-    df['headline_score_rewritten'] = 0.0
-    df['headline_ctr_original'] = 0.0
-    df['headline_ctr_rewritten'] = 0.0
-    df['headline_improvement'] = 0.0
-    df['headline_key_factors'] = ""
-    
-    # Analyze each headline pair
-    for i, row in df.iterrows():
-        if pd.isna(row['title']) or pd.isna(row['rewritten_title']):
-            continue
-            
-        try:
-            # Get comparison metrics
-            comparison = metrics_analyzer.compare_headlines(
-                row['title'], 
-                row['rewritten_title']
-            )
-            
-            # Store metrics in dataframe
-            df.at[i, 'headline_score_original'] = comparison['original_score']
-            df.at[i, 'headline_score_rewritten'] = comparison['rewritten_score']
-            df.at[i, 'headline_ctr_original'] = comparison['original_ctr'] * 100  # Convert to percentage
-            df.at[i, 'headline_ctr_rewritten'] = comparison['rewritten_ctr'] * 100  # Convert to percentage
-            df.at[i, 'headline_improvement'] = comparison['score_percent_change']
-            
-            # Store key improvement factors
-            if comparison['key_improvements']:
-                df.at[i, 'headline_key_factors'] = ", ".join(comparison['key_improvements'])
-            else:
-                df.at[i, 'headline_key_factors'] = "No major improvements identified"
-                
-        except Exception as e:
-            logging.error(f"Error analyzing headlines for row {i}: {e}")
-    
-    return df
-
-def calculate_evaluation_metrics(curated_articles):
-    """Calculate metrics for research questions"""
-    
-    # RQ1 Metrics
-    
-    # Precision@5 - measure relevance of top 5 articles
-    # Since we don't have ground truth, we'll use abstract length and diversity as proxy
-    top_5 = curated_articles.head(5)
-    precision_at_5 = (top_5['abstract'].str.len() > 100).mean()  # Simple quality metric
-    
-    # Category diversity score
-    categories = curated_articles['topic'].value_counts()
-    diversity_score = 1 - (categories.max() / len(curated_articles))  # Higher = more diverse
-    
-    # User needs coverage
-    user_needs = curated_articles['user_need'].value_counts()
-    expected_needs = ['Inform', 'Educate', 'Inspire', 'Update', 'Divert', 'Utility']
-    needs_coverage = len(user_needs) / len(expected_needs)
-    
-    # RQ2 Metrics
-    
-    # Readability improvement (already calculated by HeadlineMetrics)
-    readability_improvement = {
-        'avg_improvement': curated_articles['headline_improvement'].mean(),
-        'positive_improvements': (curated_articles['headline_improvement'] > 0).mean(),
-        'avg_ctr_change': (curated_articles['headline_ctr_rewritten'] - curated_articles['headline_ctr_original']).mean()
-    }
-    
-    return {
-        'precision@5': precision_at_5,
-        'diversity_score': diversity_score,
-        'user_needs_coverage': needs_coverage,
-        'readability_improvement': readability_improvement,
-        'num_articles': len(curated_articles)
-    }
-    
-def generate_research_report(metrics):
-    """Generate a report specifically for research questions"""
-    
-    report = f"""
-# Research Evaluation Report
-Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
-
-## RQ1: How effectively can the AI editor retrieve and rank news articles?
-
-### Metrics:
-- Precision@5: {metrics['precision@5']:.2%}
-- Topic Diversity Score: {metrics['diversity_score']:.2%}
-- User Needs Coverage: {metrics['user_needs_coverage']:.2%}
-
-## RQ2: Does rewriting headlines improve readability and engagement?
-
-### Metrics:
-- Average CTR Improvement: {metrics['readability_improvement']['avg_improvement']:.1f}%
-- Headlines Improved: {metrics['readability_improvement']['positive_improvements']:.1%}
-- Average CTR Change: {metrics['readability_improvement']['avg_ctr_change']:.2f}%
-
-## Summary:
-Total articles analyzed: {metrics['num_articles']}
-"""
-    
-    # Save report
-    with open("research_evaluation_report.md", "w") as f:
-        f.write(report)
-    
-    return report
-
-def save_topic_memory(topics, articles):
-    """Enhanced memory for topic continuity"""
-    memory_file = "topic_memory.json"
-    
-    # Load existing memory
-    if os.path.exists(memory_file):
-        with open(memory_file, "r") as f:
-            memory = json.load(f)
-    else:
-        memory = {"history": []}
-    
-    # Add current session
-    memory["history"].append({
-        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "topics": topics,
-        "article_count": len(articles),
-        "avg_ctr_improvement": articles['headline_improvement'].mean() if 'headline_improvement' in articles else 0
-    })
-    
-    # Keep last 30 days
-    memory["history"] = memory["history"][-30:]
-    
-    # Save updated memory
-    with open(memory_file, "w") as f:
-        json.dump(memory, f, indent=2)
 
 # Refactored Functions for Better Structure
 def initialize_session_state():
@@ -1127,7 +658,7 @@ def setup_sidebar():
         selected_topics = st.multiselect(
             "Select topics to curate", 
             list(editorial_queries.keys()),
-            default=list(editorial_queries.keys())[:4]  # Default first four topics
+            default=list(editorial_queries.keys())[:3]  # Default 3 topics
         )
         
         # Article count per topic
@@ -1148,7 +679,6 @@ def setup_sidebar():
         # Additional sidebar sections
         add_learning_system_section()
         add_research_evaluation_section()
-        add_image_path_check_section()
         
         return {
             'editorial_queries': editorial_queries,
@@ -1195,9 +725,9 @@ def add_research_evaluation_section():
                 st.success("✅ Research report generated!")
                 
                 # Display key metrics
-                st.metric("Precision@5", f"{metrics['precision@5']:.1%}")
-                st.metric("Diversity Score", f"{metrics['diversity_score']:.1%}")
-                st.metric("Avg CTR Improvement", f"{metrics['readability_improvement']['avg_improvement']:.1f}%")
+                st.metric("Retrieval Success", f"{metrics['retrieval_success']:.1%}")
+                st.metric("Improvement Rate", f"{metrics['headline_metrics']['improvement_rate']:.1%}")
+                st.metric("Avg CTR Change", f"{metrics['headline_metrics']['avg_ctr_change']:.1f}%")
                 
                 # Download button
                 st.download_button(
@@ -1210,22 +740,6 @@ def add_research_evaluation_section():
                 st.warning("Please curate articles first")
         except Exception as e:
             st.error(f"Error generating research report: {str(e)}")
-
-def add_image_path_check_section():
-    """Add the image path check section to sidebar"""
-    st.markdown("---")
-    st.subheader("Image Path Check")
-    st.write("This tool checks if your stock images are accessible.")
-    
-    # Check a few sample paths
-    sample_paths = ["tech1.jpg", "tech2.jpg", "business1.jpg", "business2.jpg", "health1.jpg", 
-                    "health2.jpg", "politics1.jpg", "politics2.jpg", "climate1.jpg", 
-                    "climate2.jpg"]
-    for path in sample_paths:
-        if os.path.exists(path):
-            st.success(f"✓ {path} found")
-        else:
-            st.error(f"✗ {path} not found - make sure it's in the correct directory")
 
 def handle_article_curation(config):
     """Handle the article curation process"""
@@ -1260,8 +774,7 @@ def handle_article_curation(config):
         query_text = config['editorial_queries'][topic]
         topic_articles = curate_articles_for_topic(
             query_text, index, articles_df, model, openai_client, 
-            k=config['articles_per_topic'],
-            progress_bar=None
+            k=config['articles_per_topic']
         )
         topic_articles["topic"] = topic
         all_curated_articles.append(topic_articles)
@@ -1270,12 +783,7 @@ def handle_article_curation(config):
     if all_curated_articles:
         progress_bar.progress(0.9, text="Saving curated articles...")
         full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
-        full_curated_df = enforce_user_need_balance(full_curated_df)
         full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
-        
-        # Update memory for future reference
-        save_topics(config['selected_topics'])
-        save_topic_memory(config['selected_topics'], full_curated_df)
         
         # Update session state
         st.session_state.loaded_articles = full_curated_df
@@ -1288,18 +796,12 @@ def handle_article_curation(config):
                 st.sidebar.success(f"✅ Added {headline_count} headlines to learning system")
         except Exception as e:
             logging.error(f"Error updating headline learning system: {e}")
-            st.sidebar.warning("Could not update headline learning system")
         
-        # Calculate evaluation metrics (moved to only happen once)
+        # Calculate evaluation metrics
         try:
             metrics = calculate_evaluation_metrics(full_curated_df)
             report = generate_research_report(metrics)
-            
-            # Store metrics for tracking
-            if 'evaluation_history' not in st.session_state:
-                st.session_state.evaluation_history = []
             st.session_state.evaluation_history.append(metrics)
-            
             st.sidebar.success("✅ Research metrics calculated")
         except Exception as e:
             logging.error(f"Error calculating evaluation metrics: {e}")

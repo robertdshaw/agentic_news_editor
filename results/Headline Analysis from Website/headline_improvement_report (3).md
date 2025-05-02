@@ -44,7 +44,7 @@ Analysis based on 23 headlines.
 
 ### Example 5 (+26.7%)
 **Original:** our favorite tech gadgets under $500
-**Rewritten:** Unveiled: Top 10 Revolutionary Tech Gadgets of the Year – All Under $500!
+**Rewritten:** Unveiled: Top 10 Revolutionary Tech Gadgets of the Year â€“ All Under $500!
 **Key improvements:** Added more specific data, Added power words
 
 ### Example 6 (+21.7%)
@@ -74,4 +74,4 @@ Original: new u-m innovation center promises a lot. can it deliver it all?
 Better: Revolutionary U-M Innovation Center Set to Empower 1,000 Grad Students: Will It Ignite Detroit's Tech Renaissance?
 
 Original: our favorite tech gadgets under $500
-Better: Unveiled: Top 10 Revolutionary Tech Gadgets of the Year – All Under $500!
+Better: Unveiled: Top 10 Revolutionary Tech Gadgets of the Year â€“ All Under $500!

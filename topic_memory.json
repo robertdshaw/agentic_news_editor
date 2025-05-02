@@ -11,6 +11,30 @@
       ],
       "article_count": 6,
       "avg_ctr_improvement": -6.832923581694487
+    },
+    {
+      "date": "2025-05-02 18:08:34",
+      "topics": [
+        "Top Technology News",
+        "Business and Economy",
+        "Global Politics",
+        "Climate and Environment",
+        "Health and Wellness"
+      ],
+      "article_count": 6,
+      "avg_ctr_improvement": 10.489402238628243
+    },
+    {
+      "date": "2025-05-02 18:20:26",
+      "topics": [
+        "Top Technology News",
+        "Business and Economy",
+        "Global Politics",
+        "Climate and Environment",
+        "Health and Wellness"
+      ],
+      "article_count": 6,
+      "avg_ctr_improvement": 12.391111640337646
     }
   ]
 }
