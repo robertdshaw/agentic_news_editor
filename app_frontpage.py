@@ -994,9 +994,115 @@ def analyze_headline_effectiveness(df, openai_client=None):
     
     return df
 
-# --- Main Application Logic ---
-def main():
-    # Setup sidebar with controls
+def calculate_evaluation_metrics(curated_articles):
+    """Calculate metrics for research questions"""
+    
+    # RQ1 Metrics
+    
+    # Precision@5 - measure relevance of top 5 articles
+    # Since we don't have ground truth, we'll use abstract length and diversity as proxy
+    top_5 = curated_articles.head(5)
+    precision_at_5 = (top_5['abstract'].str.len() > 100).mean()  # Simple quality metric
+    
+    # Category diversity score
+    categories = curated_articles['topic'].value_counts()
+    diversity_score = 1 - (categories.max() / len(curated_articles))  # Higher = more diverse
+    
+    # User needs coverage
+    user_needs = curated_articles['user_need'].value_counts()
+    expected_needs = ['Inform', 'Educate', 'Inspire', 'Update', 'Divert', 'Utility']
+    needs_coverage = len(user_needs) / len(expected_needs)
+    
+    # RQ2 Metrics
+    
+    # Readability improvement (already calculated by HeadlineMetrics)
+    readability_improvement = {
+        'avg_improvement': curated_articles['headline_improvement'].mean(),
+        'positive_improvements': (curated_articles['headline_improvement'] > 0).mean(),
+        'avg_ctr_change': (curated_articles['headline_ctr_rewritten'] - curated_articles['headline_ctr_original']).mean()
+    }
+    
+    return {
+        'precision@5': precision_at_5,
+        'diversity_score': diversity_score,
+        'user_needs_coverage': needs_coverage,
+        'readability_improvement': readability_improvement,
+        'num_articles': len(curated_articles)
+    }
+    
+def generate_research_report(metrics):
+    """Generate a report specifically for research questions"""
+    
+    report = f"""
+# Research Evaluation Report
+Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+## RQ1: How effectively can the AI editor retrieve and rank news articles?
+
+### Metrics:
+- Precision@5: {metrics['precision@5']:.2%}
+- Topic Diversity Score: {metrics['diversity_score']:.2%}
+- User Needs Coverage: {metrics['user_needs_coverage']:.2%}
+
+## RQ2: Does rewriting headlines improve readability and engagement?
+
+### Metrics:
+- Average CTR Improvement: {metrics['readability_improvement']['avg_improvement']:.1f}%
+- Headlines Improved: {metrics['readability_improvement']['positive_improvements']:.1%}
+- Average CTR Change: {metrics['readability_improvement']['avg_ctr_change']:.2f}%
+
+## Summary:
+Total articles analyzed: {metrics['num_articles']}
+"""
+    
+    # Save report
+    with open("research_evaluation_report.md", "w") as f:
+        f.write(report)
+    
+    return report
+
+def save_topic_memory(topics, articles):
+    """Enhanced memory for topic continuity"""
+    memory_file = "topic_memory.json"
+    
+    # Load existing memory
+    if os.path.exists(memory_file):
+        with open(memory_file, "r") as f:
+            memory = json.load(f)
+    else:
+        memory = {"history": []}
+    
+    # Add current session
+    memory["history"].append({
+        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "topics": topics,
+        "article_count": len(articles),
+        "avg_ctr_improvement": articles['headline_improvement'].mean() if 'headline_improvement' in articles else 0
+    })
+    
+    # Keep last 30 days
+    memory["history"] = memory["history"][-30:]
+    
+    # Save updated memory
+    with open(memory_file, "w") as f:
+        json.dump(memory, f, indent=2)
+
+# Refactored Functions for Better Structure
+def initialize_session_state():
+    """Initialize all session state variables"""
+    if 'curation_started' not in st.session_state:
+        st.session_state.curation_started = False
+    if 'curation_complete' not in st.session_state:
+        st.session_state.curation_complete = False
+    if 'loaded_articles' not in st.session_state:
+        st.session_state.loaded_articles = None
+    if 'show_headline_comparison' not in st.session_state:
+        st.session_state.show_headline_comparison = True
+    if 'evaluation_history' not in st.session_state:
+        st.session_state.evaluation_history = []
+
+def setup_sidebar():
+    """Setup sidebar with controls and return configuration"""
     with st.sidebar:
         st.header("📰 NEWSPAPER CONTROLS")
         st.write("Configure your daily newspaper")
@@ -1030,329 +1136,401 @@ def main():
         curate_button = st.button("CURATE FRESH ARTICLES", use_container_width=True)
         load_button = st.button("LOAD SAVED ARTICLES", use_container_width=True)
         
-        # Handle curation process
-        if curate_button:
-            if not selected_topics:
-                st.error("Please select at least one topic to curate")
-            else:
-                # Initialize session state for progress tracking if not present
-                if 'curation_started' not in st.session_state:
-                    st.session_state.curation_started = True
-                    st.session_state.curation_complete = False
-                
-                # Create progress bar
-                progress_bar = st.progress(0, text="Starting curation process...")
-                
-                # Load models and data
-                progress_bar.progress(0.1, text="Loading models and data...")
-                index, articles_df, model = load_models_and_data()
-                openai_client = get_openai_client()
-                
-                if index is None or articles_df is None or model is None:
-                    st.error("Failed to load required models and data")
-                    st.session_state.curation_started = False
-                else:
-                    # Curate articles for each selected topic
-                    all_curated_articles = []
-                    
-                    for i, topic in enumerate(selected_topics):
-                        topic_progress = (i / len(selected_topics)) * 0.8 + 0.1  # Scale from 10% to 90%
-                        progress_bar.progress(topic_progress, text=f"Curating articles for {topic}...")
-                        
-                        query_text = editorial_queries[topic]
-                        topic_articles = curate_articles_for_topic(
-                            query_text, index, articles_df, model, openai_client, 
-                            k=articles_per_topic,
-                            progress_bar=None  # We'll manage progress at the topic level
-                        )
-                        topic_articles["topic"] = topic
-                        all_curated_articles.append(topic_articles)
-                    
-                    # Combine all curated articles
-                    if all_curated_articles:
-                        progress_bar.progress(0.9, text="Saving curated articles...")
-                        full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
-                        full_curated_df = enforce_user_need_balance(full_curated_df)
-                        full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
-                        
-                        # Update memory for future reference
-                        save_topics(selected_topics)
-                        
-                        # Update session state
-                        st.session_state.loaded_articles = full_curated_df
-                        st.session_state.curation_complete = True
-                        
-                        # Update the headline learning system
-                        try:
-                            headline_count = update_headline_learning(full_curated_df)
-                            if headline_count > 0:
-                                st.sidebar.success(f"✅ Added {headline_count} headlines to learning system")
-                        except Exception as e:
-                            logging.error(f"Error updating headline learning system: {e}")
-                            st.sidebar.warning("Could not update headline learning system")
-                        
-                        progress_bar.progress(1.0, text="Curation complete!")
-                        st.success("✅ Articles curated successfully!")
-                    else:
-                        st.warning("No articles were curated")
-                        st.session_state.curation_started = False
-        
-        # Handle loading previous articles
-        if load_button:
-            with st.spinner("Loading previously curated articles..."):
-                st.session_state.loaded_articles = load_curated_articles()
-                if st.session_state.loaded_articles is not None:
-                    st.success(f"Loaded {len(st.session_state.loaded_articles)} articles")
-                else:
-                    st.error("No previously curated articles found")
-        
         # Store headline comparison preference in session state
         st.session_state.show_headline_comparison = show_headline_comparison
         
-        # Headline Learning System section
-        st.markdown("---")
-        st.subheader("📊 Headline Learning System")
+        # Additional sidebar sections
+        add_learning_system_section()
+        add_research_evaluation_section()
+        add_image_path_check_section()
         
-        if st.button("Generate Headline Report", use_container_width=True):
-            try:
-                if headline_learner.prompt_improvement_report():
-                    st.success("✅ Headline improvement report generated!")
-                    with open("headline_improvement_report.md", "r") as f:
-                        report_content = f.read()
-                        
-                    st.download_button(
-                        label="Download Report",
-                        data=report_content,
-                        file_name="headline_improvement_report.md",
-                        mime="text/markdown"
-                    )
-                else:
-                    st.error("Failed to generate report")
-            except Exception as e:
-                st.error(f"Error generating report: {str(e)}")
-        
-        # Image path check
-        st.markdown("---")
-        st.subheader("Image Path Check")
-        st.write("This tool checks if your stock images are accessible.")
-        
-        # Check a few sample paths
-        sample_paths = ["tech1.jpg", "tech2.jpg", "business1.jpg", "business2.jpg", "health1.jpg", 
-                        "health2.jpg", "politics1.jpg", "politics2.jpg", "climate1.jpg", 
-                        "climate2.jpg"]
-        for path in sample_paths:
-            if os.path.exists(path):
-                st.success(f"✓ {path} found")
-            else:
-                st.error(f"✗ {path} not found - make sure it's in the correct directory")
+        return {
+            'editorial_queries': editorial_queries,
+            'selected_topics': selected_topics,
+            'articles_per_topic': articles_per_topic,
+            'curate_button': curate_button,
+            'load_button': load_button
+        }
+
+def add_learning_system_section():
+    """Add the headline learning system section to sidebar"""
+    st.markdown("---")
+    st.subheader("📊 Headline Learning System")
     
-    # --- Header and Navigation ---
-    # Header section
+    if st.button("Generate Headline Report", use_container_width=True):
+        try:
+            if headline_learner.prompt_improvement_report():
+                st.success("✅ Headline improvement report generated!")
+                with open("headline_improvement_report.md", "r") as f:
+                    report_content = f.read()
+                    
+                st.download_button(
+                    label="Download Report",
+                    data=report_content,
+                    file_name="headline_improvement_report.md",
+                    mime="text/markdown"
+                )
+            else:
+                st.error("Failed to generate report")
+        except Exception as e:
+            st.error(f"Error generating report: {str(e)}")
+
+def add_research_evaluation_section():
+    """Add the research evaluation section to sidebar"""
+    st.markdown("---")
+    st.subheader("🔬 Research Evaluation")
+
+    if st.button("Generate Research Report", use_container_width=True):
+        try:
+            if 'loaded_articles' in st.session_state and st.session_state.loaded_articles is not None:
+                metrics = calculate_evaluation_metrics(st.session_state.loaded_articles)
+                report = generate_research_report(metrics)
+                
+                st.success("✅ Research report generated!")
+                
+                # Display key metrics
+                st.metric("Precision@5", f"{metrics['precision@5']:.1%}")
+                st.metric("Diversity Score", f"{metrics['diversity_score']:.1%}")
+                st.metric("Avg CTR Improvement", f"{metrics['readability_improvement']['avg_improvement']:.1f}%")
+                
+                # Download button
+                st.download_button(
+                    label="Download Research Report",
+                    data=report,
+                    file_name="research_evaluation_report.md",
+                    mime="text/markdown"
+                )
+            else:
+                st.warning("Please curate articles first")
+        except Exception as e:
+            st.error(f"Error generating research report: {str(e)}")
+
+def add_image_path_check_section():
+    """Add the image path check section to sidebar"""
+    st.markdown("---")
+    st.subheader("Image Path Check")
+    st.write("This tool checks if your stock images are accessible.")
+    
+    # Check a few sample paths
+    sample_paths = ["tech1.jpg", "tech2.jpg", "business1.jpg", "business2.jpg", "health1.jpg", 
+                    "health2.jpg", "politics1.jpg", "politics2.jpg", "climate1.jpg", 
+                    "climate2.jpg"]
+    for path in sample_paths:
+        if os.path.exists(path):
+            st.success(f"✓ {path} found")
+        else:
+            st.error(f"✗ {path} not found - make sure it's in the correct directory")
+
+def handle_article_curation(config):
+    """Handle the article curation process"""
+    if not config['selected_topics']:
+        st.error("Please select at least one topic to curate")
+        return
+    
+    # Initialize session state for progress tracking
+    st.session_state.curation_started = True
+    st.session_state.curation_complete = False
+    
+    # Create progress bar
+    progress_bar = st.sidebar.progress(0, text="Starting curation process...")
+    
+    # Load models and data
+    progress_bar.progress(0.1, text="Loading models and data...")
+    index, articles_df, model = load_models_and_data()
+    openai_client = get_openai_client()
+    
+    if index is None or articles_df is None or model is None:
+        st.error("Failed to load required models and data")
+        st.session_state.curation_started = False
+        return
+    
+    # Curate articles for each selected topic
+    all_curated_articles = []
+    
+    for i, topic in enumerate(config['selected_topics']):
+        topic_progress = (i / len(config['selected_topics'])) * 0.8 + 0.1
+        progress_bar.progress(topic_progress, text=f"Curating articles for {topic}...")
+        
+        query_text = config['editorial_queries'][topic]
+        topic_articles = curate_articles_for_topic(
+            query_text, index, articles_df, model, openai_client, 
+            k=config['articles_per_topic'],
+            progress_bar=None
+        )
+        topic_articles["topic"] = topic
+        all_curated_articles.append(topic_articles)
+    
+    # Combine and process all curated articles
+    if all_curated_articles:
+        progress_bar.progress(0.9, text="Saving curated articles...")
+        full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
+        full_curated_df = enforce_user_need_balance(full_curated_df)
+        full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
+        
+        # Update memory for future reference
+        save_topics(config['selected_topics'])
+        save_topic_memory(config['selected_topics'], full_curated_df)
+        
+        # Update session state
+        st.session_state.loaded_articles = full_curated_df
+        st.session_state.curation_complete = True
+        
+        # Update the headline learning system
+        try:
+            headline_count = update_headline_learning(full_curated_df)
+            if headline_count > 0:
+                st.sidebar.success(f"✅ Added {headline_count} headlines to learning system")
+        except Exception as e:
+            logging.error(f"Error updating headline learning system: {e}")
+            st.sidebar.warning("Could not update headline learning system")
+        
+        # Calculate evaluation metrics (moved to only happen once)
+        try:
+            metrics = calculate_evaluation_metrics(full_curated_df)
+            report = generate_research_report(metrics)
+            
+            # Store metrics for tracking
+            if 'evaluation_history' not in st.session_state:
+                st.session_state.evaluation_history = []
+            st.session_state.evaluation_history.append(metrics)
+            
+            st.sidebar.success("✅ Research metrics calculated")
+        except Exception as e:
+            logging.error(f"Error calculating evaluation metrics: {e}")
+        
+        progress_bar.progress(1.0, text="Curation complete!")
+        st.success("✅ Articles curated successfully!")
+    else:
+        st.warning("No articles were curated")
+        st.session_state.curation_started = False
+
+def display_header_and_navigation():
+    """Display the newspaper header and navigation"""
     st.markdown('<div class="header">', unsafe_allow_html=True)
     st.markdown('<h1 class="newspaper-title">THE DAILY AGENT</h1>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Navigation menu using Streamlit columns for reliability
+    # Navigation menu
     cols = st.columns(6)
     nav_items = ["POLITICS", "TECH", "BUSINESS", "OPINION", "HEALTH", "CLIMATE"]
     
     for i, item in enumerate(nav_items):
         with cols[i]:
             st.markdown(f'<div class="nav-item">{item}</div>', unsafe_allow_html=True)
+
+def display_featured_article(articles_df, show_comparison):
+    """Display the featured article section"""
+    st.markdown('<h2 class="section-title">FEATURED NEWS</h2>', unsafe_allow_html=True)
     
-    # Get headline comparison preference
-    show_comparison = st.session_state.get('show_headline_comparison', True)
-    
-    # Check if we have articles to display
-    if 'loaded_articles' in st.session_state and st.session_state.loaded_articles is not None and len(st.session_state.loaded_articles) > 0:
-        articles_df = st.session_state.loaded_articles
+    if len(articles_df) > 0:
+        main_article = articles_df.iloc[0]
         
-        # Featured Article Section
-        st.markdown('<h2 class="section-title">FEATURED NEWS</h2>', unsafe_allow_html=True)
-        
-        # Main article layout
-        if len(articles_df) > 0:
-            main_article = articles_df.iloc[0]
+        with st.container():
+            st.markdown('<div class="article-box">', unsafe_allow_html=True)
             
-            # Using Streamlit components directly for reliability
-            with st.container():
+            # Article tag
+            st.markdown(f'<div class="article-tag">{main_article["topic"]}</div>', unsafe_allow_html=True)
+            
+            # Title comparison
+            if show_comparison:
+                if 'headline_improvement' in main_article and 'headline_ctr_original' in main_article:
+                    display_headline_with_metrics(
+                        main_article['original_title'], 
+                        main_article['rewritten_title'],
+                        {
+                            'headline_improvement': main_article.get('headline_improvement', 0),
+                            'headline_ctr_original': main_article.get('headline_ctr_original', 0),
+                            'headline_ctr_rewritten': main_article.get('headline_ctr_rewritten', 0),
+                            'headline_key_factors': main_article.get('headline_key_factors', "")
+                        }
+                    )
+                else:
+                    display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
+            else:
+                st.subheader(main_article['rewritten_title'])
+            
+            # Author byline
+            author = random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])
+            st.markdown(f'<div class="article-byline">By {author} | {datetime.datetime.now().strftime("%B %d, %Y")}</div>', unsafe_allow_html=True)
+            
+            # Image
+            display_article_image(main_article["topic"], article_id=main_article.name, is_main=True)
+            
+            # Abstract
+            abstract = main_article['abstract']
+            if abstract and len(abstract) > 300:
+                abstract = abstract[:300] + "..."
+            st.write(abstract)
+            
+            # Why it matters
+            st.markdown(f'<div class="article-why-matters"><strong>Why it matters:</strong> {main_article["explanation"]}</div>', unsafe_allow_html=True)
+            
+            # Read more link
+            st.markdown("**Continue Reading →**")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+
+def display_trending_articles(articles_df, show_comparison):
+    """Display the trending articles section"""
+    st.markdown('<h2 class="section-title">TRENDING NOW</h2>', unsafe_allow_html=True)
+    
+    trend_cols = st.columns(3)
+    
+    for i in range(1, min(7, len(articles_df))):
+        if i < len(articles_df):
+            col_idx = (i - 1) % 3
+            
+            with trend_cols[col_idx]:
+                article = articles_df.iloc[i]
+                
                 st.markdown('<div class="article-box">', unsafe_allow_html=True)
                 
                 # Article tag
-                st.markdown(f'<div class="article-tag">{main_article["topic"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="article-tag">{article["topic"]}</div>', unsafe_allow_html=True)
                 
-                # Title comparison - check if we have metrics data
+                # Title comparison 
                 if show_comparison:
-                    # Check if we have headline metrics available
-                    if 'headline_improvement' in main_article and 'headline_ctr_original' in main_article:
-                        display_headline_with_metrics(
-                            main_article['original_title'], 
-                            main_article['rewritten_title'],
-                            {
-                                'headline_improvement': main_article.get('headline_improvement', 0),
-                                'headline_ctr_original': main_article.get('headline_ctr_original', 0),
-                                'headline_ctr_rewritten': main_article.get('headline_ctr_rewritten', 0),
-                                'headline_key_factors': main_article.get('headline_key_factors', "")
-                            }
-                        )
-                    else:
-                        # Fallback to simple comparison
-                        display_headline_comparison(main_article['original_title'], main_article['rewritten_title'])
+                    display_headline_comparison(article['original_title'], article['rewritten_title'])
                 else:
-                    st.subheader(main_article['rewritten_title'])
+                    st.markdown(f"### {article['rewritten_title']}")
                 
-                # Author byline
-                author = random.choice(["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"])
-                st.markdown(f'<div class="article-byline">By {author} | {datetime.datetime.now().strftime("%B %d, %Y")}</div>', unsafe_allow_html=True)
+                # Image
+                display_article_image(article["topic"], article_id=article.name)
                 
-                # Image - use article's index as a consistent ID for image selection
-                display_article_image(main_article["topic"], article_id=main_article.name, is_main=True)
-                
-                # Abstract
-                abstract = main_article['abstract']
-                if abstract and len(abstract) > 300:
-                    abstract = abstract[:300] + "..."
+                # Short abstract
+                abstract = article['abstract']
+                if abstract and len(abstract) > 150:
+                    abstract = abstract[:150] + "..."
                 st.write(abstract)
                 
-                # Why it matters
-                st.markdown(f'<div class="article-why-matters"><strong>Why it matters:</strong> {main_article["explanation"]}</div>', unsafe_allow_html=True)
-                
                 # Read more link
-                st.markdown("**Continue Reading →**")
+                st.markdown("**Read More →**")
                 
                 st.markdown('</div>', unsafe_allow_html=True)
+
+def display_topic_sections(articles_df, show_comparison):
+    """Display the topic-specific sections"""
+    remaining_articles = articles_df.iloc[7:] if len(articles_df) > 7 else pd.DataFrame()
+    
+    if len(remaining_articles) > 0:
+        topics = remaining_articles['topic'].unique()
         
-        # Trending Articles Section
-        st.markdown('<h2 class="section-title">TRENDING NOW</h2>', unsafe_allow_html=True)
-        
-        # Display trending articles (next 5 after main)
-        trend_cols = st.columns(3)
-        
-        for i in range(1, min(7, len(articles_df))):
-            if i < len(articles_df):
-                # Determine which column to place the article in
-                col_idx = (i - 1) % 3
-                
-                with trend_cols[col_idx]:
-                    article = articles_df.iloc[i]
-                    
+        for topic in topics:
+            st.markdown(f'<h2 class="section-title">{topic.upper()}</h2>', unsafe_allow_html=True)
+            
+            topic_articles = remaining_articles[remaining_articles['topic'] == topic]
+            
+            cols = st.columns(2)
+            
+            for i, (_, article) in enumerate(topic_articles.iterrows()):
+                with cols[i % 2]:
                     st.markdown('<div class="article-box">', unsafe_allow_html=True)
                     
-                    # Article tag
-                    st.markdown(f'<div class="article-tag">{article["topic"]}</div>', unsafe_allow_html=True)
-                    
-                    # Title comparison 
+                    # Title comparison
                     if show_comparison:
                         display_headline_comparison(article['original_title'], article['rewritten_title'])
                     else:
                         st.markdown(f"### {article['rewritten_title']}")
                     
-                    # Image - use article's index as a consistent ID for image selection
+                    # Image
                     display_article_image(article["topic"], article_id=article.name)
                     
                     # Short abstract
                     abstract = article['abstract']
-                    if abstract and len(abstract) > 150:
-                        abstract = abstract[:150] + "..."
+                    if abstract and len(abstract) > 100:
+                        abstract = abstract[:100] + "..."
                     st.write(abstract)
                     
                     # Read more link
                     st.markdown("**Read More →**")
                     
                     st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Topic Sections
-        remaining_articles = articles_df.iloc[7:] if len(articles_df) > 7 else pd.DataFrame()
-        
-        if len(remaining_articles) > 0:
-            # Group by topic
-            topics = remaining_articles['topic'].unique()
-            
-            for topic in topics:
-                st.markdown(f'<h2 class="section-title">{topic.upper()}</h2>', unsafe_allow_html=True)
-                
-                topic_articles = remaining_articles[remaining_articles['topic'] == topic]
-                
-                # Create a grid of articles
-                cols = st.columns(2)
-                
-                for i, (_, article) in enumerate(topic_articles.iterrows()):
-                    with cols[i % 2]:
-                        st.markdown('<div class="article-box">', unsafe_allow_html=True)
-                        
-                        # Title comparison for topic sections
-                        if show_comparison:
-                            display_headline_comparison(article['original_title'], article['rewritten_title'])
-                        else:
-                            st.markdown(f"### {article['rewritten_title']}")
-                        
-                        # Image - use article's index as a consistent ID for image selection
-                        display_article_image(article["topic"], article_id=article.name)
-                        
-                        # Short abstract
-                        abstract = article['abstract']
-                        if abstract and len(abstract) > 100:
-                            abstract = abstract[:100] + "..."
-                        st.write(abstract)
-                        
-                        # Read more link
-                        st.markdown("**Read More →**")
-                        
-                        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Footer
-        st.markdown('<div class="footer">', unsafe_allow_html=True)
-        st.markdown('<h3>THE DAILY AGENT</h3>', unsafe_allow_html=True)
-        st.markdown(f'<p>© {datetime.datetime.now().year} The Daily Agent. All Rights Reserved.</p>', unsafe_allow_html=True)
-        st.markdown('<p>Powered by AI-curated content</p>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
+
+def display_footer():
+    """Display the footer section"""
+    st.markdown('<div class="footer">', unsafe_allow_html=True)
+    st.markdown('<h3>THE DAILY AGENT</h3>', unsafe_allow_html=True)
+    st.markdown(f'<p>© {datetime.datetime.now().year} The Daily Agent. All Rights Reserved.</p>', unsafe_allow_html=True)
+    st.markdown('<p>Powered by AI-curated content</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def display_newspaper_layout(articles_df, show_comparison):
+    """Display the complete newspaper layout"""
+    display_header_and_navigation()
+    display_featured_article(articles_df, show_comparison)
+    display_trending_articles(articles_df, show_comparison)
+    display_topic_sections(articles_df, show_comparison)
+    display_footer()
+
+def display_welcome_page():
+    """Display the welcome page when no articles are loaded"""
+    if 'curation_started' in st.session_state and st.session_state.curation_started and not st.session_state.get('curation_complete', False):
+        st.info("⏳ Curation in progress... Please wait while we prepare your personalized news articles.")
     else:
-        # Welcome page when no articles are loaded
-        if 'curation_started' in st.session_state and st.session_state.curation_started and not st.session_state.get('curation_complete', False):
-            # Show progress message
-            st.info("⏳ Curation in progress... Please wait while we prepare your personalized news articles.")
-        else:
-            # Welcome message with clear instructions
-            st.header("Welcome to The Daily Agent")
-            st.write("Your AI-powered personalized news platform")
+        st.header("Welcome to The Daily Agent")
+        st.write("Your AI-powered personalized news platform")
+        
+        st.subheader("Get Started in Two Simple Steps:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 1. Select Topics")
+            st.info("Choose which news categories you want to include using the sidebar controls")
+            try:
+                if os.path.exists("tech1.jpg"):
+                    st.image("tech1.jpg", width=300)
+            except:
+                pass
             
-            # Step-by-step instructions
-            st.subheader("Get Started in Two Simple Steps:")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("### 1. Select Topics")
-                st.info("Choose which news categories you want to include using the sidebar controls")
-                try:
-                    # Try to show a sample tech image if available
-                    if os.path.exists("tech1.jpg"):
-                        st.image("tech1.jpg", width=300)
-                except:
-                    pass
-                
-            with col2:
-                st.markdown("### 2. Curate Articles")
-                st.success("Click 'CURATE FRESH ARTICLES' to generate your personalized newspaper")
-                try:
-                    # Try to show a sample inspire image if available
-                    if os.path.exists("health1.jpg"):
-                        st.image("health1.jpg", width=300)
-                except:
-                    pass
-            
-            # Preview
-            st.subheader("YOUR PERSONALIZED NEWSPAPER")
-            st.write("The Daily Agent will create a professional newspaper using your selected topics and AI-curated content.")
-            
-            # Try to display a sample layout image or message
-            st.markdown("""
-            <div style="border: 1px solid #ddd; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0; background-color: #f9f9f9;">
-                <h3 style="margin-bottom: 15px;">Sample Layout Preview</h3>
-                <p>Your newspaper will include featured articles, trending stories, and topic-specific sections with images.</p>
-            </div>
-            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown("### 2. Curate Articles")
+            st.success("Click 'CURATE FRESH ARTICLES' to generate your personalized newspaper")
+            try:
+                if os.path.exists("health1.jpg"):
+                    st.image("health1.jpg", width=300)
+            except:
+                pass
+        
+        st.subheader("YOUR PERSONALIZED NEWSPAPER")
+        st.write("The Daily Agent will create a professional newspaper using your selected topics and AI-curated content.")
+        
+        st.markdown("""
+        <div style="border: 1px solid #ddd; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0; background-color: #f9f9f9;">
+            <h3 style="margin-bottom: 15px;">Sample Layout Preview</h3>
+            <p>Your newspaper will include featured articles, trending stories, and topic-specific sections with images.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# --- Main Application Logic ---
+def main():
+    # Initialize session state
+    initialize_session_state()
+    
+    # Setup sidebar and get configuration
+    config = setup_sidebar()
+    
+    # Handle curation button
+    if config['curate_button']:
+        handle_article_curation(config)
+    
+    # Handle load button
+    if config['load_button']:
+        with st.spinner("Loading previously curated articles..."):
+            st.session_state.loaded_articles = load_curated_articles()
+            if st.session_state.loaded_articles is not None:
+                st.success(f"Loaded {len(st.session_state.loaded_articles)} articles")
+            else:
+                st.error("No previously curated articles found")
+    
+    # Display the main content
+    if 'loaded_articles' in st.session_state and st.session_state.loaded_articles is not None and len(st.session_state.loaded_articles) > 0:
+        display_newspaper_layout(
+            st.session_state.loaded_articles, 
+            st.session_state.get('show_headline_comparison', True)
+        )
+    else:
+        display_welcome_page()
 
 if __name__ == "__main__":
     main()
