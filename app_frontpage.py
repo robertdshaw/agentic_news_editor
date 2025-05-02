@@ -307,39 +307,24 @@ def rewrite_headline(client, title, abstract, category=None):
     if client is None:
         return title
     
-    prompt = f"""You are an expert digital news editor specializing in crafting high-engagement headlines.
+    prompt = f"""You are an expert at writing viral news headlines that get clicks.
 
-HEADLINE REWRITING TASK:
-Transform the following news headline into a version that will achieve significantly higher click-through rates while maintaining factual accuracy.
+Original: "{title}"
+Context: "{abstract}"
 
-ORIGINAL HEADLINE: "{title}"
+Create a headline that:
+1. Creates curiosity without clickbait
+2. Uses power words that trigger emotion
+3. Includes specific numbers/data when available
+4. Promises clear value to the reader
+5. Uses active, urgent language
 
-ARTICLE ABSTRACT: "{abstract}"
+Examples of high-CTR headlines:
+- "7 Surprising Ways AI is Transforming Healthcare in 2024"
+- "Scientists Reveal: This Simple Habit Boosts Memory by 40%"
+- "Breaking: Major Tech Company's Bold Move Shakes Industry"
 
-CATEGORY: "{category if category else 'General News'}"
-
-HEADLINE WRITING PRINCIPLES:
-1. Use specific, concrete language rather than vague terms
-2. Create a curiosity gap that intrigues readers without being misleading
-3. Signal value to readers by suggesting what they'll gain from reading
-4. Include numbers when relevant (research shows this increases CTR)
-5. Use active voice and strong verbs
-6. Keep headlines under 70 characters for optimal display
-7. Avoid clickbait tactics that would damage credibility
-
-EXAMPLES OF GREAT HEADLINE TRANSFORMATIONS:
-Original: "Scientists Discover New Planet That Could Potentially Support Life"
-Better: "Earth 2.0: Scientists Find Planet With 95% Match to Our Atmosphere"
-
-Original: "Company Reports Quarterly Earnings Above Expectations"
-Better: "Tech Giant Shatters Profit Records as Stock Jumps 7%"
-
-Original: "Study Shows Increased Exercise Linked to Better Cognitive Function"
-Better: "30-Minute Daily Walks Boost Brain Function by 32%, Study Reveals"
-
-Your revised headline should be notably more compelling than the original while preserving the core information. Create only ONE headline, not multiple options.
-
-REWRITTEN HEADLINE:"""
+Rewritten headline:"""
 
     try:
         response = client.chat.completions.create(
@@ -348,7 +333,7 @@ REWRITTEN HEADLINE:"""
                 {"role": "system", "content": "You are a professional digital news editor who specializes in writing high-engagement headlines that drive clicks while maintaining journalistic integrity."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
+            temperature=0.8,
             max_tokens=60,
         )
         rewritten = response.choices[0].message.content.strip()
@@ -522,7 +507,7 @@ def balance_headline_types(df, client):
                 Rewritten Headline:"""
                 
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",  # We can use the cheaper model for style variations
+                    model="gpt-4",
                     messages=[
                         {"role": "system", "content": "You are a news editor who specializes in writing engaging headlines."},
                         {"role": "user", "content": prompt}
@@ -564,12 +549,12 @@ def generate_explanation(client, title, abstract):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a professional editorial assistant."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.4,
+            temperature=0.3,
             max_tokens=60,
         )
         explanation = response.choices[0].message.content.strip()
@@ -674,13 +659,29 @@ def classify_user_need(title, abstract):
     else:
         return "Utility"  # fallback default
 
+def diversify_selection(articles_df, target_count):
+    """Select diverse articles to avoid too similar content"""
+    if len(articles_df) <= target_count:
+        return list(range(len(articles_df)))
+    
+    # Simple diversity algorithm: take every Nth article
+    step = len(articles_df) // target_count
+    indices = [i * step for i in range(target_count)]
+    
+    # Make sure we have exactly target_count indices
+    while len(indices) < target_count:
+        indices.append(len(indices))
+    
+    return indices[:target_count]
+
 def curate_articles_for_topic(query_text, index, articles_df, model, openai_client, k=5, progress_bar=None):
     """Find and enhance articles for a given topic"""
     try:
-        # Create query embedding and search
+        # Create query embedding and search for more articles than needed
         try:
+            k_search = k * 2  # Search for double the articles
             query_embedding = model.encode([query_text])
-            D, I = index.search(np.array(query_embedding), k=k)
+            D, I = index.search(np.array(query_embedding), k=k_search)
         except Exception as e:
             logging.error(f"Error creating embeddings: {e}")
             st.error(f"Error searching for articles: {str(e)}")
@@ -697,6 +698,11 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
             # Fallback to random articles
             random_indices = np.random.choice(len(articles_df), min(k, len(articles_df)), replace=False)
             topic_articles = articles_df.iloc[random_indices].copy()
+        
+        # Apply diversity selection to get exactly k articles
+        if len(topic_articles) > k:
+            selected_indices = diversify_selection(topic_articles, k)
+            topic_articles = topic_articles.iloc[selected_indices].copy()
         
         # Store original title explicitly
         topic_articles["original_title"] = topic_articles["title"].copy()
@@ -757,7 +763,7 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
         logging.error(f"Error curating articles: {e}")
         st.error(f"Error while curating articles: {str(e)}")
         return pd.DataFrame()
-    
+       
 def enforce_user_need_balance(df, quota={"Inspire": 1, "Educate": 2, "Update": 1, "Inform": 2, "Divert": 1}):
     balanced = []
     for need, count in quota.items():
@@ -1121,11 +1127,11 @@ def setup_sidebar():
         selected_topics = st.multiselect(
             "Select topics to curate", 
             list(editorial_queries.keys()),
-            default=list(editorial_queries.keys())[:2]  # Default first two topics
+            default=list(editorial_queries.keys())[:4]  # Default first four topics
         )
         
         # Article count per topic
-        articles_per_topic = st.slider("Articles per topic", 1, 10, 3, 1)
+        articles_per_topic = st.slider("Articles per topic", 1, 10, 5, 1)
         
         # Display settings
         st.subheader("Display Settings")

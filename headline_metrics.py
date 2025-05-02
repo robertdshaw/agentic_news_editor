@@ -1,271 +1,215 @@
+# headline_metrics.py
+
+import re
+import logging
+
 class HeadlineMetrics:
-    """
-    A comprehensive class for analyzing and scoring headline effectiveness
-    """
-    
     def __init__(self, client=None):
-        """Initialize the headline metrics analyzer"""
-        self.client = client  # Optional OpenAI client for AI-powered analysis
+        self.client = client
         
-        # Power words that typically drive higher engagement
-        self.power_words = {
-            'exclusive', 'secret', 'free', 'revealed', 'stunning', 'surprising',
-            'remarkable', 'unauthorized', 'shocking', 'amazing', 'incredible',
-            'essential', 'crucial', 'critical', 'proven', 'guaranteed',
-            'powerful', 'ultimate', 'instant', 'easy', 'simple',
-            'groundbreaking', 'revolutionary', 'breakthrough', 'game-changing',
-            'extraordinary', 'jaw-dropping', 'mind-blowing', 'unbelievable',
-            'unprecedented', 'urgent', 'vital', 'limited', 'special',
-            'official', 'real', 'authentic', 'genuine', 'legitimate',
-            'insider', 'hidden', 'untold', 'unique', 'rare',
-            'unfiltered', 'raw', 'exposed', 'debunked', 'verified'
-        }
+        # Define scoring weights
+        self.power_words = [
+            'secret', 'proven', 'shocking', 'amazing', 'incredible', 
+            'breakthrough', 'revolutionary', 'essential', 'critical',
+            'stunning', 'revealed', 'discover', 'transform', 'powerful',
+            'exclusive', 'urgent', 'limited', 'guarantee', 'scientific'
+        ]
         
-        # Clickbait words that might harm credibility
-        self.clickbait_words = {
-            'actually', 'absolutely', 'literally', 'seriously', 'honestly',
-            'insane', 'crazy', 'unreal', 'won\'t believe', 'mind blown',
-            'speechless', 'jaw-dropping', 'life-changing', 'melt', 'perfect',
-            'epic', 'legendary', 'going viral', 'broke the internet', 'this is why',
-            'here\'s why', 'the reason is', 'you need to', 'what happened next',
-            'changed forever', 'just happened', 'right now', 'this one thing'
-        }
+        self.emotional_words = [
+            'love', 'hate', 'fear', 'joy', 'surprise', 'anger', 
+            'happy', 'sad', 'excited', 'worried', 'confident'
+        ]
+        
+        self.weak_words = [
+            'might', 'maybe', 'could', 'possibly', 'perhaps',
+            'somewhat', 'fairly', 'quite', 'rather', 'seems'
+        ]
     
-    def analyze_headline(self, headline):
-        """
-        Analyze a headline and return comprehensive metrics
-        
-        Args:
-            headline (str): The headline text to analyze
-            
-        Returns:
-            dict: Dictionary of headline metrics
-        """
-        if not headline or not isinstance(headline, str):
-            return {
-                'score': 0,
-                'error': 'Invalid headline'
-            }
-        
-        # Basic metrics
-        length = len(headline)
-        word_count = len(headline.split())
-        chars_per_word = length / word_count if word_count > 0 else 0
-        
-        # Advanced metrics
-        has_number = any(c.isdigit() for c in headline)
-        is_question = '?' in headline
-        words_lower = set(word.lower() for word in headline.split())
-        power_word_count = len(words_lower.intersection(self.power_words))
-        clickbait_word_count = sum(1 for cw in self.clickbait_words if cw.lower() in headline.lower())
-        
-        # Calculate readability
+    def calculate_ctr_score(self, headline):
+        """Calculate predicted CTR based on headline characteristics"""
         try:
-            import textstat
-            fre = textstat.flesch_reading_ease(headline)
-            fkg = textstat.flesch_kincaid_grade(headline)
-            complex_words = textstat.difficult_words(headline)
-        except (ImportError, Exception) as e:
-            fre = 50  # Default value
-            fkg = 8   # Default value
-            complex_words = 0
-        
-        # Emotional impact (simple heuristic)
-        emotional_impact = 0
-        emotional_words = ['new', 'best', 'free', 'top', 'first', 'last', 'big', 'great', 'key', 'major']
-        emotional_impact = sum(1 for word in words_lower if word in emotional_words)
-        
-        # Calculate overall score
-        # Optimal length: 6-9 words, 60-100 characters
-        length_score = 1.0
-        if word_count < 5:
-            length_score = 0.6  # Too short
-        elif word_count > 15:
-            length_score = 0.4  # Too long
-        elif 6 <= word_count <= 9:
-            length_score = 1.0  # Optimal
-        else:
-            length_score = 0.8  # Acceptable
+            score = 50.0  # Start with baseline score of 50%
             
-        # Numbers typically increase CTR by 20-30%
-        number_bonus = 0.2 if has_number else 0
+            # Length optimization (40-60 characters is optimal)
+            length = len(headline)
+            if 40 <= length <= 60:
+                score += 10.0
+            elif 30 <= length < 40 or 60 < length <= 70:
+                score += 5.0
+            elif length > 80:
+                score -= 10.0
+            elif length < 25:
+                score -= 15.0
             
-        # Questions can increase CTR but overused
-        question_bonus = 0.15 if is_question else 0
+            # Numbers in headline (specific data increases CTR)
+            numbers = re.findall(r'\d+', headline)
+            if numbers:
+                score += 15.0
+                if any(int(num) > 1000 for num in numbers if num.isdigit()):
+                    score += 5.0  # Big numbers are more compelling
             
-        # Power words bonus
-        power_word_bonus = min(power_word_count * 0.1, 0.3)  # Cap at 0.3
+            # Question format
+            if headline.endswith('?'):
+                score += 12.0
             
-        # Clickbait penalty
-        clickbait_penalty = min(clickbait_word_count * 0.15, 0.5)  # Cap at 0.5
+            # Power words
+            headline_lower = headline.lower()
+            power_word_count = sum(1 for word in self.power_words if word in headline_lower)
+            score += power_word_count * 8.0  # Each power word adds 8 points
             
-        # Readability sweet spot (FRE around 60-70 is optimal for news)
-        readability_score = 0.0
-        if 55 <= fre <= 75:
-            readability_score = 1.0  # Optimal
-        elif 40 <= fre < 55 or 75 < fre <= 85:
-            readability_score = 0.8  # Good
-        elif 30 <= fre < 40 or 85 < fre <= 95:
-            readability_score = 0.6  # Acceptable
-        else:
-            readability_score = 0.4  # Poor
+            # Emotional words
+            emotional_word_count = sum(1 for word in self.emotional_words if word in headline_lower)
+            score += emotional_word_count * 6.0  # Each emotional word adds 6 points
             
-        # Emotional impact
-        emotional_score = min(emotional_impact * 0.1, 0.3)  # Cap at 0.3
-        
-        # Calculate final score (base 100)
-        base_score = 50  # Start at neutral
-        components = {
-            'length': length_score * 15,  # Max 15 points
-            'numbers': number_bonus * 100,  # Max 20 points
-            'question': question_bonus * 100,  # Max 15 points
-            'power_words': power_word_bonus * 100,  # Max 30 points
-            'clickbait_penalty': -clickbait_penalty * 100,  # Max -50 points
-            'readability': readability_score * 20,  # Max 20 points
-            'emotional': emotional_score * 100  # Max 30 points
-        }
-        
-        # Calculate final score
-        final_score = base_score
-        for component, value in components.items():
-            final_score += value
+            # Weak words (reduce score)
+            weak_word_count = sum(1 for word in self.weak_words if word in headline_lower)
+            score -= weak_word_count * 10.0  # Each weak word reduces 10 points
             
-        # Cap between 0-100
-        final_score = max(0, min(100, final_score))
-        
-        # Create result object
-        result = {
-            'score': final_score,
-            'length': length,
-            'word_count': word_count,
-            'has_number': has_number,
-            'is_question': is_question,
-            'reading_ease': fre,
-            'grade_level': fkg,
-            'complex_words': complex_words,
-            'power_words': power_word_count,
-            'clickbait_words': clickbait_word_count,
-            'emotional_words': emotional_impact,
-            'score_components': components,
-            'prediction': {
-                'ctr_estimate': self._convert_score_to_ctr(final_score),
-                'ctr_range': self._get_ctr_range(final_score)
-            }
-        }
-        
-        # Add AI analysis if client is available
-        if self.client:
-            try:
-                ai_analysis = self._get_ai_analysis(headline)
-                result['ai_analysis'] = ai_analysis
-            except Exception as e:
-                result['ai_analysis_error'] = str(e)
-        
-        return result
-    
-    def _convert_score_to_ctr(self, score):
-        """Convert score to estimated CTR percentage"""
-        # Empirical mapping from score to CTR
-        # Based on typical news headline CTR ranges
-        if score < 40:
-            return 0.5 + (score * 0.025)  # 0.5% to 1.5%
-        elif score < 60:
-            return 1.5 + ((score - 40) * 0.05)  # 1.5% to 2.5%
-        elif score < 80:
-            return 2.5 + ((score - 60) * 0.075)  # 2.5% to 4.0%
-        else:
-            return 4.0 + ((score - 80) * 0.1)  # 4.0% to 6.0%
-    
-    def _get_ctr_range(self, score):
-        """Get the CTR range as a tuple (min, max)"""
-        ctr = self._convert_score_to_ctr(score)
-        return (max(0.1, ctr * 0.8), ctr * 1.2)
-    
-    def _get_ai_analysis(self, headline):
-        """Use AI to analyze headline appeal"""
-        if not self.client:
-            return None
+            # Capitalization issues
+            if headline.isupper():  # ALL CAPS is bad
+                score -= 20.0
+            elif headline.islower():  # all lowercase is bad
+                score -= 10.0
             
-        prompt = f"""Analyze this headline objectively for its potential engagement level:
-
-Headline: "{headline}"
-
-Please evaluate on:
-1. Clarity: Is it clear what the article is about?
-2. Curiosity: Does it create interest without being clickbait?
-3. Value: Does it signal value to the reader?
-4. Specificity: Is it specific rather than vague?
-5. Emotional appeal: Does it connect emotionally?
-
-Provide a brief analysis and a score from 1-10.
-"""
-        
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are an expert headline analyst who objectively evaluates headline effectiveness."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
-                max_tokens=150,
-            )
-            return response.choices[0].message.content.strip()
+            # Check for "How to" format
+            if headline_lower.startswith('how to') or 'how you can' in headline_lower:
+                score += 10.0
+            
+            # Check for listicle format
+            if re.match(r'^\d+\s+\w+', headline):  # Starts with number
+                score += 8.0
+            
+            # Punctuation
+            if headline.count('!') > 1:  # Too many exclamation marks
+                score -= 15.0
+            elif headline.count('!') == 1:  # One is okay
+                score += 3.0
+            
+            # Specificity bonus
+            if any(word in headline_lower for word in ['study', 'research', 'report', 'data']):
+                score += 5.0
+            
+            # Urgency words
+            urgency_words = ['now', 'today', 'breaking', 'urgent', 'immediately']
+            if any(word in headline_lower for word in urgency_words):
+                score += 8.0
+            
+            # Convert to percentage (ensure it's between 10% and 90%)
+            ctr_percentage = min(max(score, 10), 90)
+            
+            logging.debug(f"Headline: {headline}")
+            logging.debug(f"Base score: {score}, CTR: {ctr_percentage}%")
+            
+            return score, ctr_percentage
+            
         except Exception as e:
-            return f"AI analysis failed: {str(e)}"
+            logging.error(f"Error calculating CTR score: {e}")
+            return 50.0, 50.0  # Return baseline on error
     
     def compare_headlines(self, original, rewritten):
-        """
-        Compare original and rewritten headlines
-        
-        Args:
-            original (str): Original headline
-            rewritten (str): Rewritten headline
+        """Compare original and rewritten headlines"""
+        try:
+            original_score, original_ctr = self.calculate_ctr_score(original)
+            rewritten_score, rewritten_ctr = self.calculate_ctr_score(rewritten)
             
-        Returns:
-            dict: Comparison metrics
-        """
-        original_metrics = self.analyze_headline(original)
-        rewritten_metrics = self.analyze_headline(rewritten)
+            improvement = rewritten_ctr - original_ctr
+            score_percent_change = (improvement / original_ctr) * 100 if original_ctr > 0 else 0
+            
+            # Identify key improvements
+            key_improvements = []
+            
+            # Check for question format
+            if rewritten.endswith('?') and not original.endswith('?'):
+                key_improvements.append("Added question format")
+            
+            # Check for numbers
+            original_numbers = re.findall(r'\d+', original)
+            rewritten_numbers = re.findall(r'\d+', rewritten)
+            if rewritten_numbers and not original_numbers:
+                key_improvements.append("Added specific numbers")
+            elif len(rewritten_numbers) > len(original_numbers):
+                key_improvements.append("Added more specific data")
+            
+            # Check for power words
+            original_power = sum(1 for word in self.power_words if word in original.lower())
+            rewritten_power = sum(1 for word in self.power_words if word in rewritten.lower())
+            if rewritten_power > original_power:
+                key_improvements.append("Added power words")
+            
+            # Check for length optimization
+            original_len = len(original)
+            rewritten_len = len(rewritten)
+            if (original_len > 70 or original_len < 40) and (40 <= rewritten_len <= 60):
+                key_improvements.append("Optimized length")
+            
+            # Check for weak word removal
+            original_weak = sum(1 for word in self.weak_words if word in original.lower())
+            rewritten_weak = sum(1 for word in self.weak_words if word in rewritten.lower())
+            if original_weak > rewritten_weak:
+                key_improvements.append("Removed weak language")
+            
+            # If no improvements found but score increased
+            if not key_improvements and improvement > 0:
+                key_improvements.append("General optimization")
+            
+            return {
+                'original_score': original_score,
+                'rewritten_score': rewritten_score,
+                'original_ctr': original_ctr / 100.0,  # Convert to decimal
+                'rewritten_ctr': rewritten_ctr / 100.0,
+                'score_percent_change': score_percent_change,
+                'key_improvements': key_improvements,
+                'headline_improvement': improvement  # Add this for consistency
+            }
+            
+        except Exception as e:
+            logging.error(f"Error comparing headlines: {e}")
+            return {
+                'original_score': 50.0,
+                'rewritten_score': 50.0,
+                'original_ctr': 0.5,
+                'rewritten_ctr': 0.5,
+                'score_percent_change': 0,
+                'key_improvements': ["Error in comparison"],
+                'headline_improvement': 0
+            }
+    
+    def get_headline_feedback(self, original, rewritten):
+        """Generate detailed feedback on the headline rewrite"""
+        comparison = self.compare_headlines(original, rewritten)
         
-        # Calculate improvements
-        score_diff = rewritten_metrics['score'] - original_metrics['score']
-        score_percent = (score_diff / original_metrics['score']) * 100 if original_metrics['score'] > 0 else 0
+        feedback = []
         
-        ctr_original = original_metrics['prediction']['ctr_estimate']
-        ctr_rewritten = rewritten_metrics['prediction']['ctr_estimate']
-        ctr_diff = ctr_rewritten - ctr_original
-        ctr_percent = (ctr_diff / ctr_original) * 100 if ctr_original > 0 else 0
+        if comparison['score_percent_change'] > 0:
+            feedback.append(f"✅ Improved CTR by {comparison['score_percent_change']:.1f}%")
+        else:
+            feedback.append(f"⚠️ Decreased CTR by {abs(comparison['score_percent_change']):.1f}%")
         
-        # Determine key improvements
-        improvements = []
-        if rewritten_metrics['has_number'] and not original_metrics['has_number']:
-            improvements.append("Added specific numbers")
+        for improvement in comparison['key_improvements']:
+            feedback.append(f"• {improvement}")
         
-        if rewritten_metrics['power_words'] > original_metrics['power_words']:
-            improvements.append(f"Added {rewritten_metrics['power_words'] - original_metrics['power_words']} power words")
+        # Specific recommendations
+        if len(rewritten) > 70:
+            feedback.append("💡 Consider shortening to 40-60 characters")
         
-        if original_metrics['clickbait_words'] > rewritten_metrics['clickbait_words']:
-            improvements.append("Reduced clickbait language")
+        if not any(char.isdigit() for char in rewritten):
+            feedback.append("💡 Consider adding specific numbers")
         
-        if abs(rewritten_metrics['reading_ease'] - 65) < abs(original_metrics['reading_ease'] - 65):
-            improvements.append("Improved readability")
+        if not rewritten.endswith('?') and 'how' not in rewritten.lower():
+            feedback.append("💡 Questions or 'How to' formats often perform well")
         
-        if rewritten_metrics['word_count'] < original_metrics['word_count'] and original_metrics['word_count'] > 12:
-            improvements.append("More concise wording")
-        
-        # Return comparison
-        return {
-            'original_score': original_metrics['score'],
-            'rewritten_score': rewritten_metrics['score'],
-            'score_difference': score_diff,
-            'score_percent_change': score_percent,
-            'original_ctr': ctr_original,
-            'rewritten_ctr': ctr_rewritten,
-            'ctr_difference': ctr_diff,
-            'ctr_percent_change': ctr_percent,
-            'key_improvements': improvements,
-            'original_metrics': original_metrics,
-            'rewritten_metrics': rewritten_metrics,
-            'verdict': "Improved" if score_diff > 0 else "Worsened" if score_diff < 0 else "Unchanged"
-        }
+        return "\n".join(feedback)
+
+# Optional: Test the metrics
+if __name__ == "__main__":
+    metrics = HeadlineMetrics()
+    
+    # Test examples
+    original = "Scientists Make Discovery About Climate Change"
+    rewritten = "7 Shocking Ways Climate Change Will Transform Your City by 2030"
+    
+    comparison = metrics.compare_headlines(original, rewritten)
+    print(f"Original CTR: {comparison['original_ctr']*100:.1f}%")
+    print(f"Rewritten CTR: {comparison['rewritten_ctr']*100:.1f}%")
+    print(f"Improvement: {comparison['score_percent_change']:.1f}%")
+    print(f"Key improvements: {', '.join(comparison['key_improvements'])}")
