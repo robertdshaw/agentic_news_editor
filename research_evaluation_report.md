@@ -1,20 +1,22 @@
 
 # Research Evaluation Report
-Generated on: 2025-05-02 18:21
+Generated on: 2025-05-03 15:58
 
-## RQ1: How effectively can the AI editor retrieve and rank news articles?
-
-### Metrics:
-- Precision@5: 100.00%
-- Topic Diversity Score: 16.67%
-- User Needs Coverage: 66.67%
-
-## RQ2: Does rewriting headlines improve readability and engagement?
+## RQ1: Article Retrieval Effectiveness
 
 ### Metrics:
-- Average CTR Improvement: 12.4%
-- Headlines Improved: 50.0%
-- Average CTR Change: 5.17%
+- Retrieval Success Rate: 93.3%
+- Total Articles: 15
+- Topics Covered: 3
+
+## RQ2: Headline Improvement Effectiveness
+
+### Metrics:
+- Average Improvement: 2.8%
+- Headlines Improved: 6 out of 15
+- Improvement Rate: 40.0%
+- Average CTR Change: 0.9%
 
 ## Summary:
-Total articles analyzed: 6
+The AI system successfully retrieved 15 articles across 3 topics.
+Headline rewriting improved 40.0% of headlines with an average CTR improvement of 2.8%.
