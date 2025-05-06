@@ -1,0 +1,6 @@
+git add app_frontpage.py
+git commit -m "user needs"
+git push origin master
+
+<h1>EchoFrame</h1>
+  <h2>Agentic-AI Risk Intelligence for Emerging Markets</h2>
