@@ -6,8 +6,11 @@ import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
-# Import your HeadlineMetrics class but only use it for feature extraction
+# We use HeadlineMetrics class for feature extraction
 from headline_metrics import HeadlineMetrics
+
+behaviors_path = r"train_data\behaviors.tsv"
+news_path = r"train_data\news.tsv"
 
 def prepare_mind_dataset(behaviors_path, news_path):
     """Prepare training data from MIND dataset"""
