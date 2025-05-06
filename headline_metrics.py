@@ -1,110 +1,84 @@
-# headline_metrics.py
-
-import re
+import pandas as pd
+import numpy as np
 import logging
+from sklearn.ensemble import RandomForestRegressor
+import pickle
+import re
+from transformers import AutoTokenizer, AutoModel
+import torch
 
 class HeadlineMetrics:
-    def __init__(self, client=None):
-        self.client = client
+    def __init__(self, model_path='headline_ctr_model.pkl'):
+        """Initialize with a trained model for CTR prediction"""
+        self.model = None
+        try:
+            with open(model_path, 'rb') as f:
+                self.model = pickle.load(f)
+            logging.info(f"Loaded headline CTR model from {model_path}")
+        except Exception as e:
+            logging.error(f"Failed to load model: {e}")
+            raise ValueError(f"Could not load model from {model_path}: {e}")
+            
+        # Load embedding model for feature extraction
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+            self.bert_model = AutoModel.from_pretrained("distilbert-base-uncased")
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.bert_model = self.bert_model.to(self.device)
+        except Exception as e:
+            logging.error(f"Failed to load embedding model: {e}")
+            raise ValueError(f"Could not load embedding model: {e}")
+    
+    def extract_features(self, headline):
+        """Extract features from headline for model input"""
+        features = {}
         
-        # Define scoring weights
-        self.power_words = [
-            'secret', 'proven', 'shocking', 'amazing', 'incredible', 
-            'breakthrough', 'revolutionary', 'essential', 'critical',
-            'stunning', 'revealed', 'discover', 'transform', 'powerful',
-            'exclusive', 'urgent', 'limited', 'guarantee', 'scientific'
-        ]
+        # Basic features
+        features['length'] = len(headline)
+        features['word_count'] = len(headline.split())
+        features['has_number'] = int(bool(re.search(r'\d', headline)))
+        features['num_count'] = len(re.findall(r'\d+', headline))
+        features['is_question'] = int(headline.endswith('?'))
+        features['has_how_to'] = int('how to' in headline.lower())
         
-        self.emotional_words = [
-            'love', 'hate', 'fear', 'joy', 'surprise', 'anger', 
-            'happy', 'sad', 'excited', 'worried', 'confident'
-        ]
+        # Embedding features
+        inputs = self.tokenizer(headline, return_tensors="pt", padding=True, truncation=True, max_length=128)
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
         
-        self.weak_words = [
-            'might', 'maybe', 'could', 'possibly', 'perhaps',
-            'somewhat', 'fairly', 'quite', 'rather', 'seems'
-        ]
+        with torch.no_grad():
+            outputs = self.bert_model(**inputs)
+        
+        # Use the [CLS] token embedding
+        embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0]
+        
+        # Add first 10 embedding dimensions as features
+        for i in range(10):
+            features[f'emb_{i}'] = embedding[i]
+        
+        return features
     
     def calculate_ctr_score(self, headline):
-        """Calculate predicted CTR based on headline characteristics"""
+        """Calculate predicted CTR using ML model"""
         try:
-            score = 50.0  # Start with baseline score of 50%
+            # Extract features
+            features = self.extract_features(headline)
             
-            # Length optimization (40-60 characters is optimal)
-            length = len(headline)
-            if 40 <= length <= 60:
-                score += 10.0
-            elif 30 <= length < 40 or 60 < length <= 70:
-                score += 5.0
-            elif length > 80:
-                score -= 10.0
-            elif length < 25:
-                score -= 15.0
+            # Convert features to dataframe
+            features_df = pd.DataFrame([features])
             
-            # Numbers in headline (specific data increases CTR)
-            numbers = re.findall(r'\d+', headline)
-            if numbers:
-                score += 15.0
-                if any(int(num) > 1000 for num in numbers if num.isdigit()):
-                    score += 5.0  # Big numbers are more compelling
+            # Make prediction
+            score = float(self.model.predict(features_df)[0])
             
-            # Question format
-            if headline.endswith('?'):
-                score += 12.0
-            
-            # Power words
-            headline_lower = headline.lower()
-            power_word_count = sum(1 for word in self.power_words if word in headline_lower)
-            score += power_word_count * 8.0  # Each power word adds 8 points
-            
-            # Emotional words
-            emotional_word_count = sum(1 for word in self.emotional_words if word in headline_lower)
-            score += emotional_word_count * 6.0  # Each emotional word adds 6 points
-            
-            # Weak words (reduce score)
-            weak_word_count = sum(1 for word in self.weak_words if word in headline_lower)
-            score -= weak_word_count * 10.0  # Each weak word reduces 10 points
-            
-            # Capitalization issues
-            if headline.isupper():  # ALL CAPS is bad
-                score -= 20.0
-            elif headline.islower():  # all lowercase is bad
-                score -= 10.0
-            
-            # Check for "How to" format
-            if headline_lower.startswith('how to') or 'how you can' in headline_lower:
-                score += 10.0
-            
-            # Check for listicle format
-            if re.match(r'^\d+\s+\w+', headline):  # Starts with number
-                score += 8.0
-            
-            # Punctuation
-            if headline.count('!') > 1:  # Too many exclamation marks
-                score -= 15.0
-            elif headline.count('!') == 1:  # One is okay
-                score += 3.0
-            
-            # Specificity bonus
-            if any(word in headline_lower for word in ['study', 'research', 'report', 'data']):
-                score += 5.0
-            
-            # Urgency words
-            urgency_words = ['now', 'today', 'breaking', 'urgent', 'immediately']
-            if any(word in headline_lower for word in urgency_words):
-                score += 8.0
-            
-            # Convert to percentage (ensure it's between 10% and 90%)
-            ctr_percentage = min(max(score, 10), 90)
+            # Convert to percentage (0-100)
+            ctr_percentage = min(max(score * 100, 10), 90)
             
             logging.debug(f"Headline: {headline}")
-            logging.debug(f"Base score: {score}, CTR: {ctr_percentage}%")
+            logging.debug(f"Model score: {score}, CTR: {ctr_percentage}%")
             
-            return score, ctr_percentage
-            
+            return score, ctr_percentage / 100.0  # Return as decimal for consistency
         except Exception as e:
             logging.error(f"Error calculating CTR score: {e}")
-            return 50.0, 50.0  # Return baseline on error
+            return 50.0, 0.5  # Return baseline on error
     
     def compare_headlines(self, original, rewritten):
         """Compare original and rewritten headlines"""
@@ -116,52 +90,17 @@ class HeadlineMetrics:
             score_percent_change = (improvement / original_ctr) * 100 if original_ctr > 0 else 0
             
             # Identify key improvements
-            key_improvements = []
-            
-            # Check for question format
-            if rewritten.endswith('?') and not original.endswith('?'):
-                key_improvements.append("Added question format")
-            
-            # Check for numbers
-            original_numbers = re.findall(r'\d+', original)
-            rewritten_numbers = re.findall(r'\d+', rewritten)
-            if rewritten_numbers and not original_numbers:
-                key_improvements.append("Added specific numbers")
-            elif len(rewritten_numbers) > len(original_numbers):
-                key_improvements.append("Added more specific data")
-            
-            # Check for power words
-            original_power = sum(1 for word in self.power_words if word in original.lower())
-            rewritten_power = sum(1 for word in self.power_words if word in rewritten.lower())
-            if rewritten_power > original_power:
-                key_improvements.append("Added power words")
-            
-            # Check for length optimization
-            original_len = len(original)
-            rewritten_len = len(rewritten)
-            if (original_len > 70 or original_len < 40) and (40 <= rewritten_len <= 60):
-                key_improvements.append("Optimized length")
-            
-            # Check for weak word removal
-            original_weak = sum(1 for word in self.weak_words if word in original.lower())
-            rewritten_weak = sum(1 for word in self.weak_words if word in rewritten.lower())
-            if original_weak > rewritten_weak:
-                key_improvements.append("Removed weak language")
-            
-            # If no improvements found but score increased
-            if not key_improvements and improvement > 0:
-                key_improvements.append("General optimization")
+            key_improvements = self._explain_improvements(original, rewritten)
             
             return {
                 'original_score': original_score,
                 'rewritten_score': rewritten_score,
-                'original_ctr': original_ctr / 100.0,  # Convert to decimal
-                'rewritten_ctr': rewritten_ctr / 100.0,
+                'original_ctr': original_ctr,
+                'rewritten_ctr': rewritten_ctr,
                 'score_percent_change': score_percent_change,
                 'key_improvements': key_improvements,
-                'headline_improvement': improvement  # Add this for consistency
+                'headline_improvement': improvement * 100  # Convert to percentage points
             }
-            
         except Exception as e:
             logging.error(f"Error comparing headlines: {e}")
             return {
@@ -173,6 +112,32 @@ class HeadlineMetrics:
                 'key_improvements': ["Error in comparison"],
                 'headline_improvement': 0
             }
+    
+    def _explain_improvements(self, original, rewritten):
+        """Explain what improved in the headline based on features"""
+        orig_features = self.extract_features(original)
+        new_features = self.extract_features(rewritten)
+        
+        improvements = []
+        
+        # Check for specific improvements
+        if 40 <= new_features['length'] <= 60 and (orig_features['length'] < 40 or orig_features['length'] > 60):
+            improvements.append("Optimized headline length")
+            
+        if new_features['has_number'] > orig_features['has_number']:
+            improvements.append("Added specific numbers")
+            
+        if new_features['is_question'] > orig_features['is_question']:
+            improvements.append("Added question format")
+            
+        if new_features['has_how_to'] > orig_features['has_how_to']:
+            improvements.append("Added 'how to' format")
+            
+        # If no specific improvements found
+        if not improvements and (new_features['rewritten_score'] > orig_features['original_score']):
+            improvements.append("General semantic improvement")
+            
+        return improvements
     
     def get_headline_feedback(self, original, rewritten):
         """Generate detailed feedback on the headline rewrite"""
@@ -188,28 +153,4 @@ class HeadlineMetrics:
         for improvement in comparison['key_improvements']:
             feedback.append(f"• {improvement}")
         
-        # Specific recommendations
-        if len(rewritten) > 70:
-            feedback.append("💡 Consider shortening to 40-60 characters")
-        
-        if not any(char.isdigit() for char in rewritten):
-            feedback.append("💡 Consider adding specific numbers")
-        
-        if not rewritten.endswith('?') and 'how' not in rewritten.lower():
-            feedback.append("💡 Questions or 'How to' formats often perform well")
-        
         return "\n".join(feedback)
-
-# Optional: Test the metrics
-if __name__ == "__main__":
-    metrics = HeadlineMetrics()
-    
-    # Test examples
-    original = "Scientists Make Discovery About Climate Change"
-    rewritten = "7 Shocking Ways Climate Change Will Transform Your City by 2030"
-    
-    comparison = metrics.compare_headlines(original, rewritten)
-    print(f"Original CTR: {comparison['original_ctr']*100:.1f}%")
-    print(f"Rewritten CTR: {comparison['rewritten_ctr']*100:.1f}%")
-    print(f"Improvement: {comparison['score_percent_change']:.1f}%")
-    print(f"Key improvements: {', '.join(comparison['key_improvements'])}")
