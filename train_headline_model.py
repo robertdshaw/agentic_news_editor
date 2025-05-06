@@ -2,10 +2,8 @@ import pandas as pd
 import numpy as np
 import logging
 import pickle
-import re
 import os
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 
 # Import your HeadlineMetrics class but only use it for feature extraction
@@ -13,7 +11,7 @@ from headline_metrics import HeadlineMetrics
 
 def prepare_mind_dataset(behaviors_path, news_path):
     """Prepare training data from MIND dataset"""
-    print("Loading MIND dataset...")
+    print(f"Loading MIND dataset from {behaviors_path} and {news_path}")
     
     # Load MIND behavior data
     behaviors = pd.read_csv(behaviors_path, sep='\t', 
@@ -60,113 +58,68 @@ def prepare_mind_dataset(behaviors_path, news_path):
     
     # Prepare final dataset
     training_data = headline_ctr.reset_index()
-    print(f"Created training dataset with {len(training_data)} headlines")
+    print(f"Created dataset with {len(training_data)} headlines")
     
     return training_data
 
-def generate_synthetic_data(real_data, multiplier=2):
-    """Generate synthetic headline variations to augment training data"""
-    print("Generating synthetic data...")
+def train_model_with_mind_data(train_dir, val_dir, test_dir=None, use_synthetic=None, output_path='headline_ctr_model.pkl'):
+    """Train model using MIND dataset with proper train/validation/test splits"""
     
-    synthetic_data = []
-    
-    # Define common headline transformations
-    transformations = [
-        # Add a number
-        lambda h: f"5 {h}" if not any(c.isdigit() for c in h) else h,
-        # Add a question mark
-        lambda h: f"{h}?" if not h.endswith('?') else h,
-        # Add "How to"
-        lambda h: f"How to {h.lower()}" if not h.lower().startswith('how to') else h,
-        # Shorten if too long
-        lambda h: ' '.join(h.split()[:6]) if len(h.split()) > 10 else h,
-        # Lengthen if too short
-        lambda h: f"{h} you need to know about" if len(h.split()) < 5 else h,
-    ]
-    
-    for _, row in real_data.iterrows():
-        headline = row['title']
-        ctr = row['ctr']
-        
-        # Apply random transformations
-        for _ in range(multiplier):
-            # Apply 1-2 random transformations
-            new_headline = headline
-            for transform in np.random.choice(transformations, size=np.random.randint(1, 3), replace=False):
-                new_headline = transform(new_headline)
-                
-            if new_headline != headline:  # Only add if it's different
-                # Modify CTR slightly (within ±20%)
-                modified_ctr = ctr * (0.8 + 0.4 * np.random.random())
-                
-                synthetic_data.append({
-                    'title': new_headline,
-                    'click_sum': 0,  # Placeholder
-                    'impression_count': 0,  # Placeholder
-                    'ctr': modified_ctr
-                })
-    
-    synthetic_df = pd.DataFrame(synthetic_data)
-    print(f"Generated {len(synthetic_df)} synthetic headlines")
-    
-    return synthetic_df
-
-def extract_features_batch(headlines, metrics):
-    """Extract features for a batch of headlines"""
-    features = []
-    for headline in headlines:
-        try:
-            features.append(metrics.extract_features(headline))
-        except Exception as e:
-            print(f"Error extracting features for headline '{headline}': {e}")
-            # Add empty features
-            features.append({})
-    
-    # Convert to DataFrame
-    features_df = pd.DataFrame(features)
-    
-    # Drop rows with missing features
-    valid_rows = ~features_df.isnull().any(axis=1)
-    return features_df[valid_rows], valid_rows
-
-def train_headline_model(real_data, use_synthetic=None, output_path='headline_ctr_model.pkl'):
-    """
-    Train the ML model using real data and optionally synthetic data
-    
-    Args:
-        real_data: DataFrame with real headline data
-        use_synthetic: None to auto-determine, True to force use, False to disable
-        output_path: Where to save the trained model
-        
-    Returns:
-        Trained model
-    """
-    print(f"Training headline CTR prediction model...")
-    
-    # Split real data into train and validation sets
-    train_data, val_data = train_test_split(real_data, test_size=0.2, random_state=42)
-    print(f"Split data into {len(train_data)} training and {len(val_data)} validation examples")
-    
-    # Create a temporary HeadlineMetrics instance for feature extraction
+    # Create HeadlineMetrics instance for feature extraction
     metrics = HeadlineMetrics(model_path=None)  # Pass None to avoid loading a model
+    
+    # Load training data
+    print("Loading training data...")
+    train_data = prepare_mind_dataset(
+        os.path.join(train_dir, 'behaviors.tsv'),
+        os.path.join(train_dir, 'news.tsv')
+    )
+    
+    # Load validation data
+    print("Loading validation data...")
+    val_data = prepare_mind_dataset(
+        os.path.join(val_dir, 'behaviors.tsv'),
+        os.path.join(val_dir, 'news.tsv')
+    )
     
     # Extract features from training data
     print("Extracting features from training data...")
-    X_train, valid_train_rows = extract_features_batch(train_data['title'], metrics)
-    y_train = train_data['ctr'].iloc[valid_train_rows.values]
+    train_features = []
+    train_valid_indices = []
+    
+    for i, headline in enumerate(train_data['title']):
+        try:
+            features = metrics.extract_features(headline)
+            train_features.append(features)
+            train_valid_indices.append(i)
+        except Exception as e:
+            print(f"Error extracting features for headline: {headline}")
+    
+    X_train = pd.DataFrame(train_features)
+    y_train = train_data.iloc[train_valid_indices]['ctr'].values
     
     # Extract features from validation data
     print("Extracting features from validation data...")
-    X_val, valid_val_rows = extract_features_batch(val_data['title'], metrics)
-    y_val = val_data['ctr'].iloc[valid_val_rows.values]
+    val_features = []
+    val_valid_indices = []
     
+    for i, headline in enumerate(val_data['title']):
+        try:
+            features = metrics.extract_features(headline)
+            val_features.append(features)
+            val_valid_indices.append(i)
+        except Exception as e:
+            print(f"Error extracting features for headline: {headline}")
+    
+    X_val = pd.DataFrame(val_features)
+    y_val = val_data.iloc[val_valid_indices]['ctr'].values
+    
+    # Train base model (without synthetic data)
     print(f"Training base model with {len(X_train)} examples...")
-    
-    # Train base model on real data only
     base_model = RandomForestRegressor(n_estimators=100, random_state=42)
     base_model.fit(X_train, y_train)
     
-    # Evaluate base model
+    # Evaluate on validation set
     base_val_preds = base_model.predict(X_val)
     base_val_mse = mean_squared_error(y_val, base_val_preds)
     base_val_r2 = r2_score(y_val, base_val_preds)
@@ -176,42 +129,112 @@ def train_headline_model(real_data, use_synthetic=None, output_path='headline_ct
     # Decide whether to use synthetic data
     final_model = base_model
     
-    if use_synthetic is None or use_synthetic:
+    if use_synthetic is None or use_synthetic is True:
         # Generate synthetic data
-        synthetic_data = generate_synthetic_data(train_data, multiplier=2)
+        train_headlines_df = pd.DataFrame({
+            'title': train_data.iloc[train_valid_indices]['title'].values,
+            'ctr': y_train
+        })
         
-        # Extract features from synthetic data
-        print("Extracting features from synthetic data...")
-        X_synthetic, valid_synthetic_rows = extract_features_batch(synthetic_data['title'], metrics)
-        y_synthetic = synthetic_data['ctr'].iloc[valid_synthetic_rows.values]
+        # Create synthetic variations
+        print("Generating synthetic variations of headlines...")
+        synthetic_headlines = []
         
-        # Combine with real training data
+        # Define headline transformations
+        transformations = [
+            lambda h: f"5 {h}" if not any(c.isdigit() for c in h) else h,  # Add number
+            lambda h: f"{h}?" if not h.endswith('?') else h,  # Add question mark
+            lambda h: f"How to {h.lower()}" if not h.lower().startswith('how to') else h,  # Add "How to"
+            lambda h: ' '.join(h.split()[:6]) if len(h.split()) > 10 else h,  # Shorten
+            lambda h: f"{h} you need to know" if len(h.split()) < 5 else h,  # Lengthen
+        ]
+        
+        multiplier = 2  # How many synthetic headlines per real headline
+        for _, row in train_headlines_df.iterrows():
+            headline = row['title']
+            ctr = row['ctr']
+            
+            for _ in range(multiplier):
+                # Apply 1-2 random transformations
+                new_headline = headline
+                for transform in np.random.choice(transformations, size=np.random.randint(1, 3), replace=False):
+                    new_headline = transform(new_headline)
+                
+                if new_headline != headline:
+                    # Modify CTR slightly (within ±20%)
+                    modified_ctr = ctr * (0.8 + 0.4 * np.random.random())
+                    synthetic_headlines.append((new_headline, modified_ctr))
+        
+        # Extract features from synthetic headlines
+        print(f"Extracting features from {len(synthetic_headlines)} synthetic headlines...")
+        synthetic_features = []
+        synthetic_ctrs = []
+        
+        for headline, ctr in synthetic_headlines:
+            try:
+                features = metrics.extract_features(headline)
+                synthetic_features.append(features)
+                synthetic_ctrs.append(ctr)
+            except Exception as e:
+                print(f"Error extracting features for synthetic headline: {headline}")
+        
+        X_synthetic = pd.DataFrame(synthetic_features)
+        y_synthetic = np.array(synthetic_ctrs)
+        
+        # Combine with original training data
         X_combined = pd.concat([X_train, X_synthetic], ignore_index=True)
-        y_combined = pd.concat([y_train, y_synthetic], ignore_index=True)
+        y_combined = np.concatenate([y_train, y_synthetic])
         
-        print(f"Training combined model with {len(X_combined)} examples ({len(X_train)} real + {len(X_synthetic)} synthetic)...")
-        
-        # Train model on combined data
+        # Train model with combined data
+        print(f"Training model with combined data ({len(X_combined)} examples)...")
         combined_model = RandomForestRegressor(n_estimators=100, random_state=42)
         combined_model.fit(X_combined, y_combined)
         
-        # Evaluate combined model
+        # Evaluate on validation set
         combined_val_preds = combined_model.predict(X_val)
         combined_val_mse = mean_squared_error(y_val, combined_val_preds)
         combined_val_r2 = r2_score(y_val, combined_val_preds)
         
         print(f"Combined model validation MSE: {combined_val_mse:.6f}, R²: {combined_val_r2:.4f}")
         
-        # Compare models and decide which to use
+        # Compare and select the better model
         if use_synthetic is True or combined_val_mse < base_val_mse:
             print("Using model trained with synthetic data")
             final_model = combined_model
         else:
             print("Synthetic data did not improve performance; using base model")
-    else:
-        print("Synthetic data generation disabled; using base model")
     
-    # Identify feature importance for interpretability
+    # Evaluate on test set if provided
+    if test_dir is not None:
+        print("Loading test data for final evaluation...")
+        test_data = prepare_mind_dataset(
+            os.path.join(test_dir, 'behaviors.tsv'),
+            os.path.join(test_dir, 'news.tsv')
+        )
+        
+        # Extract features from test data
+        test_features = []
+        test_valid_indices = []
+        
+        for i, headline in enumerate(test_data['title']):
+            try:
+                features = metrics.extract_features(headline)
+                test_features.append(features)
+                test_valid_indices.append(i)
+            except Exception as e:
+                print(f"Error extracting features for test headline: {headline}")
+        
+        X_test = pd.DataFrame(test_features)
+        y_test = test_data.iloc[test_valid_indices]['ctr'].values
+        
+        # Final evaluation
+        test_preds = final_model.predict(X_test)
+        test_mse = mean_squared_error(y_test, test_preds)
+        test_r2 = r2_score(y_test, test_preds)
+        
+        print(f"Final model test MSE: {test_mse:.6f}, R²: {test_r2:.4f}")
+    
+    # Show feature importance
     feature_importance = pd.DataFrame({
         'feature': X_train.columns,
         'importance': final_model.feature_importances_
@@ -220,7 +243,7 @@ def train_headline_model(real_data, use_synthetic=None, output_path='headline_ct
     print("\nTop 10 most important features:")
     print(feature_importance.head(10))
     
-    # Save model
+    # Save the final model
     with open(output_path, 'wb') as f:
         pickle.dump(final_model, f)
     
@@ -228,12 +251,15 @@ def train_headline_model(real_data, use_synthetic=None, output_path='headline_ct
     return final_model
 
 if __name__ == "__main__":
-    # Set paths to MIND dataset files
-    behaviors_path = "path/to/mind/behaviors.tsv"
-    news_path = "path/to/mind/news.tsv"
+    # Set paths to MIND dataset directories
+    train_dir = "path/to/mind/train"
+    val_dir = "path/to/mind/validation"
+    test_dir = "path/to/mind/test"  # Optional, set to None to skip test evaluation
     
-    # Prepare dataset
-    real_data = prepare_mind_dataset(behaviors_path, news_path)
-    
-    # Train and save model with auto-determination of synthetic data usage
-    model = train_headline_model(real_data, use_synthetic=None)
+    # Train model with proper dataset splits
+    model = train_model_with_mind_data(
+        train_dir=train_dir,
+        val_dir=val_dir,
+        test_dir=test_dir,
+        use_synthetic=None  # Auto-determine based on validation performance
+    )
