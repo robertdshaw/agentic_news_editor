@@ -1,10 +1,41 @@
+# Add this to the top of your file before other imports
+import logging
+import threading
+import sys
+
+def disable_torch_watchdog():
+    """Disable the torch watchdog thread to avoid conflicts with Streamlit"""
+    if 'torch' not in sys.modules:
+        return False
+    
+    try:
+        for thread in threading.enumerate():
+            if thread.name == 'Watchdog':
+                logging.info("Found PyTorch watchdog thread, disabling...")
+                
+                if hasattr(thread, '_Thread__stop'):
+                    thread._Thread__stop()
+                    logging.info("PyTorch watchdog thread disabled")
+                    return True
+        
+        return False
+    except Exception as e:
+        logging.error(f"Error disabling PyTorch watchdog: {e}")
+        return False
+
+disable_torch_watchdog()
+ 
 import os
-# os.environ["STREAMLIT_WATCH_FORCE_POLLING"] = "true"
-import disable_torch_watch
 import streamlit as st
 import json
 import pandas as pd
 import numpy as np
+import datetime
+import random
+import time
+import logging
+from openai import OpenAI
+from dotenv import load_dotenv
 from headline_metrics import HeadlineMetrics
 from headline_learning import HeadlineLearningLoop
 
@@ -21,13 +52,6 @@ try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
     st.error("SentenceTransformer not installed. Please install with 'pip install sentence-transformers'")
-
-from openai import OpenAI
-from dotenv import load_dotenv
-import datetime
-import random
-import time
-import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -207,6 +231,160 @@ apply_custom_css()
 
 # --- Functions ---
 
+def process_mind_dataset(news_file="news.tsv", behaviors_file="behaviors.tsv"):
+    """Process the MIND dataset to create necessary data files"""
+    logging.info("Processing MIND dataset...")
+    
+    try:
+        # Define column names for MIND dataset
+        news_columns = ['news_id', 'category', 'subcategory', 'title', 'abstract', 
+                       'url', 'title_entities', 'abstract_entities']
+        
+        # Load news data
+        news_df = pd.read_csv(news_file, sep='\t', names=news_columns)
+        logging.info(f"Loaded {len(news_df)} news articles")
+        
+        # Clean up data
+        news_df = news_df.dropna(subset=['title', 'abstract'])
+        
+        # Save processed data
+        news_df.to_csv("processed_news.csv", index=False)
+        logging.info(f"Saved processed data to processed_news.csv")
+        
+        # Process behaviors to calculate CTR if available
+        if os.path.exists(behaviors_file):
+            behaviors_columns = ['impression_id', 'user_id', 'time', 'history', 'impressions']
+            behaviors_df = pd.read_csv(behaviors_file, sep='\t', names=behaviors_columns)
+            
+            # Calculate CTR (simplified)
+            news_clicks = {}
+            news_impressions = {}
+            
+            for _, row in behaviors_df.iterrows():
+                if isinstance(row['impressions'], str):
+                    impressions = row['impressions'].split()
+                    
+                    for impression in impressions:
+                        parts = impression.split('-')
+                        if len(parts) == 2:
+                            news_id, click = parts
+                            
+                            if news_id not in news_impressions:
+                                news_impressions[news_id] = 0
+                            news_impressions[news_id] += 1
+                            
+                            if click == '1':
+                                if news_id not in news_clicks:
+                                    news_clicks[news_id] = 0
+                                news_clicks[news_id] += 1
+            
+            # Calculate CTR for each article
+            ctr_data = []
+            for news_id, impressions in news_impressions.items():
+                clicks = news_clicks.get(news_id, 0)
+                ctr = clicks / impressions if impressions > 0 else 0
+                ctr_data.append({
+                    'news_id': news_id,
+                    'clicks': clicks,
+                    'impressions': impressions,
+                    'ctr': ctr
+                })
+            
+            # Create dataframe
+            ctr_df = pd.DataFrame(ctr_data)
+            
+            # Merge with news data
+            news_with_ctr = pd.merge(news_df, ctr_df, on='news_id', how='left')
+            news_with_ctr['ctr'] = news_with_ctr['ctr'].fillna(0.05)  # Default CTR
+            
+            news_with_ctr.to_csv("headline_ctr_data.csv", index=False)
+            logging.info(f"Saved news articles with CTR data")
+        
+        return True
+    except Exception as e:
+        logging.error(f"Error processing MIND dataset: {e}")
+        return False
+
+def create_embeddings_and_index(processed_file="processed_news.csv"):
+    """Create embeddings and FAISS index for articles"""
+    try:
+        if not os.path.exists(processed_file):
+            logging.error(f"Processed file not found: {processed_file}")
+            return False
+            
+        # Load processed data
+        processed_df = pd.read_csv(processed_file)
+        
+        # Initialize SentenceTransformer
+        model = load_sentence_transformer()
+        if model is None:
+            return False
+        
+        # Prepare text for embedding
+        texts = []
+        for _, row in processed_df.iterrows():
+            title = row['title'] if isinstance(row['title'], str) else ""
+            abstract = row['abstract'] if isinstance(row['abstract'], str) else ""
+            combined_text = f"{title} {abstract}"
+            texts.append(combined_text)
+        
+        # Compute embeddings in batches
+        logging.info("Computing embeddings...")
+        batch_size = 32
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i+batch_size]
+            batch_embeddings = model.encode(batch_texts)
+            all_embeddings.extend(batch_embeddings)
+        
+        # Add embeddings to dataframe
+        processed_df['embedding'] = [','.join(map(str, emb)) for emb in all_embeddings]
+        
+        # Save dataframe with embeddings
+        processed_df.to_csv("articles_with_embeddings.csv", index=False)
+        
+        # Create FAISS index
+        embeddings_array = np.array(all_embeddings).astype('float32')
+        dimension = embeddings_array.shape[1]
+        index = faiss.IndexFlatL2(dimension)
+        index.add(embeddings_array)
+        
+        # Save index
+        faiss.write_index(index, "articles_faiss.index")
+        logging.info(f"Created FAISS index with {index.ntotal} vectors")
+        
+        return True
+    except Exception as e:
+        logging.error(f"Error creating embeddings and index: {e}")
+        return False
+
+def check_data_and_prepare():
+    """Check if data files exist and prepare them if needed"""
+    if not os.path.exists("articles_with_embeddings.csv") or not os.path.exists("articles_faiss.index"):
+        st.info("Data files not found. Preparing data...")
+        
+        # Check for MIND dataset files
+        if not os.path.exists("news.tsv") or not os.path.exists("behaviors.tsv"):
+            st.error("MIND dataset files not found. Please place news.tsv and behaviors.tsv in the current directory.")
+            return False
+        
+        # Process dataset
+        if process_mind_dataset():
+            st.info("MIND dataset processed successfully.")
+        else:
+            st.error("Error processing MIND dataset.")
+            return False
+        
+        # Create embeddings and index
+        if create_embeddings_and_index():
+            st.success("Created embeddings and index successfully.")
+        else:
+            st.error("Error creating embeddings and index.")
+            return False
+    
+    return True
+
 def load_sentence_transformer():
     """Load the sentence transformer model separately to avoid conflicts"""
     try:
@@ -324,6 +502,87 @@ REWRITTEN HEADLINE:"""
     except Exception as e:
         logging.error(f"Error rewriting headline: {e}")
         return title
+    
+def train_headline_ctr_model(data_file="headline_ctr_data.csv", output_file="headline_ctr_model.pkl"):
+    """Train the headline CTR prediction model"""
+    try:
+        if not os.path.exists(data_file):
+            logging.error(f"Training data not found: {data_file}")
+            return False
+        
+        # Load data
+        data = pd.read_csv(data_file)
+        data = data.dropna(subset=['title', 'ctr'])
+        
+        # Extract features
+        features_list = []
+        for headline in data['title']:
+            features = {}
+            
+            # Basic features based on EDA findings
+            features['length'] = len(headline)
+            features['word_count'] = len(headline.split())
+            features['has_number'] = int(bool(re.search(r'\d', headline)))
+            features['is_question'] = int(headline.endswith('?') or headline.lower().startswith('what') or 
+                                      headline.lower().startswith('how') or headline.lower().startswith('why'))
+            features['has_colon'] = int(':' in headline)
+            
+            # Get embedding
+            model = load_sentence_transformer()
+            if model is not None:
+                embedding = model.encode([headline])[0]
+                
+                # Add first 10 embedding dimensions as features
+                for i in range(10):
+                    features[f'emb_{i}'] = embedding[i]
+            else:
+                # Add zeros if model fails
+                for i in range(10):
+                    features[f'emb_{i}'] = 0.0
+            
+            features_list.append(features)
+        
+        # Create dataframe
+        features_df = pd.DataFrame(features_list)
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features_df, data['ctr'], test_size=0.2, random_state=42
+        )
+        
+        # Train model
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
+        
+        # Evaluate
+        y_pred = model.predict(X_test)
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+        
+        logging.info(f"Model evaluation - MSE: {mse:.4f}, R²: {r2:.4f}")
+        
+        # Save model
+        with open(output_file, 'wb') as f:
+            pickle.dump(model, f)
+        
+        logging.info(f"Saved model to {output_file}")
+        return True
+    except Exception as e:
+        logging.error(f"Error training model: {e}")
+        return False
+
+def check_model_and_train():
+    """Check if model exists and train if needed"""
+    if not os.path.exists("headline_ctr_model.pkl"):
+        st.info("CTR prediction model not found. Training model...")
+        
+        if train_headline_ctr_model():
+            st.success("CTR prediction model trained successfully.")
+        else:
+            st.error("Error training CTR prediction model.")
+            return False
+    
+    return True
 
 def generate_explanation(client, title, abstract):
     """Generate explanation for why the article is important"""
