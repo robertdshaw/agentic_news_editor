@@ -34,7 +34,11 @@ import datetime
 import random
 import time
 import logging
+import re
+import pickle
 from sklearn import mean_squared_error, train_test_split, r2_score
+from sklearn.ensemble import RandomForestRegressor
+
 from openai import OpenAI
 from dotenv import load_dotenv
 from headline_metrics import HeadlineMetrics
