@@ -1,43 +1,50 @@
 """
-Create this as 'disable_torch_watch.py' in your project directory
+This module disables PyTorch watchdog to avoid conflicts with Streamlit.
+
+PyTorch creates a watchdog thread that can interfere with Streamlit's
+file watchers and cause unexpected behavior, including crashes and 
+excessive CPU usage.
 """
 
-# Apply this patch before importing streamlit or torch
+import logging
+import threading
 import sys
-import types
-from functools import wraps
 
-# Find streamlit in installed packages
-try:
-    import streamlit
-    import importlib
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-    # Path to the file we need to patch
-    watcher_path = 'streamlit.watcher.local_sources_watcher'
+def is_torch_loaded():
+    """Check if torch is loaded in the current environment"""
+    return 'torch' in sys.modules
+
+def disable_torch_watchdog():
+    """Disable the torch watchdog thread to avoid conflicts with Streamlit"""
+    if not is_torch_loaded():
+        logger.info("PyTorch not loaded, no need to disable watchdog")
+        return False
     
-    # Import the module
-    if watcher_path in sys.modules:
-        watcher_module = sys.modules[watcher_path]
-    else:
-        watcher_module = importlib.import_module(watcher_path)
-    
-    # Keep reference to the original function
-    original_get_module_paths = watcher_module.get_module_paths
-    
-    # Create a patched version that skips torch
-    @wraps(original_get_module_paths)
-    def patched_get_module_paths(module):
-        # Skip processing for torch modules
-        if hasattr(module, "__name__") and module.__name__.startswith('torch'):
-            return []
+    try:
+        # Import torch if it's already in sys.modules
+        import torch
         
-        # Use the original function for all other modules
-        return original_get_module_paths(module)
-    
-    # Apply our patch
-    watcher_module.get_module_paths = patched_get_module_paths
-    
-    print("Successfully patched Streamlit to ignore torch modules")
-    
-except Exception as e:
-    print(f"Warning: Could not patch Streamlit watcher: {e}")
+        # Find and stop the watchdog
+        for thread in threading.enumerate():
+            if thread.name == 'Watchdog':
+                logger.info("Found PyTorch watchdog thread, disabling...")
+                
+                # Use an undocumented method to stop the watchdog
+                # This is a bit risky but necessary for compatibility
+                if hasattr(thread, '_Thread__stop'):
+                    thread._Thread__stop()
+                    logger.info("PyTorch watchdog thread disabled")
+                    return True
+        
+        logger.info("No PyTorch watchdog thread found")
+        return False
+    except Exception as e:
+        logger.error(f"Error disabling PyTorch watchdog: {e}")
+        return False
+
+# Automatically disable watchdog when this module is imported
+disable_torch_watchdog()
