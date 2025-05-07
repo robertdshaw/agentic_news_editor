@@ -1,0 +1,382 @@
+{
+  "Medium": {
+    "high_ctr": [
+      {
+        "newsID": "N111158",
+        "title": "Jennifer Aniston Steals the Show in Jaw-Dropping Dress at 2019 People's Choice Awards",
+        "category": "entertainment",
+        "ctr": 0.5,
+        "title_reading_ease": 58.28
+      },
+      {
+        "newsID": "N20034",
+        "title": "Mayor Lori Lightfoot proposes minimum wage hike that would boost tipped workers' pay, but not to full $15 an hour",
+        "category": "news",
+        "ctr": 0.4,
+        "title_reading_ease": 59.64
+      },
+      {
+        "newsID": "N3664",
+        "title": "Broadway Star Laurel Griggs Suffered Asthma Attack Before She Died at Age 13",
+        "category": "music",
+        "ctr": 0.3659090909090909,
+        "title_reading_ease": 66.74
+      },
+      {
+        "newsID": "N103895",
+        "title": "Here's Why Chicago Ranks as One of America's Best Food Cities",
+        "category": "foodanddrink",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 68.77
+      },
+      {
+        "newsID": "N73318",
+        "title": "Snow Keeps Coming: Up To 9 Inches Expected In Metro Detroit",
+        "category": "weather",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 68.77
+      }
+    ],
+    "low_ctr": [
+      {
+        "newsID": "N39191",
+        "title": "The Top 50 Fast Food Restaurants in America",
+        "category": "foodanddrink",
+        "ctr": 0.0,
+        "title_reading_ease": 63.36
+      },
+      {
+        "newsID": "N117724",
+        "title": "10 ways the average American home is different today than it was in the '60s",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 64.71
+      },
+      {
+        "newsID": "N125680",
+        "title": "Texting Thumb Hurts, and It's Your Valid Excuse to Finally Unplug",
+        "category": "health",
+        "ctr": 0.0,
+        "title_reading_ease": 68.77
+      },
+      {
+        "newsID": "N74636",
+        "title": "Daphne Oz Just Shared the Most Relatable Abs Photo 10 Weeks After Giving Birth",
+        "category": "health",
+        "ctr": 0.0,
+        "title_reading_ease": 57.27
+      },
+      {
+        "newsID": "N46288",
+        "title": "See every outfit Duchess Meghan wore in 2019",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 63.36
+      }
+    ]
+  },
+  "Easy": {
+    "high_ctr": [
+      {
+        "newsID": "N20645",
+        "title": "South Carolina president: 'Muschamp is my coach ... through the end of the season'",
+        "category": "sports",
+        "ctr": 0.375,
+        "title_reading_ease": 73.34
+      },
+      {
+        "newsID": "N31174",
+        "title": "Broadway Actress Laurel Griggs Dies at Age 13",
+        "category": "music",
+        "ctr": 0.3569553805774278,
+        "title_reading_ease": 80.28
+      },
+      {
+        "newsID": "N114347",
+        "title": "Stop being jealous of iMessage. What you need to know about Android's fancy texting update",
+        "category": "news",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 72.32
+      },
+      {
+        "newsID": "N121868",
+        "title": "Excited cat obsessed with sheep friend",
+        "category": "video",
+        "ctr": 0.2857142857142857,
+        "title_reading_ease": 73.85
+      },
+      {
+        "newsID": "N114408",
+        "title": "'You're not a serial killer, right?' victim text messaged man before she died",
+        "category": "news",
+        "ctr": 0.25,
+        "title_reading_ease": 73.34
+      }
+    ],
+    "low_ctr": [
+      {
+        "newsID": "N54566",
+        "title": "15 Abandoned Places That You Can See Only in Pictures",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 69.79
+      },
+      {
+        "newsID": "N103382",
+        "title": "9 Mistakes You're Making When Freezing Your Food",
+        "category": "foodanddrink",
+        "ctr": 0.0,
+        "title_reading_ease": 80.28
+      },
+      {
+        "newsID": "N24798",
+        "title": "40 Celebrities You Forgot Used to Rock Long Hair",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 79.26
+      },
+      {
+        "newsID": "N94112",
+        "title": "45 Amazing Facts About Airplanes That Will Make Your Mind Soar",
+        "category": "travel",
+        "ctr": 0.0,
+        "title_reading_ease": 77.23
+      },
+      {
+        "newsID": "N110256",
+        "title": "What property buyers should know about land loans",
+        "category": "finance",
+        "ctr": 0.0,
+        "title_reading_ease": 71.82
+      }
+    ]
+  },
+  "Very Easy": {
+    "high_ctr": [
+      {
+        "newsID": "N126837",
+        "title": "'Literally people are like, 'Are you Matt Damon?' and I'm like, 'No, no, I'm not''",
+        "category": "sports",
+        "ctr": 0.5,
+        "title_reading_ease": 89.24
+      },
+      {
+        "newsID": "N34189",
+        "title": "Reed on U.S. team controversy: 'We all talked about it ... we've all moved on'",
+        "category": "sports",
+        "ctr": 0.5,
+        "title_reading_ease": 92.08
+      },
+      {
+        "newsID": "N99184",
+        "title": "Browns, Steelers brawl at end of Cleveland's 21-7 win",
+        "category": "sports",
+        "ctr": 0.4117647058823529,
+        "title_reading_ease": 96.18
+      },
+      {
+        "newsID": "N76569",
+        "title": "Wombat Goes To Dentist And Now We've Seen It All",
+        "category": "video",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 95.17
+      },
+      {
+        "newsID": "N8124",
+        "title": "Opinions | We thought Trump was the biggest con man. We were all wrong.",
+        "category": "news",
+        "ctr": 0.3225806451612903,
+        "title_reading_ease": 98.72
+      }
+    ],
+    "low_ctr": [
+      {
+        "newsID": "N37697",
+        "title": "All the Things You Didn't Know About 'The Crown'",
+        "category": "tv",
+        "ctr": 0.0,
+        "title_reading_ease": 96.18
+      },
+      {
+        "newsID": "N37373",
+        "title": "I Was 24 & Had Just Scored My Dream Job In Fashion. Then An Accident In The Hamptons Changed Everything.",
+        "category": "health",
+        "ctr": 0.0,
+        "title_reading_ease": 87.21
+      },
+      {
+        "newsID": "N60235",
+        "title": "How To Make Hard Boiled Eggs In An Instant Pot (In Half The Time)",
+        "category": "foodanddrink",
+        "ctr": 0.0,
+        "title_reading_ease": 99.57
+      },
+      {
+        "newsID": "N52948",
+        "title": "U.S. cities with the cleanest air",
+        "category": "weather",
+        "ctr": 0.0,
+        "title_reading_ease": 90.77
+      },
+      {
+        "newsID": "N77818",
+        "title": "I wanted to learn to swim before I turned 30. Easier said than done.",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 89.75
+      }
+    ]
+  },
+  "Hard": {
+    "high_ctr": [
+      {
+        "newsID": "N113999",
+        "title": "Off-Duty Cypress Police Officer Accused of Sex Assault at Garden Grove Home",
+        "category": "news",
+        "ctr": 0.625,
+        "title_reading_ease": 42.38
+      },
+      {
+        "newsID": "N10929",
+        "title": "Popular Mexican restaurant goes up in flames, now considered 'total loss'",
+        "category": "news",
+        "ctr": 0.5,
+        "title_reading_ease": 43.39
+      },
+      {
+        "newsID": "N18130",
+        "title": "Charlie Baker names new state police colonel to head embattled agency",
+        "category": "news",
+        "ctr": 0.4,
+        "title_reading_ease": 51.85
+      },
+      {
+        "newsID": "N127024",
+        "title": "Doc Rivers comments on son Austin's Instagram post after ejection",
+        "category": "sports",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 52.87
+      },
+      {
+        "newsID": "N92602",
+        "title": "Packers' Preston Smith buying Rolexes for defensive teammates after reaching milestone in bet",
+        "category": "sports",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 41.36
+      }
+    ],
+    "low_ctr": [
+      {
+        "newsID": "N98753",
+        "title": "50 Celebrities You Definitely Forgot Busted a Move on 'Dancing With the Stars'",
+        "category": "tv",
+        "ctr": 0.0,
+        "title_reading_ease": 49.82
+      },
+      {
+        "newsID": "N62077",
+        "title": "13 Billion-Dollar City Projects That Will Save You Money",
+        "category": "finance",
+        "ctr": 0.0,
+        "title_reading_ease": 53.88
+      },
+      {
+        "newsID": "N61626",
+        "title": "20 Crazy Cleaning Tips That Actually Work",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 55.91
+      },
+      {
+        "newsID": "N128705",
+        "title": "Lady Gaga Opens Up to Oprah About Trauma, Self-Harm, and Choosing Kindness",
+        "category": "music",
+        "ctr": 0.0,
+        "title_reading_ease": 42.38
+      },
+      {
+        "newsID": "N56390",
+        "title": "35 Pet Peeves Interior Designers Have About Your Home",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 53.88
+      }
+    ]
+  },
+  "Very Hard": {
+    "high_ctr": [
+      {
+        "newsID": "N19595",
+        "title": "Amazon founder Jeff Bezos reportedly interested in owning NFL team",
+        "category": "sports",
+        "ctr": 0.5714285714285714,
+        "title_reading_ease": 10.56
+      },
+      {
+        "newsID": "N56613",
+        "title": "Arizona town with nearly 250,000 residents getting its first cemetery",
+        "category": "news",
+        "ctr": 0.4,
+        "title_reading_ease": 27.49
+      },
+      {
+        "newsID": "N110190",
+        "title": "This Baltimore Restaurant Serves an Amazing Thanksgiving Dinner",
+        "category": "foodanddrink",
+        "ctr": 0.3333333333333333,
+        "title_reading_ease": 21.06
+      },
+      {
+        "newsID": "N82823",
+        "title": "Simple and surprisingly unexpected Thanksgiving side dishes",
+        "category": "foodanddrink",
+        "ctr": 0.2857142857142857,
+        "title_reading_ease": -3.32
+      },
+      {
+        "newsID": "N30325",
+        "title": "A Post-Post-Cold-War NATO",
+        "category": "news",
+        "ctr": 0.25,
+        "title_reading_ease": 9.21
+      }
+    ],
+    "low_ctr": [
+      {
+        "newsID": "N107014",
+        "title": "The Most Beautiful Natural Wonder in Every State",
+        "category": "travel",
+        "ctr": 0.0,
+        "title_reading_ease": 37.98
+      },
+      {
+        "newsID": "N124806",
+        "title": "30 Helpful Organizing Tips",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 33.58
+      },
+      {
+        "newsID": "N66775",
+        "title": "Chevy Silverado ZRX Spied Showing Off Rugged Details",
+        "category": "autos",
+        "ctr": 0.0,
+        "title_reading_ease": 37.98
+      },
+      {
+        "newsID": "N105168",
+        "title": "24 affordable gifts your husband will appreciate this holiday season",
+        "category": "lifestyle",
+        "ctr": 0.0,
+        "title_reading_ease": 27.49
+      },
+      {
+        "newsID": "N128103",
+        "title": "5 Things We Still Don't Know About Those Vaping-Related Hospitalizations",
+        "category": "health",
+        "ctr": 0.0,
+        "title_reading_ease": 19.03
+      }
+    ]
+  }
+}

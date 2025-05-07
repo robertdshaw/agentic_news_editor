@@ -1,0 +1,150 @@
+{
+  "category_performance": [
+    {
+      "category": "kids",
+      "ctr_mean": 0.18181818181818182,
+      "ctr_std": 0.40451991747794525,
+      "impression_count": 11
+    },
+    {
+      "category": "music",
+      "ctr_mean": 0.06396128505626494,
+      "ctr_std": 0.24469109106433629,
+      "impression_count": 17151
+    },
+    {
+      "category": "tv",
+      "ctr_mean": 0.0621247551033306,
+      "ctr_std": 0.24138962789315255,
+      "impression_count": 15823
+    },
+    {
+      "category": "weather",
+      "ctr_mean": 0.051961823966065745,
+      "ctr_std": 0.22196959460420843,
+      "impression_count": 5658
+    },
+    {
+      "category": "video",
+      "ctr_mean": 0.04860392967942089,
+      "ctr_std": 0.2150571063980657,
+      "impression_count": 5802
+    },
+    {
+      "category": "sports",
+      "ctr_mean": 0.047188516139265606,
+      "ctr_std": 0.21204468569338064,
+      "impression_count": 37827
+    },
+    {
+      "category": "news",
+      "ctr_mean": 0.043940221438856064,
+      "ctr_std": 0.20496315653490493,
+      "impression_count": 100705
+    },
+    {
+      "category": "lifestyle",
+      "ctr_mean": 0.04179499518768046,
+      "ctr_std": 0.20012280532505528,
+      "impression_count": 41560
+    },
+    {
+      "category": "health",
+      "ctr_mean": 0.036944557684468,
+      "ctr_std": 0.188630513180975,
+      "impression_count": 19624
+    },
+    {
+      "category": "finance",
+      "ctr_mean": 0.03669979456998501,
+      "ctr_std": 0.1880263308729324,
+      "impression_count": 36022
+    },
+    {
+      "category": "foodanddrink",
+      "ctr_mean": 0.030737358362929137,
+      "ctr_std": 0.17260890138920137,
+      "impression_count": 23652
+    },
+    {
+      "category": "movies",
+      "ctr_mean": 0.029527324681509703,
+      "ctr_std": 0.16928932026440097,
+      "impression_count": 8399
+    },
+    {
+      "category": "entertainment",
+      "ctr_mean": 0.028541272703285103,
+      "ctr_std": 0.16651692963064757,
+      "impression_count": 22739
+    },
+    {
+      "category": "travel",
+      "ctr_mean": 0.026993189102564104,
+      "ctr_std": 0.1620674928629631,
+      "impression_count": 19968
+    },
+    {
+      "category": "autos",
+      "ctr_mean": 0.025767968983000298,
+      "ctr_std": 0.1584470834410496,
+      "impression_count": 16765
+    },
+    {
+      "category": "northamerica",
+      "ctr_mean": 0.0,
+      "ctr_std": NaN,
+      "impression_count": 1
+    }
+  ],
+  "headline_insights": {
+    "reading_ease_correlation": 0.004213402777819154,
+    "headline_patterns": {
+      "high_engagement": {
+        "questions": [
+          115,
+          4.281459419210722
+        ],
+        "numbers": [
+          883,
+          32.874162323157115
+        ],
+        "quotes": [
+          949,
+          35.331347728965
+        ],
+        "colons": [
+          423,
+          15.748324646314222
+        ],
+        "ellipsis": [
+          6,
+          0.22338049143708116
+        ]
+      },
+      "low_engagement": {
+        "questions": [
+          352,
+          5.089647194910353
+        ],
+        "numbers": [
+          2047,
+          29.598033545401965
+        ],
+        "quotes": [
+          1960,
+          28.34008097165992
+        ],
+        "colons": [
+          1291,
+          18.66685945633314
+        ],
+        "ellipsis": [
+          9,
+          0.13013302486986697
+        ]
+      }
+    }
+  },
+  "overall_ctr_benchmark": 0.04101886701084456
+}
