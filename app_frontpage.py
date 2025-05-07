@@ -482,9 +482,6 @@ Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
 - Total Articles: {metrics['num_articles']}
 - Topics Covered: {metrics['topics_covered']}
 
-## RQ2: Headline Improvement Effectiveness
-
-### Metrics:
 - Average Improvement: {metrics['headline_metrics']['avg_improvement']:.1f}%
 - Headlines Improved: {metrics['headline_metrics']['improved_count']} out of {metrics['headline_metrics']['total_headlines']}
 - Improvement Rate: {metrics['headline_metrics']['improvement_rate']:.1%}
