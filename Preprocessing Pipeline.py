@@ -147,7 +147,7 @@ def process_impressions_to_file(behaviors_df, output_path, sampled_article_ids=N
     total_rows = len(behaviors_df)
     
     # Process in chunks to manage memory usage
-    chunk_size = 25000
+    chunk_size = 50000
     num_chunks = (total_rows + chunk_size - 1) // chunk_size
     
     print_with_timestamp(f"Processing {total_rows} behavior records in {num_chunks} chunks...")
