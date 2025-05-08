@@ -36,14 +36,16 @@ if not os.path.exists(output_dir):
     os.makedirs(f'{output_dir}/plots')
     os.makedirs(f'{output_dir}/processed_data')
 
-# Sampling configuration - adjust these to control memory usage
-BEHAVIOR_SAMPLE_RATE = 1.0  # Process all behavior or user records
-NEWS_SAMPLE_RATE = 0.2     # Process 20% of news articles/headlines
+# Sampling configuration
+BEHAVIOR_SAMPLE_RATE = 1.0  # Process all behavior records
+TRAIN_NEWS_SAMPLE_RATE = 0.3  # Sample 30% of training articles
+VAL_NEWS_SAMPLE_RATE = 0.2    # Sample 20% of validation articles  
+TEST_NEWS_SAMPLE_RATE = 0.1   # Sample only 10% of test articles
 MAX_IMPRESSIONS_PER_BEHAVIOR = 20  # Limit impressions per behavior record
 MIN_IMPRESSIONS_FOR_CTR = 5  # Min impressions needed for reliable CTR
 
 # ================== UTILITY FUNCTIONS ==================
-def sample_news_articles(news_df, sample_rate=NEWS_SAMPLE_RATE):
+def sample_news_articles(news_df, sample_rate):
     """Select a random sample of news articles"""
     if sample_rate >= 1.0:
         return news_df, news_df['newsID'].tolist()
@@ -370,6 +372,15 @@ def process_dataset(data_type='train', sample_news=True,
     print_with_timestamp(f"PROCESSING {data_type.upper()} DATASET")
     print_with_timestamp(f"{'='*50}")
     
+    # Select the appropriate sample rate based on data type
+    sample_rate = TRAIN_NEWS_SAMPLE_RATE
+    if data_type == 'val':
+        sample_rate = VAL_NEWS_SAMPLE_RATE
+    elif data_type == 'test':
+        sample_rate = TEST_NEWS_SAMPLE_RATE
+    
+    print_with_timestamp(f"Using {sample_rate*100}% sample rate for {data_type} articles")
+    
     # Load news data first
     news_path = f"{data_type}_data/news.tsv"
     behaviors_path = f"{data_type}_data/behaviors.tsv"
@@ -395,10 +406,10 @@ def process_dataset(data_type='train', sample_news=True,
     news_df = pd.read_csv(news_path, sep="\t", header=None, names=news_cols)
     print_with_timestamp(f"{data_type} news data loaded: {news_df.shape[0]} rows, {news_df.shape[1]} columns")
     
-    # NEW: Sample news articles instead of behaviors
+    # Sample news articles with appropriate rate
     sampled_article_ids = None
-    if sample_news and NEWS_SAMPLE_RATE < 1.0:
-        news_df, sampled_article_ids = sample_news_articles(news_df, NEWS_SAMPLE_RATE)
+    if sample_news and sample_rate < 1.0:
+        news_df, sampled_article_ids = sample_news_articles(news_df, sample_rate)
     
     # 2. Load behaviors data
     print_with_timestamp(f"Loading {data_type} behaviors data...")
@@ -559,20 +570,21 @@ def process_dataset(data_type='train', sample_news=True,
     print_with_timestamp(f"Processed {data_type} data saved to {output_file}")
     
     # 10. Create a quick summary report
+    # 10. Create a quick summary report
     summary = {
-        'data_type': data_type,
-        'news_articles': len(news_with_engagement),
-        'total_impressions': total_impressions,
-        'total_clicks': int(article_ctr_data['total_clicks'].sum()) if 'total_clicks' in article_ctr_data.columns else 0,
-        'articles_with_impressions': int((news_with_engagement['total_impressions'] > 0).sum()),
-        'avg_ctr': float(news_with_engagement[news_with_engagement['total_impressions'] > 0]['ctr'].mean()) if (news_with_engagement['total_impressions'] > 0).any() else 0,
-        'ctr_stats': ctr_stats,
-        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'sampling': {
-            'article_sample_rate': NEWS_SAMPLE_RATE,
-            'max_impressions_per_behavior': max_impressions
-        }
+    'data_type': data_type,
+    'news_articles': len(news_with_engagement),
+    'total_impressions': total_impressions,
+    'total_clicks': int(article_ctr_data['total_clicks'].sum()) if 'total_clicks' in article_ctr_data.columns else 0,
+    'articles_with_impressions': int((news_with_engagement['total_impressions'] > 0).sum()),
+    'avg_ctr': float(news_with_engagement[news_with_engagement['total_impressions'] > 0]['ctr'].mean()) if (news_with_engagement['total_impressions'] > 0).any() else 0,
+    'ctr_stats': ctr_stats,
+    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    'sampling': {
+        'article_sample_rate': sample_rate,  # Use the appropriate rate for each split
+        'max_impressions_per_behavior': max_impressions
     }
+}
     
     # Save summary to JSON
     with open(f'{output_dir}/processed_data/{data_type}_summary.json', 'w') as f:
@@ -585,13 +597,13 @@ def process_dataset(data_type='train', sample_news=True,
 # ================== MAIN SCRIPT ==================
 if __name__ == "__main__":
     print_with_timestamp("Starting complete preprocessing pipeline...")
-    print_with_timestamp(f"Sampling configuration: {NEWS_SAMPLE_RATE*100}% of news articles, "
-                 f"max {MAX_IMPRESSIONS_PER_BEHAVIOR} impressions per behavior")
+    print_with_timestamp(f"Sampling configuration: Train {TRAIN_NEWS_SAMPLE_RATE*100}%, "
+                 f"Val {VAL_NEWS_SAMPLE_RATE*100}%, Test {TEST_NEWS_SAMPLE_RATE*100}%")
     
     # Process all dataset splits
     start_time = time.time()
     
-    # Process training data
+    # Process training data with train sample rate
     train_data, train_summary = process_dataset('train', sample_news=True, max_impressions=MAX_IMPRESSIONS_PER_BEHAVIOR)
     train_elapsed = (time.time() - start_time) / 60
     if train_data is not None:
@@ -599,18 +611,18 @@ if __name__ == "__main__":
     else:
         print_with_timestamp(f"Training data processing failed")
     
-    # Process validation data
+    # Process validation data with val sample rate  
     val_start = time.time()
-    val_data, val_summary = process_dataset('val', min(BEHAVIOR_SAMPLE_RATE * 2, 1.0), MAX_IMPRESSIONS_PER_BEHAVIOR)
+    val_data, val_summary = process_dataset('val', sample_news=True, max_impressions=MAX_IMPRESSIONS_PER_BEHAVIOR)
     val_elapsed = (time.time() - val_start) / 60
     if val_data is not None:
         print_with_timestamp(f"Validation data processing took {val_elapsed:.2f} minutes")
     else:
         print_with_timestamp(f"Validation data processing failed or skipped")
     
-    # Process test data
+    # Process test data with test sample rate
     test_start = time.time()
-    test_data, test_summary = process_dataset('test', min(BEHAVIOR_SAMPLE_RATE * 2, 1.0), MAX_IMPRESSIONS_PER_BEHAVIOR)
+    test_data, test_summary = process_dataset('test', sample_news=True, max_impressions=MAX_IMPRESSIONS_PER_BEHAVIOR)
     test_elapsed = (time.time() - test_start) / 60
     if test_data is not None:
         print_with_timestamp(f"Test data processing took {test_elapsed:.2f} minutes")
