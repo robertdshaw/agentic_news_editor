@@ -37,12 +37,23 @@ if not os.path.exists(output_dir):
     os.makedirs(f'{output_dir}/processed_data')
 
 # Sampling configuration - adjust these to control memory usage
-BEHAVIOR_SAMPLE_RATE = 0.2  # Process 20% of behavior records
-NEWS_SAMPLE_RATE = 1.0      # Process all news articles
+BEHAVIOR_SAMPLE_RATE = 1.0  # Process all behavior or user records
+NEWS_SAMPLE_RATE = 0.2     # Process 20% of news articles/headlines
 MAX_IMPRESSIONS_PER_BEHAVIOR = 20  # Limit impressions per behavior record
 MIN_IMPRESSIONS_FOR_CTR = 5  # Min impressions needed for reliable CTR
 
 # ================== UTILITY FUNCTIONS ==================
+def sample_news_articles(news_df, sample_rate=NEWS_SAMPLE_RATE):
+    """Select a random sample of news articles"""
+    if sample_rate >= 1.0:
+        return news_df, news_df['newsID'].tolist()
+        
+    print_with_timestamp(f"Sampling {sample_rate*100}% of news articles...")
+    sampled_news = news_df.sample(frac=sample_rate, random_state=42)
+    sampled_ids = sampled_news['newsID'].tolist()
+    print_with_timestamp(f"Selected {len(sampled_ids)} news articles from {len(news_df)}")
+    return sampled_news, sampled_ids
+
 def memory_usage():
     """Get current memory usage in MB"""
     import psutil
@@ -102,7 +113,7 @@ def calculate_reading_scores(df):
     
     return df
 
-def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_per_behavior=None):
+def process_impressions_to_file(behaviors_df, output_path, sampled_article_ids=None, sample_rate=1.0, max_per_behavior=None):
     """
     Process impressions from behaviors and write directly to a CSV file
     with adaptive format detection for different splits.
@@ -111,11 +122,14 @@ def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_
     with open(output_path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['impression_id', 'user_id', 'time', 'news_id', 'clicked'])
-    
-    # Sample the behaviors if requested
-    if sample_rate < 1.0:
+        
+    if sampled_article_ids is None and sample_rate < 1.0:
         behaviors_df = behaviors_df.sample(frac=sample_rate, random_state=42)
         print_with_timestamp(f"Sampling behaviors at rate {sample_rate}, using {len(behaviors_df)} records")
+    
+    # Add log for article filtering
+    if sampled_article_ids is not None:
+        print_with_timestamp(f"Filtering impressions to only include {len(sampled_article_ids)} sampled articles")
     
     # Detect format by examining first non-empty impression
     format_with_clicks = True
@@ -177,16 +191,19 @@ def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_
                                 news_id, clicked = parts
                                 clicked = 1 if clicked == '1' else 0
                                 
-                                writer.writerow([impression_id, user_id, time, news_id, clicked])
-                                chunk_impressions += 1
+                                if sampled_article_ids is None or news_id in sampled_article_ids:
+                                    writer.writerow([impression_id, user_id, time, news_id, clicked])
+                                    chunk_impressions += 1
                         else:
                             # Test format: Just news ID without click info
                             news_id = item
                             clicked = 0  # Placeholder
                             
-                            writer.writerow([impression_id, user_id, time, news_id, clicked])
-                            chunk_impressions += 1
-        
+                            # NEW: Only include if article is in our sampled set
+                            if sampled_article_ids is None or news_id in sampled_article_ids:
+                                writer.writerow([impression_id, user_id, time, news_id, clicked])
+                                chunk_impressions += 1  
+                                      
         total_impressions += chunk_impressions
         print_with_timestamp(f"  Processed {chunk_impressions} impressions in this chunk")
         print_with_timestamp(f"  Total impressions so far: {total_impressions}")
@@ -346,14 +363,14 @@ def plot_ctr_distribution(df, title, output_path):
         return None
 
 # ================== MAIN PROCESSING FUNCTION ==================
-def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE, 
+def process_dataset(data_type='train', sample_news=True, 
                    max_impressions=MAX_IMPRESSIONS_PER_BEHAVIOR):
     """Process a single dataset split with proper handling for test set"""
     print_with_timestamp(f"\n{'='*50}")
     print_with_timestamp(f"PROCESSING {data_type.upper()} DATASET")
     print_with_timestamp(f"{'='*50}")
     
-    # Define file paths
+    # Load news data first
     news_path = f"{data_type}_data/news.tsv"
     behaviors_path = f"{data_type}_data/behaviors.tsv"
     
@@ -369,7 +386,7 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
         print_with_timestamp(f"ERROR: {data_type} behaviors file not found at {behaviors_path}")
         return None, None
     
-     # Check if this is the test set
+    # Check if this is the test set
     is_test_set = data_type.lower() == 'test'
     
     # 1. Load news data
@@ -378,11 +395,10 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
     news_df = pd.read_csv(news_path, sep="\t", header=None, names=news_cols)
     print_with_timestamp(f"{data_type} news data loaded: {news_df.shape[0]} rows, {news_df.shape[1]} columns")
     
-    # Sample news data if needed
-    if NEWS_SAMPLE_RATE < 1.0:
-        original_size = len(news_df)
-        news_df = news_df.sample(frac=NEWS_SAMPLE_RATE, random_state=42)
-        print_with_timestamp(f"Sampled news data from {original_size} to {len(news_df)} articles")
+    # NEW: Sample news articles instead of behaviors
+    sampled_article_ids = None
+    if sample_news and NEWS_SAMPLE_RATE < 1.0:
+        news_df, sampled_article_ids = sample_news_articles(news_df, NEWS_SAMPLE_RATE)
     
     # 2. Load behaviors data
     print_with_timestamp(f"Loading {data_type} behaviors data...")
@@ -468,13 +484,13 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
         print_with_timestamp(f"Impression file contains {total_impressions} rows")
     else:
         # 4. Process impressions data with sampling
-        print_with_timestamp(f"Processing {data_type} impressions data with sample rate {behavior_sample_rate}...")
-        impressions_file, total_impressions = process_impressions_to_file(
+       impressions_file, total_impressions = process_impressions_to_file(
             behaviors_df, 
             impressions_file, 
-            sample_rate=behavior_sample_rate,
+            sampled_article_ids=sampled_article_ids,  # NEW parameter
+            sample_rate=1.0,  # Don't sample behaviors if we're filtering by articles
             max_per_behavior=max_impressions
-        )
+    )
     
     # 5. Calculate CTR from impressions file
     print_with_timestamp(f"Calculating CTR for {data_type} data...")
@@ -568,14 +584,14 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
 # ================== MAIN SCRIPT ==================
 if __name__ == "__main__":
     print_with_timestamp("Starting complete preprocessing pipeline...")
-    print_with_timestamp(f"Sampling configuration: {BEHAVIOR_SAMPLE_RATE*100}% of behaviors, "
+    print_with_timestamp(f"Sampling configuration: {NEWS_SAMPLE_RATE*100}% of news articles, "
                  f"max {MAX_IMPRESSIONS_PER_BEHAVIOR} impressions per behavior")
     
     # Process all dataset splits
     start_time = time.time()
     
     # Process training data
-    train_data, train_summary = process_dataset('train', BEHAVIOR_SAMPLE_RATE, MAX_IMPRESSIONS_PER_BEHAVIOR)
+    train_data, train_summary = process_dataset('train', sample_news=True, max_impressions=MAX_IMPRESSIONS_PER_BEHAVIOR)
     train_elapsed = (time.time() - start_time) / 60
     if train_data is not None:
         print_with_timestamp(f"Training data processing took {train_elapsed:.2f} minutes")
