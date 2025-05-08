@@ -41,7 +41,7 @@ class HeadlineModelTrainer:
     def load_training_data(self):
         """Load processed headlines with CTR data"""
         try:
-            headlines_path = os.path.join(self.processed_data_dir, 'headline_ctr_data.csv')
+            headlines_path = os.path.join(self.processed_data_dir, 'news_with_engagement.csv') 
             if not os.path.exists(headlines_path):
                 logging.error(f"Training data not found at {headlines_path}")
                 return None
