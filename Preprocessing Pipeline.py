@@ -484,13 +484,14 @@ def process_dataset(data_type='train', sample_news=True,
         print_with_timestamp(f"Impression file contains {total_impressions} rows")
     else:
         # 4. Process impressions data with sampling
+       impressions_file = f'{output_dir}/processed_data/{data_type}_impressions.csv'
        impressions_file, total_impressions = process_impressions_to_file(
-            behaviors_df, 
-            impressions_file, 
-            sampled_article_ids=sampled_article_ids,  # NEW parameter
-            sample_rate=1.0,  # Don't sample behaviors if we're filtering by articles
-            max_per_behavior=max_impressions
-    )
+           behaviors_df, 
+           impressions_file,
+           sampled_article_ids=sampled_article_ids,
+           sample_rate=1.0,
+           max_per_behavior=max_impressions
+)
     
     # 5. Calculate CTR from impressions file
     print_with_timestamp(f"Calculating CTR for {data_type} data...")
@@ -568,7 +569,7 @@ def process_dataset(data_type='train', sample_news=True,
         'ctr_stats': ctr_stats,
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'sampling': {
-            'behavior_sample_rate': behavior_sample_rate,
+            'article_sample_rate': NEWS_SAMPLE_RATE,
             'max_impressions_per_behavior': max_impressions
         }
     }
