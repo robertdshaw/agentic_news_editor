@@ -2,21 +2,21 @@
   "data_type": "train",
   "news_articles": 95492,
   "total_impressions": 6782524,
-  "total_clicks": 409935,
-  "articles_with_impressions": 18362,
-  "avg_ctr": 0.05768876864679226,
+  "total_clicks": 409645,
+  "articles_with_impressions": 18464,
+  "avg_ctr": 0.058392180608381555,
   "ctr_stats": {
-    "mean": 0.055628848392921225,
-    "median": 0.027777777777777776,
-    "std": 0.07917476787855589,
+    "mean": 0.05594110212999389,
+    "median": 0.02820283930704163,
+    "std": 0.07863039338427973,
     "min": 0.0,
-    "max": 0.8333333333333334,
+    "max": 0.8,
     "25th": 0.0,
-    "75th": 0.0784313725490196,
-    "items_with_sufficient_impressions": 11793,
-    "total_items": 19632
+    "75th": 0.08,
+    "items_with_sufficient_impressions": 11814,
+    "total_items": 19705
   },
-  "timestamp": "2025-05-08 16:57:12",
+  "timestamp": "2025-05-08 19:29:32",
   "sampling": {
     "behavior_sample_rate": 0.2,
     "max_impressions_per_behavior": 20

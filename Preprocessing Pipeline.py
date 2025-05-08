@@ -1,7 +1,7 @@
-# Memory-Efficient MIND Dataset Preprocessing Pipeline
-# -----------------------------------------------------
-# Processes train, validation, and test splits with sampling to reduce memory usage
-# Includes checks to verify data quality and correctness
+# Complete MIND Dataset Preprocessing Pipeline
+# ------------------------------------------
+# Processes all three splits (train, validation, test) with proper handling
+# of different formats and memory optimization
 
 import pandas as pd
 import numpy as np
@@ -14,14 +14,19 @@ from datetime import datetime
 from collections import Counter
 import re
 import json
+import csv
+import random
 from textstat import flesch_reading_ease
 import warnings
-import random
 warnings.filterwarnings('ignore')
 
 # Set visualization defaults
 plt.style.use('seaborn-v0_8-whitegrid')
 plt.rcParams['figure.figsize'] = (12, 6)
+plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['axes.titlesize'] = 14
+plt.rcParams['xtick.labelsize'] = 10
+plt.rcParams['ytick.labelsize'] = 10
 
 # ================== CONFIGURATION ==================
 # Directory settings
@@ -33,7 +38,7 @@ if not os.path.exists(output_dir):
 
 # Sampling configuration - adjust these to control memory usage
 BEHAVIOR_SAMPLE_RATE = 0.2  # Process 20% of behavior records
-NEWS_SAMPLE_RATE = 1.0  # Process all news articles
+NEWS_SAMPLE_RATE = 1.0      # Process all news articles
 MAX_IMPRESSIONS_PER_BEHAVIOR = 20  # Limit impressions per behavior record
 MIN_IMPRESSIONS_FOR_CTR = 5  # Min impressions needed for reliable CTR
 
@@ -88,7 +93,6 @@ def calculate_reading_scores(df):
         df['abstract_length'] = df['abstract'].str.len()
     
     # Calculate Flesch reading ease score
-    # Use a try/except to handle potential errors
     df['title_reading_ease'] = df['title'].apply(
         lambda x: flesch_reading_ease(x) if isinstance(x, str) else 0
     )
@@ -101,10 +105,8 @@ def calculate_reading_scores(df):
 def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_per_behavior=None):
     """
     Process impressions from behaviors and write directly to a CSV file
-    to avoid memory issues. Allows sampling to reduce size.
+    with adaptive format detection for different splits.
     """
-    import csv
-    
     # Create CSV file and write header
     with open(output_path, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -115,8 +117,17 @@ def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_
         behaviors_df = behaviors_df.sample(frac=sample_rate, random_state=42)
         print_with_timestamp(f"Sampling behaviors at rate {sample_rate}, using {len(behaviors_df)} records")
     
+    # Detect format by examining first non-empty impression
+    format_with_clicks = True
+    for i, row in behaviors_df.iterrows():
+        if isinstance(row['impressions'], str) and row['impressions'].strip():
+            sample_item = row['impressions'].split()[0]
+            format_with_clicks = '-' in sample_item
+            break
+            
+    print_with_timestamp(f"Detected impression format: {'WITH' if format_with_clicks else 'WITHOUT'} click information")
+    
     total_impressions = 0
-    total_sampled_impressions = 0
     total_rows = len(behaviors_df)
     
     # Process in chunks to manage memory usage
@@ -134,7 +145,6 @@ def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_
         # Get the current chunk
         behaviors_chunk = behaviors_df.iloc[start_idx:end_idx]
         chunk_impressions = 0
-        chunk_sampled = 0
         
         # Open file in append mode
         with open(output_path, 'a', newline='') as f:
@@ -151,26 +161,33 @@ def process_impressions_to_file(behaviors_df, output_path, sample_rate=1.0, max_
                 impressions = row['impressions']
                 
                 # Process impressions for this behavior
-                if isinstance(impressions, str):
-                    all_impressions = impressions.split()
-                    # Apply max per behavior if specified
-                    if max_per_behavior and len(all_impressions) > max_per_behavior:
-                        # Keep a random subset to maintain distribution
-                        all_impressions = random.sample(all_impressions, max_per_behavior)
+                if isinstance(impressions, str) and impressions.strip():
+                    impression_items = impressions.split()
                     
-                    for impression in all_impressions:
-                        parts = impression.split('-')
-                        if len(parts) == 2:
-                            news_id, clicked = parts
-                            clicked = 1 if clicked == '1' else 0
+                    # Apply max per behavior if specified
+                    if max_per_behavior and len(impression_items) > max_per_behavior:
+                        # Keep a random subset to maintain distribution
+                        impression_items = random.sample(impression_items, max_per_behavior)
+                    
+                    for item in impression_items:
+                        if format_with_clicks:
+                            # Training/validation format: "newsID-clicked"
+                            parts = item.split('-')
+                            if len(parts) == 2:
+                                news_id, clicked = parts
+                                clicked = 1 if clicked == '1' else 0
+                                
+                                writer.writerow([impression_id, user_id, time, news_id, clicked])
+                                chunk_impressions += 1
+                        else:
+                            # Test format: Just news ID without click info
+                            news_id = item
+                            clicked = 0  # Placeholder
                             
-                            # Write directly to CSV
                             writer.writerow([impression_id, user_id, time, news_id, clicked])
                             chunk_impressions += 1
-                            chunk_sampled += 1
         
         total_impressions += chunk_impressions
-        total_sampled_impressions += chunk_sampled
         print_with_timestamp(f"  Processed {chunk_impressions} impressions in this chunk")
         print_with_timestamp(f"  Total impressions so far: {total_impressions}")
     
@@ -195,10 +212,6 @@ def calculate_ctr_from_impressions_file(impressions_path):
     temp_clicks_file = impressions_path + ".clicks.tmp"
     temp_impressions_file = impressions_path + ".impressions.tmp"
     
-    # To prevent memory issues, we'll use a two-step approach:
-    # 1. First, count rows per news_id and write to a file
-    # 2. Then aggregate from that file
-    
     # Count clicks and impressions for each news_id
     news_id_counter = {}  # {news_id: [clicks, impressions]}
     
@@ -206,54 +219,53 @@ def calculate_ctr_from_impressions_file(impressions_path):
     total_rows_processed = 0
     
     # Process file in chunks
-    for chunk_num, chunk in enumerate(pd.read_csv(impressions_path, chunksize=chunk_size)):
-        print_with_timestamp(f"Processing chunk {chunk_num+1} for CTR calculation...")
-        
-        # Process each row in the chunk
-        for _, row in chunk.iterrows():
-            news_id = row['news_id']
-            clicked = row['clicked']
+    try:
+        for chunk_num, chunk in enumerate(pd.read_csv(impressions_path, chunksize=chunk_size)):
+            print_with_timestamp(f"Processing chunk {chunk_num+1} for CTR calculation...")
             
-            if news_id not in news_id_counter:
-                news_id_counter[news_id] = [0, 0]
+            # Process each row in the chunk
+            for _, row in chunk.iterrows():
+                news_id = row['news_id']
+                clicked = row['clicked']
+                
+                if news_id not in news_id_counter:
+                    news_id_counter[news_id] = [0, 0]
+                
+                news_id_counter[news_id][0] += clicked  # Add to clicks
+                news_id_counter[news_id][1] += 1  # Add to impressions
             
-            news_id_counter[news_id][0] += clicked  # Add to clicks
-            news_id_counter[news_id][1] += 1  # Add to impressions
-        
-        total_rows_processed += len(chunk)
-        print_with_timestamp(f"Processed {total_rows_processed} rows so far...")
-        
-        # To prevent memory issues with extremely large datasets, periodically write to disk
-        if len(news_id_counter) > 1000000:  # If tracking over 1M news IDs
-            # Create dataframe and write to disk
-            ctr_df = pd.DataFrame([
-                {'news_id': nid, 'total_clicks': stats[0], 'total_impressions': stats[1]}
-                for nid, stats in news_id_counter.items()
-            ])
+            total_rows_processed += len(chunk)
+            print_with_timestamp(f"Processed {total_rows_processed} rows so far...")
             
-            # Append to temp file or create it
-            if os.path.exists(temp_clicks_file):
-                ctr_df.to_csv(temp_clicks_file, mode='a', header=False, index=False)
-            else:
-                ctr_df.to_csv(temp_clicks_file, index=False)
-            
-            # Clear the counter to free memory
-            news_id_counter = {}
+            # To prevent memory issues with large datasets, periodically write to disk
+            if len(news_id_counter) > 1000000:  # If tracking over 1M news IDs
+                # Create dataframe and write to disk
+                ctr_df = pd.DataFrame([
+                    {'news_id': nid, 'total_clicks': stats[0], 'total_impressions': stats[1]}
+                    for nid, stats in news_id_counter.items()
+                ])
+                
+                # Append to temp file or create it
+                if os.path.exists(temp_clicks_file):
+                    ctr_df.to_csv(temp_clicks_file, mode='a', header=False, index=False)
+                else:
+                    ctr_df.to_csv(temp_clicks_file, index=False)
+                
+                # Clear the counter to free memory
+                news_id_counter = {}
+    except Exception as e:
+        print_with_timestamp(f"Error processing impressions file: {e}")
+        # Create an empty DataFrame with the correct structure
+        empty_df = pd.DataFrame(columns=['news_id', 'total_clicks', 'total_impressions', 'ctr'])
+        return empty_df
     
-    # Write any remaining data to disk
-    if news_id_counter:
-        ctr_df = pd.DataFrame([
-            {'news_id': nid, 'total_clicks': stats[0], 'total_impressions': stats[1]}
-            for nid, stats in news_id_counter.items()
-        ])
-        
-        # Append to temp file or create it
-        if os.path.exists(temp_clicks_file):
-            ctr_df.to_csv(temp_clicks_file, mode='a', header=False, index=False)
-        else:
-            ctr_df.to_csv(temp_clicks_file, index=False)
+    # If no impressions were found
+    if not news_id_counter and not os.path.exists(temp_clicks_file):
+        print_with_timestamp("No impressions found to calculate CTR!")
+        empty_df = pd.DataFrame(columns=['news_id', 'total_clicks', 'total_impressions', 'ctr'])
+        return empty_df
     
-    # If we used temp files, aggregate the results
+    # Create final dataframe
     if os.path.exists(temp_clicks_file):
         print_with_timestamp("Aggregating final CTR data from temporary files...")
         
@@ -336,7 +348,7 @@ def plot_ctr_distribution(df, title, output_path):
 # ================== MAIN PROCESSING FUNCTION ==================
 def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE, 
                    max_impressions=MAX_IMPRESSIONS_PER_BEHAVIOR):
-    """Process a single dataset split (train, val, or test) with sampling options"""
+    """Process a single dataset split with proper handling for test set"""
     print_with_timestamp(f"\n{'='*50}")
     print_with_timestamp(f"PROCESSING {data_type.upper()} DATASET")
     print_with_timestamp(f"{'='*50}")
@@ -345,13 +357,20 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
     news_path = f"{data_type}_data/news.tsv"
     behaviors_path = f"{data_type}_data/behaviors.tsv"
     
-    # Define output file path - create early to check if already processed
+    # Define output file path
     output_file = f'{output_dir}/processed_data/{data_type}_headline_ctr.csv'
     
     # Check if files exist
-    if not os.path.exists(news_path) or not os.path.exists(behaviors_path):
-        print_with_timestamp(f"WARNING: {data_type} data files not found. Skipping this split.")
-        return None
+    if not os.path.exists(news_path):
+        print_with_timestamp(f"ERROR: {data_type} news file not found at {news_path}")
+        return None, None
+        
+    if not os.path.exists(behaviors_path):
+        print_with_timestamp(f"ERROR: {data_type} behaviors file not found at {behaviors_path}")
+        return None, None
+    
+     # Check if this is the test set
+    is_test_set = data_type.lower() == 'test'
     
     # 1. Load news data
     print_with_timestamp(f"Loading {data_type} news data...")
@@ -393,6 +412,47 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
     news_df_cleaned = calculate_reading_scores(news_df_cleaned)
     print_with_timestamp(f"Added reading ease scores")
     
+    # For test set, skip all CTR/impressions processing
+    if is_test_set:
+        print_with_timestamp("TEST data: Skipping all impressions and CTR processing")
+        
+        # Simply add placeholder columns for consistency in structure
+        news_df_cleaned['news_id'] = news_df_cleaned['newsID']
+        news_df_cleaned['total_clicks'] = 0
+        news_df_cleaned['total_impressions'] = 0
+        news_df_cleaned['ctr'] = 0
+        
+        # Apply readability binning
+        try:
+            news_df_cleaned['reading_ease_bin'] = pd.qcut(
+                news_df_cleaned['title_reading_ease'], 
+                q=5, 
+                labels=['Very Hard', 'Hard', 'Medium', 'Easy', 'Very Easy'],
+                duplicates='drop'
+            )
+        except Exception as e:
+            # Use fallback binning
+            print_with_timestamp(f"Warning: Using fallback binning: {e}")
+            bins = [-float('inf'), 30, 50, 70, 90, float('inf')]
+            labels = ['Very Hard', 'Hard', 'Medium', 'Easy', 'Very Easy']
+            news_df_cleaned['reading_ease_bin'] = pd.cut(
+                news_df_cleaned['title_reading_ease'],
+                bins=bins,
+                labels=labels
+            )
+      # Save processed test data
+        news_df_cleaned.to_csv(output_file, index=False)
+        
+        # Create a summary for test data
+        summary = {
+            'data_type': data_type,
+            'news_articles': len(news_df_cleaned),
+            'processing_approach': 'headline_features_only',
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return news_df_cleaned, summary
+    
     # Save news data for verification
     news_csv = f'{output_dir}/processed_data/{data_type}_news_cleaned.csv'
     news_df_cleaned.to_csv(news_csv, index=False)
@@ -400,9 +460,11 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
     
     # Check if we should re-process impressions or use existing file
     impressions_file = f'{output_dir}/processed_data/{data_type}_impressions.csv'
-    if os.path.exists(impressions_file) and behavior_sample_rate == 1.0:
+    if os.path.exists(impressions_file) and os.path.getsize(impressions_file) > 1000:
         print_with_timestamp(f"Using existing impressions file: {impressions_file}")
-        total_impressions = sum(1 for _ in open(impressions_file)) - 1  # Subtract header
+        with open(impressions_file, 'r') as f:
+            # Count lines (subtract 1 for header)
+            total_impressions = sum(1 for _ in f) - 1
         print_with_timestamp(f"Impression file contains {total_impressions} rows")
     else:
         # 4. Process impressions data with sampling
@@ -419,12 +481,21 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
     article_ctr_data = calculate_ctr_from_impressions_file(impressions_file)
     
     if article_ctr_data is None or len(article_ctr_data) == 0:
-        print_with_timestamp(f"ERROR: Failed to calculate CTR for {data_type} data")
-        return None
+        print_with_timestamp(f"WARNING: No CTR data calculated for {data_type} set. Using placeholder values.")
+        
+        # Create placeholder CTR data for all news articles
+        article_ctr_data = pd.DataFrame({
+            'news_id': news_df_cleaned['newsID'],
+            'total_clicks': 0,
+            'total_impressions': 0,
+            'ctr': 0.0
+        })
     
-    # Create a CTR distribution plot
-    ctr_plot_path = f'{output_dir}/plots/{data_type}_ctr_distribution.png'
-    ctr_stats = plot_ctr_distribution(article_ctr_data, f"{data_type.capitalize()} Data", ctr_plot_path)
+    # Create a CTR distribution plot if we have valid CTR data
+    ctr_stats = None
+    if article_ctr_data is not None and 'ctr' in article_ctr_data.columns and (article_ctr_data['ctr'] > 0).any():
+        ctr_plot_path = f'{output_dir}/plots/{data_type}_ctr_distribution.png'
+        ctr_stats = plot_ctr_distribution(article_ctr_data, f"{data_type.capitalize()} Data", ctr_plot_path)
     
     # 6. Merge CTR data with news data
     print_with_timestamp(f"Merging news and engagement data...")
@@ -475,9 +546,9 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
         'data_type': data_type,
         'news_articles': len(news_with_engagement),
         'total_impressions': total_impressions,
-        'total_clicks': int(article_ctr_data['total_clicks'].sum()),
+        'total_clicks': int(article_ctr_data['total_clicks'].sum()) if 'total_clicks' in article_ctr_data.columns else 0,
         'articles_with_impressions': int((news_with_engagement['total_impressions'] > 0).sum()),
-        'avg_ctr': float(news_with_engagement[news_with_engagement['total_impressions'] > 0]['ctr'].mean()),
+        'avg_ctr': float(news_with_engagement[news_with_engagement['total_impressions'] > 0]['ctr'].mean()) if (news_with_engagement['total_impressions'] > 0).any() else 0,
         'ctr_stats': ctr_stats,
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'sampling': {
@@ -496,7 +567,7 @@ def process_dataset(data_type='train', behavior_sample_rate=BEHAVIOR_SAMPLE_RATE
 
 # ================== MAIN SCRIPT ==================
 if __name__ == "__main__":
-    print_with_timestamp("Starting memory-efficient preprocessing pipeline...")
+    print_with_timestamp("Starting complete preprocessing pipeline...")
     print_with_timestamp(f"Sampling configuration: {BEHAVIOR_SAMPLE_RATE*100}% of behaviors, "
                  f"max {MAX_IMPRESSIONS_PER_BEHAVIOR} impressions per behavior")
     
@@ -506,19 +577,28 @@ if __name__ == "__main__":
     # Process training data
     train_data, train_summary = process_dataset('train', BEHAVIOR_SAMPLE_RATE, MAX_IMPRESSIONS_PER_BEHAVIOR)
     train_elapsed = (time.time() - start_time) / 60
-    print_with_timestamp(f"Training data processing took {train_elapsed:.2f} minutes")
+    if train_data is not None:
+        print_with_timestamp(f"Training data processing took {train_elapsed:.2f} minutes")
+    else:
+        print_with_timestamp(f"Training data processing failed")
     
-    # Process validation data - can use a higher sample rate since it's smaller
+    # Process validation data
     val_start = time.time()
     val_data, val_summary = process_dataset('val', min(BEHAVIOR_SAMPLE_RATE * 2, 1.0), MAX_IMPRESSIONS_PER_BEHAVIOR)
     val_elapsed = (time.time() - val_start) / 60
-    print_with_timestamp(f"Validation data processing took {val_elapsed:.2f} minutes")
+    if val_data is not None:
+        print_with_timestamp(f"Validation data processing took {val_elapsed:.2f} minutes")
+    else:
+        print_with_timestamp(f"Validation data processing failed or skipped")
     
-    # Process test data if available - can use a higher sample rate since it's smaller
+    # Process test data
     test_start = time.time()
     test_data, test_summary = process_dataset('test', min(BEHAVIOR_SAMPLE_RATE * 2, 1.0), MAX_IMPRESSIONS_PER_BEHAVIOR)
     test_elapsed = (time.time() - test_start) / 60
-    print_with_timestamp(f"Test data processing took {test_elapsed:.2f} minutes")
+    if test_data is not None:
+        print_with_timestamp(f"Test data processing took {test_elapsed:.2f} minutes")
+    else:
+        print_with_timestamp(f"Test data processing failed or skipped")
     
     # Overall timing
     total_elapsed = (time.time() - start_time) / 60
@@ -548,9 +628,17 @@ if __name__ == "__main__":
     print_with_timestamp(f"Total processing time: {total_elapsed:.2f} minutes")
     print_with_timestamp(f"Processed data saved to '{output_dir}/processed_data/'")
     print_with_timestamp(f"Files created:")
-    print_with_timestamp(f"  - train_headline_ctr.csv")
-    print_with_timestamp(f"  - val_headline_ctr.csv")
+    if train_data is not None:
+        print_with_timestamp(f"  - train_headline_ctr.csv")
+    if val_data is not None:
+        print_with_timestamp(f"  - val_headline_ctr.csv")
     if test_data is not None:
         print_with_timestamp(f"  - test_headline_ctr.csv")
     print_with_timestamp(f"  - dataset_statistics.json")
     print_with_timestamp(f"Ready for model training!")
+    
+    # Print confirmation of what's next
+    print_with_timestamp(f"Next steps: Use these datasets to train your headline CTR prediction model")
+    print_with_timestamp(f"  - Train on train_headline_ctr.csv (has real CTR values)")
+    print_with_timestamp(f"  - Validate on val_headline_ctr.csv (has real CTR values)")
+    print_with_timestamp(f"  - Test on test_headline_ctr.csv (uses placeholder CTR values)")
