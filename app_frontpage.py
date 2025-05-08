@@ -68,7 +68,6 @@ st.set_page_config(
     layout="wide",  # Use wide layout by default
     initial_sidebar_state="expanded"
 )
-
 class HeadlineLearningLoop:
     """
     A learning system that continuously improves headline rewriting by collecting and analyzing
@@ -262,6 +261,8 @@ The headline improvement system will continue to collect data and refine these r
         except Exception as e:
             logging.error(f"Error generating headline report: {e}")
             return False
+
+headline_learner = HeadlineLearningLoop()
 
 def apply_custom_css():
     st.markdown("""
