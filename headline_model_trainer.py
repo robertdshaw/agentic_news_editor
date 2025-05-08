@@ -73,7 +73,7 @@ class HeadlineModelTrainer:
         features_list = []
         
         # Process in smaller batches to avoid memory issues
-        batch_size = 100
+        batch_size = 500
         for i in range(0, len(headlines), batch_size):
             batch = headlines[i:i+batch_size]
             logging.info(f"Processing batch {i//batch_size + 1}/{(len(headlines)-1)//batch_size + 1}")
