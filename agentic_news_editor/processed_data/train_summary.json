@@ -1,0 +1,24 @@
+{
+  "data_type": "train",
+  "news_articles": 28648,
+  "total_impressions": 9139087,
+  "total_clicks": 488399,
+  "articles_with_impressions": 6713,
+  "avg_ctr": 0.05475342794809165,
+  "ctr_stats": {
+    "mean": 0.05634214381409709,
+    "median": 0.03428571428571429,
+    "std": 0.07061714405554362,
+    "min": 0.0,
+    "max": 0.6,
+    "25th": 0.0,
+    "75th": 0.07964135021097046,
+    "items_with_sufficient_impressions": 5537,
+    "total_items": 7163
+  },
+  "timestamp": "2025-05-09 03:08:19",
+  "sampling": {
+    "article_sample_rate": 0.3,
+    "max_impressions_per_behavior": 20
+  }
+}

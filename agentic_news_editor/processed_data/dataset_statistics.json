@@ -1,0 +1,64 @@
+{
+  "overall": {
+    "total_processing_time_minutes": 266.01259041229883,
+    "timestamp": "2025-05-09 03:28:35",
+    "sampling_configuration": {
+      "behavior_sample_rate": 1.0,
+      "max_impressions_per_behavior": 20
+    }
+  },
+  "train": {
+    "data_type": "train",
+    "news_articles": 28648,
+    "total_impressions": 9139087,
+    "total_clicks": 488399,
+    "articles_with_impressions": 6713,
+    "avg_ctr": 0.05475342794809165,
+    "ctr_stats": {
+      "mean": 0.05634214381409709,
+      "median": 0.03428571428571429,
+      "std": 0.07061714405554362,
+      "min": 0.0,
+      "max": 0.6,
+      "25th": 0.0,
+      "75th": 0.07964135021097046,
+      "items_with_sufficient_impressions": 5537,
+      "total_items": 7163
+    },
+    "timestamp": "2025-05-09 03:08:19",
+    "sampling": {
+      "article_sample_rate": 0.3,
+      "max_impressions_per_behavior": 20
+    }
+  },
+  "val": {
+    "data_type": "val",
+    "news_articles": 13558,
+    "total_impressions": 1174592,
+    "total_clicks": 58124,
+    "articles_with_impressions": 1061,
+    "avg_ctr": 0.040689126856128535,
+    "ctr_stats": {
+      "mean": 0.04821524067704971,
+      "median": 0.026751371386862777,
+      "std": 0.06491766275586623,
+      "min": 0.0,
+      "max": 0.625,
+      "25th": 0.0,
+      "75th": 0.0667360911184684,
+      "items_with_sufficient_impressions": 760,
+      "total_items": 1125
+    },
+    "timestamp": "2025-05-09 03:28:14",
+    "sampling": {
+      "article_sample_rate": 0.2,
+      "max_impressions_per_behavior": 20
+    }
+  },
+  "test": {
+    "data_type": "test",
+    "news_articles": 11358,
+    "processing_approach": "headline_features_only",
+    "timestamp": "2025-05-09 03:28:34"
+  }
+}
