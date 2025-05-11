@@ -116,6 +116,13 @@ class HeadlineModelTrainer:
             logging.error(f"Failed to load DistilBERT model: {e}")
             raise ValueError(f"Could not load embedding model: {e}")
     
+            # Fix method access
+        HeadlineModelTrainer.train_model = SklearnCompatibleXGBRegressor.train_model
+        HeadlineModelTrainer.predict = SklearnCompatibleXGBRegressor.predict
+        HeadlineModelTrainer.visualize_feature_importance = SklearnCompatibleXGBRegressor.visualize_feature_importance
+        HeadlineModelTrainer.visualize_predictions = SklearnCompatibleXGBRegressor.visualize_predictions
+        HeadlineModelTrainer.visualize_ctr_distribution = SklearnCompatibleXGBRegressor.visualize_ctr_distribution
+    
     def load_data(self, data_type='train'):
         """
         Load processed headlines for specified split (train, val, or test)
