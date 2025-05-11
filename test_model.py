@@ -250,7 +250,7 @@ class HeadlineModelTrainer:
         return pd.DataFrame(features_list)
     
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
-                    output_file='headline_ctr_model.pkl'):
+                output_file='headline_ctr_model.pkl'):
         """
         Train model with cross-validation and feature selection
         
@@ -415,22 +415,37 @@ class HeadlineModelTrainer:
         logging.info("Training final model with selected features...")
         start_time = time.time()
 
-        # Prepare fit parameters
-        fit_params = {}
+        # Import required callbacks for XGBoost 3.0.0
+        from xgboost.callback import EarlyStopping
+        
+        # If we have validation data, use it for early stopping
         if val_features_selected is not None and val_ctr_transformed is not None:
-            # For XGBoost, early_stopping_rounds needs to be passed as a separate parameter
-            fit_params['eval_set'] = [(val_features_selected, val_ctr_transformed)]
-            fit_params['eval_metric'] = 'rmse'  # Specify the evaluation metric
-
-        # Fit the model with the corrected parameters
-        final_model.fit(
-            train_features_selected, 
-            train_ctr_transformed,
-            verbose=0,
-            **fit_params  # Unpack fit parameters correctly
-        )
+            # Create callbacks list with EarlyStopping
+            callbacks = [
+                EarlyStopping(
+                    rounds=50,                # Number of rounds for early stopping
+                    metric_name="rmse",       # Metric to monitor
+                    data_name="validation_0"  # Dataset to monitor (validation set)
+                )
+            ]
+            
+            # Fit model with evaluation set and callbacks
+            final_model.fit(
+                train_features_selected,
+                train_ctr_transformed,
+                eval_set=[(val_features_selected, val_ctr_transformed)],
+                callbacks=callbacks,
+                verbose=False
+            )
+        else:
+            # If no validation data, fit without early stopping
+            final_model.fit(
+                train_features_selected,
+                train_ctr_transformed,
+                verbose=False
+            )
+        
         training_time = time.time() - start_time
-
         logging.info(f"Final model training completed in {training_time:.2f} seconds")
 
         # STEP 8: Evaluate on training set
