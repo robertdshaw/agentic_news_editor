@@ -417,53 +417,21 @@ class HeadlineModelTrainer:
 
         # If we have validation data, use it for early stopping
         if val_features_selected is not None and val_ctr_transformed is not None:
-            try:
-                # First try with callbacks (XGBoost 3.0.0 approach)
-                from xgboost.callback import EarlyStopping
-                
-                callbacks = [
-                    EarlyStopping(
-                        rounds=50,
-                        metric_name="rmse",
-                        data_name="validation_0"
-                    )
-                ]
-                
-                final_model.fit(
-                    train_features_selected,
-                    train_ctr_transformed,
-                    eval_set=[(val_features_selected, val_ctr_transformed)],
-                    callbacks=callbacks,
-                    verbose=False
-                )
-            except TypeError:
-                # If callbacks fails, try with early_stopping_rounds (older XGBoost approach)
-                logging.info("Callbacks approach failed, trying with early_stopping_rounds")
-                
-                final_model.fit(
-                    train_features_selected,
-                    train_ctr_transformed,
-                    eval_set=[(val_features_selected, val_ctr_transformed)],
-                    eval_metric="rmse",
-                    early_stopping_rounds=50,
-                    verbose=False
-                )
-            except Exception as e:
-                # If both approaches fail, try without any validation parameters
-                logging.warning(f"Error during model training with validation data: {str(e)}")
-                logging.info("Falling back to training without early stopping")
-                
-                final_model.fit(
-                    train_features_selected,
-                    train_ctr_transformed,
-                    verbose=False
-                )
+            # For XGBoost 1.7.x, use early_stopping_rounds directly
+            final_model.fit(
+                train_features_selected,
+                train_ctr_transformed,
+                eval_set=[(val_features_selected, val_ctr_transformed)],
+                eval_metric="rmse",
+                early_stopping_rounds=50,
+                verbose=0  # Use 0 instead of False for older XGBoost versions
+            )
         else:
             # If no validation data, fit without early stopping
             final_model.fit(
                 train_features_selected,
                 train_ctr_transformed,
-                verbose=False
+                verbose=0  # Use 0 instead of False for older XGBoost versions
             )
 
         training_time = time.time() - start_time
