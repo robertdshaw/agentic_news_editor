@@ -15,7 +15,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
 from sklearn.feature_selection import SelectFromModel
 from xgboost import XGBRegressor
-from sklearn.base import RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -79,13 +79,10 @@ def parse_arguments():
     parser.add_argument('--reprocess', action='store_true', help='Force reprocessing of data')
     return parser.parse_args()
 
-class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
-    """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
-    
-    @classmethod
-    def __sklearn_tags__(cls):
-        return {"estimator_type": "regressor"}
-
+class SklearnCompatibleXGBRegressor(XGBRegressor):
+    _more_tags = {
+        "estimator_type": "regressor"
+    }
 class HeadlineModelTrainer:
     """
     Trains and evaluates a model for predicting headline CTR based on the MIND dataset
