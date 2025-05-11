@@ -3,177 +3,215 @@ import pandas as pd
 import numpy as np
 import pickle
 import logging
-import argparse
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import re
-import time
+from transformers import AutoTokenizer, AutoModel
+from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
+from sklearn.feature_selection import SelectFromModel
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
-from transformers import AutoTokenizer, AutoModel
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
-from sklearn.feature_selection import SelectFromModel
+import time
 from xgboost import XGBRegressor
-
-# Constants
-PROCESSED_DATA_DIR = './processed_data'
-EMBEDDING_DIMS = 20
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
-def save_processed_data(train_features, train_ctr, val_features, val_ctr, test_features, test_ctr,
-                        base_path=PROCESSED_DATA_DIR):
-    """Save processed feature data to pickle files to avoid reprocessing."""
-    os.makedirs(base_path, exist_ok=True)
-    with open(os.path.join(base_path, 'train_features.pkl'), 'wb') as f:
-        pickle.dump(train_features, f)
-    with open(os.path.join(base_path, 'train_ctr.pkl'), 'wb') as f:
-        pickle.dump(train_ctr, f)
-    with open(os.path.join(base_path, 'val_features.pkl'), 'wb') as f:
-        pickle.dump(val_features, f)
-    with open(os.path.join(base_path, 'val_ctr.pkl'), 'wb') as f:
-        pickle.dump(val_ctr, f)
-    with open(os.path.join(base_path, 'test_features.pkl'), 'wb') as f:
-        pickle.dump(test_features, f)
-    with open(os.path.join(base_path, 'test_ctr.pkl'), 'wb') as f:
-        pickle.dump(test_ctr, f)
-    logging.info(f"Saved processed data to {base_path}")
-
-
-def load_processed_data(base_path=PROCESSED_DATA_DIR):
-    """Load processed feature data from pickle files if they exist."""
-    try:
-        with open(os.path.join(base_path, 'train_features.pkl'), 'rb') as f:
-            train_features = pickle.load(f)
-        with open(os.path.join(base_path, 'train_ctr.pkl'), 'rb') as f:
-            train_ctr = pickle.load(f)
-        with open(os.path.join(base_path, 'val_features.pkl'), 'rb') as f:
-            val_features = pickle.load(f)
-        with open(os.path.join(base_path, 'val_ctr.pkl'), 'rb') as f:
-            val_ctr = pickle.load(f)
-        with open(os.path.join(base_path, 'test_features.pkl'), 'rb') as f:
-            test_features = pickle.load(f)
-        with open(os.path.join(base_path, 'test_ctr.pkl'), 'rb') as f:
-            test_ctr = pickle.load(f)
-        logging.info(f"Loaded processed data from {base_path}")
-        return train_features, train_ctr, val_features, val_ctr, test_features, test_ctr
-    except (FileNotFoundError, EOFError) as e:
-        logging.info(f"Could not load processed data: {e}")
-        return None, None, None, None, None, None
-
-
-def parse_arguments():
-    parser = argparse.ArgumentParser(description='Headline CTR Prediction Model Training')
-    parser.add_argument('--reprocess', action='store_true', help='Force reprocessing of data')
-    return parser.parse_args()
 class HeadlineModelTrainer:
     """
-    Trains and evaluates a model for predicting headline CTR based on processed splits.
+    Trains and evaluates a model for predicting headline CTR based on the MIND dataset
+    and the preprocessed train/val/test splits.
     """
-    def __init__(self, processed_data_dir=PROCESSED_DATA_DIR, use_log_transform=True):
+    
+    def __init__(self, processed_data_dir='agentic_news_editor/processed_data', use_log_transform=True):
+        """Initialize the headline model trainer"""
         self.processed_data_dir = processed_data_dir
-        self.embedding_dims = EMBEDDING_DIMS
+        self.embedding_dims = 20
         self.use_log_transform = use_log_transform
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logging.info(f"Using device: {self.device}")
         logging.info(f"Log transform for CTR: {self.use_log_transform}")
-
+        
+        # Create output directory for results
         self.output_dir = 'model_output'
-        os.makedirs(self.output_dir, exist_ok=True)
-
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+            
+        # Create mapping for common first/last words in headlines
         self.word_to_index = {}
-        common_words = ['the', 'a', 'to', 'how', 'why', 'what', 'when', 'is', 'are',
+        common_words = ['the', 'a', 'to', 'how', 'why', 'what', 'when', 'is', 'are', 
                         'says', 'report', 'announces', 'reveals', 'show', 'study',
                         'new', 'top', 'best', 'worst', 'first', 'last', 'latest']
-        for i, word in enumerate(common_words, 1):
+        for i, word in enumerate(common_words, 1):  # Start from 1, 0 for unknown
             self.word_to_index[word] = i
-
+            
+        # Load and prepare models
         try:
             self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
-            self.bert_model = AutoModel.from_pretrained("distilbert-base-uncased").to(self.device)
+            self.bert_model = AutoModel.from_pretrained("distilbert-base-uncased")
+            self.bert_model = self.bert_model.to(self.device)
             logging.info("Loaded DistilBERT model successfully")
         except Exception as e:
             logging.error(f"Failed to load DistilBERT model: {e}")
-            raise
-
+            raise ValueError(f"Could not load embedding model: {e}")
+    
     def load_data(self, data_type='train'):
-        file_path = os.path.join(self.processed_data_dir, f'{data_type}_headline_ctr.csv')
-        if not os.path.exists(file_path):
-            logging.error(f"{data_type.capitalize()} data not found at {file_path}")
-            return None
-        data = pd.read_csv(file_path)
-        logging.info(f"Loaded {len(data)} headlines from {data_type} set")
-
-        if data_type in ['train', 'val']:
-            required_cols = ['title', 'newsID', 'ctr']
-        else:
+        """Load processed headlines for specified split (train, val, or test)"""
+        try:
+            file_path = os.path.join(self.processed_data_dir, f'{data_type}_headline_ctr.csv')
+            if not os.path.exists(file_path):
+                logging.error(f"{data_type.capitalize()} data not found at {file_path}")
+                return None
+                    
+            data = pd.read_csv(file_path)
+            logging.info(f"Loaded {len(data)} headlines from {data_type} set")
+            
+            # Quick data validation
             required_cols = ['title', 'newsID']
-        missing = [col for col in required_cols if col not in data.columns]
-        if missing:
-            logging.error(f"Missing required columns in {data_type} data: {missing}")
+            if not all(col in data.columns for col in required_cols):
+                missing = [col for col in required_cols if col not in data.columns]
+                logging.error(f"Missing required columns in {data_type} data: {missing}")
+                return None
+                
+            return data
+        except Exception as e:
+            logging.error(f"Error loading {data_type} data: {e}")
             return None
-
-        return data
-
+    
     def extract_features(self, headlines):
+        """Extract features from headlines for model training"""
         logging.info(f"Extracting features from {len(headlines)} headlines")
         features_list = []
+        
+        # Process in smaller batches to avoid memory issues
         batch_size = 500
         for i in range(0, len(headlines), batch_size):
             batch = headlines[i:i+batch_size]
             logging.info(f"Processing batch {i//batch_size + 1}/{(len(headlines)-1)//batch_size + 1}")
+            
             for headline in batch:
-                f = {}
-                f['length'] = len(headline)
-                f['word_count'] = len(headline.split())
-                f['has_number'] = int(bool(re.search(r'\d', headline)))
-                f['num_count'] = len(re.findall(r'\d+', headline))
-                f['is_question'] = int(headline.endswith('?') or bool(re.match(r'^(how|what|why|where|when|is) ', headline.lower())))
-                f['has_colon'] = int(':' in headline)
-                f['has_quote'] = int('"' in headline or "'" in headline)
-                f['has_how_to'] = int('how to' in headline.lower())
-                f['capital_ratio'] = sum(1 for c in headline if c.isupper()) / len(headline) if headline else 0
+                features = {}
+                
+                # Basic features based on EDA findings
+                features['length'] = len(headline)
+                features['word_count'] = len(headline.split())
+                features['has_number'] = int(bool(re.search(r'\d', headline)))
+                features['num_count'] = len(re.findall(r'\d+', headline))
+                features['is_question'] = int(headline.endswith('?') or headline.lower().startswith('how') or 
+                                           headline.lower().startswith('what') or headline.lower().startswith('why') or 
+                                           headline.lower().startswith('where') or headline.lower().startswith('when') or
+                                           headline.lower().startswith('is '))
+                features['has_colon'] = int(':' in headline)
+                features['has_quote'] = int('"' in headline or "'" in headline)
+                features['has_how_to'] = int('how to' in headline.lower())
+                
+                # Additional features
+                features['capital_ratio'] = sum(1 for c in headline if c.isupper()) / len(headline) if len(headline) > 0 else 0
+                features['first_word_length'] = len(headline.split()[0]) if len(headline.split()) > 0 else 0
+                features['last_word_length'] = len(headline.split()[-1]) if len(headline.split()) > 0 else 0
+                features['avg_word_length'] = sum(len(word) for word in headline.split()) / len(headline.split()) if len(headline.split()) > 0 else 0
+    
+                # 1. Headline structure features
+                features['has_number_at_start'] = int(bool(re.match(r'^\d+', headline)))
+                features['starts_with_digit'] = int(headline[0].isdigit() if len(headline) > 0 else 0)
+                features['has_date'] = int(bool(re.search(r'\b(20\d\d|19\d\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b', headline.lower())))
+                
+                # 2. Clickbait pattern detection
+                features['has_question_words'] = int(bool(re.search(r'\b(how|what|why|when|where|who|which)\b', headline.lower())))
+                features['has_suspense'] = int(bool(re.search(r'\b(secret|reveal|shock|stun|surprise|you won\'t believe)\b', headline.lower())))
+                features['has_urgency'] = int(bool(re.search(r'\b(breaking|urgent|just in|now|today)\b', headline.lower())))
+                features['has_list'] = int(bool(re.search(r'\b(\d+ (?:things|ways|tips|reasons|facts))\b', headline.lower())))
+                
+                # 3. Emotional content
+                features['has_positive'] = int(bool(re.search(r'\b(best|top|good|great|amazing|awesome|success)\b', headline.lower())))
+                features['has_negative'] = int(bool(re.search(r'\b(worst|bad|terrible|fail|problem|crisis|disaster)\b', headline.lower())))
+                features['has_controversy'] = int(bool(re.search(r'\b(vs|versus|against|fight|battle|war|clash)\b', headline.lower())))
+                
+                # 4. Structure analysis  
                 words = headline.split()
-                f['first_word_length'] = len(words[0]) if words else 0
-                f['last_word_length'] = len(words[-1]) if words else 0
-                f['avg_word_length'] = sum(len(w) for w in words) / len(words) if words else 0
-                f['has_number_at_start'] = int(bool(re.match(r'^\d+', headline)))
-                f['starts_with_digit'] = int(headline[0].isdigit() if headline else 0)
-                f['has_date'] = int(bool(re.search(r'\b(20\d\d|19\d\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b', headline.lower())))
-                f['has_question_words'] = int(bool(re.search(r'\b(how|what|why|when|where|who|which)\b', headline.lower())))
-                f['has_suspense'] = int(bool(re.search(r'\b(secret|reveal|shock|stun|surprise|you won\'t believe)\b', headline.lower())))
-                f['has_urgency'] = int(bool(re.search(r'\b(breaking|urgent|just in|now|today)\b', headline.lower())))
-                f['has_list'] = int(bool(re.search(r'\b(\d+ (?:things|ways|tips|reasons|facts))\b', headline.lower())))
-                f['has_positive'] = int(bool(re.search(r'\b(best|top|good|great|amazing|awesome|success)\b', headline.lower())))
-                f['has_negative'] = int(bool(re.search(r'\b(worst|bad|terrible|fail|problem|crisis|disaster)\b', headline.lower())))
-                f['has_controversy'] = int(bool(re.search(r'\b(vs|versus|against|fight|battle|war|clash)\b', headline.lower())))
-                if words:
-                    f['first_word'] = self.word_to_index.get(words[0].lower(), 0)
-                    f['last_word'] = self.word_to_index.get(words[-1].lower(), 0)
-                    f['title_case_words'] = sum(1 for w in words if w and w[0].isupper())
-                    f['title_case_ratio'] = f['title_case_words'] / len(words)
-                f['length_question_interaction'] = f['length'] * f['is_question']
-                f['word_count_list_interaction'] = f['word_count'] * f['has_list']
+                if len(words) > 0:
+                    features['first_word'] = self.word_to_index.get(words[0].lower(), 0)
+                    features['last_word'] = self.word_to_index.get(words[-1].lower(), 0)
+                    features['has_quotes'] = int("\"" in headline or "'" in headline)
+                    features['title_case_words'] = sum(1 for word in words if word and word[0].isupper())
+                    features['title_case_ratio'] = features['title_case_words'] / len(words) if len(words) > 0 else 0
+                
+                # 5. Feature interactions (very powerful!)
+                features['length_question_interaction'] = features['length'] * features['is_question']
+                features['word_count_list_interaction'] = features['word_count'] * features['has_list']
+                
+                # Get embedding for semantic features
                 try:
-                    tokens = self.tokenizer(headline, return_tensors="pt", padding=True, truncation=True, max_length=128)
-                    inputs = {k: v.to(self.device) for k, v in tokens.items()}
+                    inputs = self.tokenizer(headline, return_tensors="pt", padding=True, truncation=True, max_length=128)
+                    inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                    
                     with torch.no_grad():
                         outputs = self.bert_model(**inputs)
-                    emb = outputs.last_hidden_state[0, 0, :].cpu().numpy()
-                    for j in range(self.embedding_dims):
-                        f[f'emb_{j}'] = emb[j]
+                    
+                    # Use the [CLS] token embedding
+                    embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0]
+                    
+                    # Add first 10 embedding dimensions as features
+                    for j in range(20):
+                        features[f'emb_{j}'] = embedding[j]
                 except Exception as e:
-                    logging.error(f"Embedding error for '{headline}': {e}")
-                    for j in range(self.embedding_dims):
-                        f[f'emb_{j}'] = 0.0
-                features_list.append(f)
+                    logging.error(f"Error extracting embedding for '{headline}': {e}")
+                    # Add zero embeddings if failed
+                    for j in range(10):
+                        features[f'emb_{j}'] = 0.0
+                
+                features_list.append(features)
+        
         return pd.DataFrame(features_list)
+    
 
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None,
-                    output_file='headline_ctr_model.pkl'):
+                output_file='headline_ctr_model.pkl', batch_info=None):
+        """
+        Train model with cross-validation and feature selection
+        
+        Parameters:
+        -----------
+        train_features : pandas DataFrame
+            Features for training the model
+        train_ctr : numpy array or pandas Series
+            Target CTR values for training
+        val_features : pandas DataFrame, optional
+            Features for validation
+        val_ctr : numpy array or pandas Series, optional
+            Target CTR values for validation
+        output_file : str, optional
+            Filename to save the trained model
+        batch_info : dict, optional
+            Information about processed batches for resuming
+            
+        Returns:
+        --------
+        dict
+            Dictionary containing model, selected features, and performance metrics
+        """
+        # Load batch processing info if provided
+        batch_checkpoint_path = os.path.join(self.output_dir, 'batch_checkpoint.pkl')
+        if batch_info is None:
+            # Try to load existing batch info
+            if os.path.exists(batch_checkpoint_path):
+                try:
+                    with open(batch_checkpoint_path, 'rb') as f:
+                        batch_info = pickle.load(f)
+                    logging.info(f"Loaded batch processing checkpoint with {len(batch_info.get('processed_batches', []))} processed batches")
+                except Exception as e:
+                    logging.warning(f"Could not load batch checkpoint: {e}")
+                    batch_info = {'processed_batches': [], 'last_batch': 0, 'stage': 'start'}
+            else:
+                batch_info = {'processed_batches': [], 'last_batch': 0, 'stage': 'start'}
+        
+        # Helper function to save batch checkpoint
+        def save_batch_checkpoint():
+            with open(batch_checkpoint_path, 'wb') as f:
+                pickle.dump(batch_info, f)
+            logging.info(f"Saved batch processing checkpoint at stage '{batch_info['stage']}'")
+        
         logging.info("Training headline CTR prediction model")
         if self.use_log_transform:
             train_y = np.log1p(train_ctr)
@@ -181,182 +219,618 @@ class HeadlineModelTrainer:
         else:
             train_y = train_ctr
             val_y = val_ctr
-        base = XGBRegressor(
-            n_estimators=100, learning_rate=0.01, max_depth=4,
-            min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
-            reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
-            random_state=42, n_jobs=-1
-        )
-        logging.info("Performing 5-fold CV on base model...")
-        kf = KFold(n_splits=5, shuffle=True, random_state=42)
-        scores = cross_val_score(base, train_features, train_y, cv=kf, scoring='neg_mean_squared_error')
-        rmse = np.sqrt(-scores)
-        logging.info(f"Base CV RMSE: {rmse.mean():.4f} ± {rmse.std():.4f}")
+        
+        # Only initialize base model if we're at the beginning
+        if batch_info['stage'] == 'start':
+            base = XGBRegressor(
+                n_estimators=100, learning_rate=0.01, max_depth=4,
+                min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                random_state=42, n_jobs=-1
+            )
+            batch_info['stage'] = 'cv_base'
+            save_batch_checkpoint()
+        
+        # Skip to the correct stage based on checkpoint
+        if batch_info['stage'] == 'cv_base':
+            # Use manual cross-validation to avoid compatibility issues
+            logging.info("Performing 5-fold CV on base model...")
+            kf = KFold(n_splits=5, shuffle=True, random_state=42)
+            scores = []
+            fold_idx = 0
+            for train_idx, val_idx in kf.split(train_features):
+                # Skip already processed folds
+                if fold_idx in batch_info['processed_batches']:
+                    fold_idx += 1
+                    continue
+                    
+                x_tr, x_val = train_features.iloc[train_idx], train_features.iloc[val_idx]
+                y_tr, y_val = train_y[train_idx], train_y[val_idx]
+                
+                # Train a model for this fold
+                fold_model = XGBRegressor(
+                    n_estimators=100, learning_rate=0.01, max_depth=4,
+                    min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                    reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                    random_state=42, n_jobs=-1
+                )
+                fold_model.fit(x_tr, y_tr)
+                
+                # Predict and get MSE (negative for compatibility with cross_val_score)
+                preds = fold_model.predict(x_val)
+                score = -mean_squared_error(y_val, preds)
+                scores.append(score)
+                
+                # Update checkpoint
+                batch_info['processed_batches'].append(fold_idx)
+                batch_info['last_batch'] = fold_idx
+                fold_idx += 1
+                save_batch_checkpoint()
+            
+            # Load pre-computed scores if we have them
+            if 'cv_scores' in batch_info:
+                scores.extend(batch_info['cv_scores'])
+            
+            # Save scores for potential future use
+            batch_info['cv_scores'] = scores
+            rmse = np.sqrt(-np.array(scores))
+            logging.info(f"Base CV RMSE: {rmse.mean():.4f} ± {rmse.std():.4f}")
+            
+            # Move to next stage
+            batch_info['stage'] = 'feature_selection'
+            batch_info['processed_batches'] = []  # Reset processed batches for next stage
+            save_batch_checkpoint()
 
         # Feature selection
-        fs_model = XGBRegressor(n_estimators=50, learning_rate=0.05, max_depth=5, random_state=42)
-        fs_model.fit(train_features, train_y)
-        selector = SelectFromModel(fs_model, threshold='median', prefit=True)
-        mask = selector.get_support()
-        sel_feats = train_features.columns[mask]
-        logging.info(f"Selected {len(sel_feats)} features.")
-        tf_sel = train_features[sel_feats]
-        vf_sel = val_features[sel_feats] if val_features is not None else None
-
-        logging.info("CV on selected features...")
-        sel_scores = cross_val_score(base, tf_sel, train_y, cv=kf, scoring='neg_mean_squared_error')
-        sel_rmse = np.sqrt(-sel_scores)
-        logging.info(f"Selected CV RMSE: {sel_rmse.mean():.4f} ± {sel_rmse.std():.4f}")
-
-        # Hyperparameter tuning
-        logging.info("Starting grid search...")
-        param_grid = {
-            'n_estimators': [100, 200], 'learning_rate': [0.01, 0.05],
-            'max_depth': [3, 4, 5], 'min_child_weight': [3, 5, 7],
-            'subsample': [0.7, 0.8], 'colsample_bytree': [0.7, 0.8]
-        }
-        if len(train_features) > 10000:
-            param_grid = {'n_estimators': [100], 'learning_rate': [0.01, 0.05], 'max_depth': [4, 5], 'min_child_weight': [5]}
-        grid = GridSearchCV(
-            estimator=XGBRegressor(objective='reg:squarederror', reg_alpha=1.0, reg_lambda=2.0,
-                                                    random_state=42, n_jobs=-1),
-            param_grid=param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1
-        )
-        try:
-            grid.fit(tf_sel, train_y)
-            best = grid.best_params_
-            logging.info(f"Best params: {best}")
-            final = XGBRegressor(objective='reg:squarederror', reg_alpha=1.0,
-                                                reg_lambda=2.0, random_state=42, n_jobs=-1, **best)
-        except Exception as e:
-            logging.warning(f"Grid search failed: {e}")
-            final = base
-
-        logging.info("Training final model...")
-        start = time.time()
-        if vf_sel is not None:
-            final.fit(tf_sel, train_y, eval_set=[(vf_sel, val_y)], eval_metric='rmse', early_stopping_rounds=50, verbose=0)
+        if batch_info['stage'] == 'feature_selection':
+            logging.info("Performing feature selection...")
+            fs_model = XGBRegressor(n_estimators=50, learning_rate=0.05, max_depth=5, random_state=42)
+            fs_model.fit(train_features, train_y)
+            selector = SelectFromModel(fs_model, threshold='median', prefit=True)
+            mask = selector.get_support()
+            sel_feats = train_features.columns[mask]
+            logging.info(f"Selected {len(sel_feats)} features.")
+            tf_sel = train_features[sel_feats]
+            vf_sel = val_features[sel_feats] if val_features is not None else None
+            
+            # Save selected features for checkpointing
+            batch_info['selected_features'] = sel_feats
+            batch_info['stage'] = 'cv_selected'
+            batch_info['processed_batches'] = []  # Reset processed batches
+            save_batch_checkpoint()
         else:
-            final.fit(tf_sel, train_y, verbose=0)
-        ttime = time.time() - start
-        logging.info(f"Final model trained in {ttime:.2f}s")
+            # Load pre-computed selected features
+            sel_feats = batch_info.get('selected_features')
+            tf_sel = train_features[sel_feats]
+            vf_sel = val_features[sel_feats] if val_features is not None else None
 
-        # Evaluate on train/val
-        train_pred_t = final.predict(tf_sel)
-        train_pred = np.expm1(train_pred_t) if self.use_log_transform else train_pred_t
-        train_metrics = {
-            'mse': mean_squared_error(train_ctr, train_pred),
-            'rmse': np.sqrt(mean_squared_error(train_ctr, train_pred)),
-            'mae': mean_absolute_error(train_ctr, train_pred),
-            'r2': r2_score(train_ctr, train_pred)
-        }
-        logging.info(f"Train metrics: {train_metrics}")
+        # Manual cross-validation with selected features
+        if batch_info['stage'] == 'cv_selected':
+            logging.info("CV on selected features...")
+            kf = KFold(n_splits=5, shuffle=True, random_state=42)
+            sel_scores = []
+            fold_idx = 0
+            for train_idx, val_idx in kf.split(tf_sel):
+                # Skip already processed folds
+                if fold_idx in batch_info['processed_batches']:
+                    fold_idx += 1
+                    continue
+                    
+                x_tr, x_val = tf_sel.iloc[train_idx], tf_sel.iloc[val_idx]
+                y_tr, y_val = train_y[train_idx], train_y[val_idx]
+                
+                fold_model = XGBRegressor(
+                    n_estimators=100, learning_rate=0.01, max_depth=4,
+                    min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                    reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                    random_state=42, n_jobs=-1
+                )
+                fold_model.fit(x_tr, y_tr)
+                
+                preds = fold_model.predict(x_val)
+                score = -mean_squared_error(y_val, preds)
+                sel_scores.append(score)
+                
+                # Update checkpoint
+                batch_info['processed_batches'].append(fold_idx)
+                batch_info['last_batch'] = fold_idx
+                fold_idx += 1
+                save_batch_checkpoint()
+            
+            # Load pre-computed scores if we have them
+            if 'sel_cv_scores' in batch_info:
+                sel_scores.extend(batch_info['sel_cv_scores'])
+            
+            # Save scores for potential future use
+            batch_info['sel_cv_scores'] = sel_scores
+            sel_rmse = np.sqrt(-np.array(sel_scores))
+            logging.info(f"Selected CV RMSE: {sel_rmse.mean():.4f} ± {sel_rmse.std():.4f}")
+            
+            # Move to next stage
+            batch_info['stage'] = 'grid_search'
+            batch_info['processed_batches'] = []  # Reset processed batches
+            save_batch_checkpoint()
+        else:
+            # Load pre-computed scores
+            sel_rmse = np.sqrt(-np.array(batch_info.get('sel_cv_scores', [0])))
 
-        val_metrics = {}
-        if vf_sel is not None and val_ctr is not None:
-            val_pred_t = final.predict(vf_sel)
-            val_pred = np.expm1(val_pred_t) if self.use_log_transform else val_pred_t
-            val_metrics = {
-                'mse': mean_squared_error(val_ctr, val_pred),
-                'rmse': np.sqrt(mean_squared_error(val_ctr, val_pred)),
-                'mae': mean_absolute_error(val_ctr, val_pred),
-                'r2': r2_score(val_ctr, val_pred)
+        # Manual grid search for hyperparameter tuning
+        if batch_info['stage'] == 'grid_search':
+            logging.info("Starting grid search...")
+            param_grid = {
+                'n_estimators': [100, 200], 
+                'learning_rate': [0.01, 0.05],
+                'max_depth': [3, 4, 5], 
+                'min_child_weight': [3, 5, 7],
+                'subsample': [0.7, 0.8], 
+                'colsample_bytree': [0.7, 0.8]
             }
-            logging.info(f"Val metrics: {val_metrics}")
-            if hasattr(self, 'visualize_predictions'):
-                self.visualize_predictions(val_ctr, val_pred, 'validation_predictions.png')
+            
+            if len(train_features) > 10000:
+                logging.info("Large dataset detected, using reduced parameter grid")
+                param_grid = {
+                    'n_estimators': [100], 
+                    'learning_rate': [0.01, 0.05],
+                    'max_depth': [4, 5], 
+                    'min_child_weight': [5]
+                }
+            
+            try:
+                # Simplified manual grid search
+                best_score = batch_info.get('best_score', float('-inf'))
+                best_params = batch_info.get('best_params', {})
+                
+                # Generate all parameter combinations
+                param_combinations = []
+                for n_est in param_grid['n_estimators']:
+                    for lr in param_grid['learning_rate']:
+                        for depth in param_grid['max_depth']:
+                            for min_child in param_grid['min_child_weight']:
+                                subsample = param_grid['subsample'][0]
+                                colsample = param_grid['colsample_bytree'][0]
+                                param_combinations.append({
+                                    'n_estimators': n_est,
+                                    'learning_rate': lr,
+                                    'max_depth': depth,
+                                    'min_child_weight': min_child,
+                                    'subsample': subsample,
+                                    'colsample_bytree': colsample
+                                })
+                
+                # Skip already processed combinations
+                for i, params in enumerate(param_combinations):
+                    if i in batch_info['processed_batches']:
+                        continue
+                        
+                    # Create model with these parameters
+                    model = XGBRegressor(
+                        objective='reg:squarederror', random_state=42, n_jobs=-1,
+                        reg_alpha=1.0, reg_lambda=2.0,
+                        **params
+                    )
+                    
+                    # Use validation set if available, otherwise do CV
+                    if vf_sel is not None and val_y is not None:
+                        model.fit(
+                            tf_sel, train_y,
+                            eval_set=[(vf_sel, val_y)],
+                            eval_metric='rmse',
+                            early_stopping_rounds=50,
+                            verbose=0
+                        )
+                        # Get validation score
+                        val_pred = model.predict(vf_sel)
+                        score = -mean_squared_error(val_y, val_pred)
+                    else:
+                        # Do quick 3-fold CV
+                        cv_scores = []
+                        small_cv = KFold(n_splits=3, shuffle=True, random_state=42)
+                        for t_idx, v_idx in small_cv.split(tf_sel):
+                            x_t, x_v = tf_sel.iloc[t_idx], tf_sel.iloc[v_idx]
+                            y_t, y_v = train_y[t_idx], train_y[v_idx]
+                            
+                            m = XGBRegressor(
+                                objective='reg:squarederror', random_state=42, n_jobs=-1,
+                                reg_alpha=1.0, reg_lambda=2.0,
+                                **params
+                            )
+                            m.fit(x_t, y_t)
+                            p = m.predict(x_v)
+                            cv_scores.append(-mean_squared_error(y_v, p))
+                        score = np.mean(cv_scores)
+                    
+                    # Update best parameters if needed
+                    if score > best_score:
+                        best_score = score
+                        best_params = params
+                    
+                    # Update checkpoint
+                    batch_info['processed_batches'].append(i)
+                    batch_info['best_score'] = best_score
+                    batch_info['best_params'] = best_params
+                    save_batch_checkpoint()
+                
+                logging.info(f"Best parameters: {best_params}")
+                final = XGBRegressor(
+                    objective='reg:squarederror',
+                    reg_alpha=1.0, reg_lambda=2.0, 
+                    random_state=42, n_jobs=-1,
+                    **best_params
+                )
+                
+                # Move to next stage
+                batch_info['stage'] = 'final_train'
+                batch_info['processed_batches'] = []  # Reset processed batches
+                save_batch_checkpoint()
+            except Exception as e:
+                logging.warning(f"Grid search failed: {e}")
+                logging.info("Using base model instead")
+                base = XGBRegressor(
+                    n_estimators=100, learning_rate=0.01, max_depth=4,
+                    min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                    reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                    random_state=42, n_jobs=-1
+                )
+                final = base
+                
+                # Move to next stage
+                batch_info['stage'] = 'final_train'
+                batch_info['processed_batches'] = []  # Reset processed batches
+                save_batch_checkpoint()
+        else:
+            # Load pre-computed best parameters
+            best_params = batch_info.get('best_params', {
+                'n_estimators': 100, 'learning_rate': 0.01,
+                'max_depth': 4, 'min_child_weight': 5,
+                'subsample': 0.7, 'colsample_bytree': 0.7
+            })
+            final = XGBRegressor(
+                objective='reg:squarederror',
+                reg_alpha=1.0, reg_lambda=2.0, 
+                random_state=42, n_jobs=-1,
+                **best_params
+            )
 
-        # Feature importances
-        fi = pd.DataFrame({'feature': sel_feats, 'importance': final.feature_importances_})
-        fi.sort_values('importance', ascending=False, inplace=True)
-        logging.info(f"Top features: {fi.head(10)}")
-
-        model_data = {
-            'model': final,
-            'use_log_transform': self.use_log_transform,
-            'feature_names': sel_feats.tolist(),
-            'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'metrics': {'train': train_metrics, 'val': val_metrics, 'cv': (sel_rmse.mean(), sel_rmse.std())}
-        }
-        with open(os.path.join(self.output_dir, output_file), 'wb') as f:
-            pickle.dump(model_data, f)
-        logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
-
-        if hasattr(self, 'visualize_feature_importance'):
-            self.visualize_feature_importance(fi)
-        fi.to_csv(os.path.join(self.output_dir, 'feature_importance.csv'), index=False)
-        logging.info("Feature importance saved.")
-
-        return {'model': final, 'selected_features': sel_feats, 'train_metrics': train_metrics,
-                'val_metrics': val_metrics, 'cv_rmse': sel_rmse.mean(), 'cv_rmse_std': sel_rmse.std(),
-                'feature_importances': fi, 'training_time': ttime}
-
-    def predict(self, features, model_file='headline_ctr_model.pkl'):
-        path = os.path.join(self.output_dir, model_file)
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Model file not found at {path}")
-        with open(path, 'rb') as f:
-            data = pickle.load(f)
-        feat_names = data['feature_names']
-        missing = set(feat_names) - set(features.columns)
-        if missing:
-            logging.warning(f"Missing features: {missing}")
-            for m in missing:
-                features[m] = 0
-        feats = features[feat_names]
-        preds_t = data['model'].predict(feats)
-        return np.expm1(preds_t) if data['use_log_transform'] else preds_t
-
-    # Visualization methods unchanged...
+        # Train final model
+        if batch_info['stage'] == 'final_train':
+            logging.info("Training final model...")
+            start = time.time()
+            if vf_sel is not None and val_y is not None:
+                final.fit(
+                    tf_sel, train_y,
+                    eval_set=[(vf_sel, val_y)],
+                    eval_metric='rmse',
+                    early_stopping_rounds=50,
+                    verbose=0
+                )
+            else:
+                final.fit(tf_sel, train_y, verbose=0)
+            ttime = time.time() - start
+            logging.info(f"Final model trained in {ttime:.2f}s")
+            
+            # Move to next stage
+            batch_info['stage'] = 'evaluate'
+            batch_info['processed_batches'] = []  # Reset processed batches
+            save_batch_checkpoint()
+        
+        # Evaluate on train/val
+        if batch_info['stage'] == 'evaluate':
+            train_pred_t = final.predict(tf_sel)
+            train_pred = np.expm1(train_pred_t) if self.use_log_transform else train_pred_t
+            train_metrics = {
+                'mse': mean_squared_error(train_ctr, train_pred),
+                'rmse': np.sqrt(mean_squared_error(train_ctr, train_pred)),
+                'mae': mean_absolute_error(train_ctr, train_pred),
+                'r2': r2_score(train_ctr, train_pred)
+            }
+            logging.info(f"Train metrics: {train_metrics}")
+            
+            val_metrics = {}
+            if vf_sel is not None and val_ctr is not None:
+                val_pred_t = final.predict(vf_sel)
+                val_pred = np.expm1(val_pred_t) if self.use_log_transform else val_pred_t
+                val_metrics = {
+                    'mse': mean_squared_error(val_ctr, val_pred),
+                    'rmse': np.sqrt(mean_squared_error(val_ctr, val_pred)),
+                    'mae': mean_absolute_error(val_ctr, val_pred),
+                    'r2': r2_score(val_ctr, val_pred)
+                }
+                logging.info(f"Val metrics: {val_metrics}")
+                if hasattr(self, 'visualize_predictions'):
+                    self.visualize_predictions(val_ctr, val_pred, 'validation_predictions.png')
+            
+            # Feature importances
+            fi = pd.DataFrame({'feature': sel_feats, 'importance': final.feature_importances_})
+            fi.sort_values('importance', ascending=False, inplace=True)
+            logging.info(f"Top features: {fi.head(10)}")
+            
+            # Save model and metrics
+            model_data = {
+                'model': final,
+                'use_log_transform': self.use_log_transform,
+                'feature_names': sel_feats.tolist(),
+                'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'metrics': {'train': train_metrics, 'val': val_metrics, 'cv': (sel_rmse.mean(), sel_rmse.std())}
+            }
+            with open(os.path.join(self.output_dir, output_file), 'wb') as f:
+                pickle.dump(model_data, f)
+            logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
+            
+            if hasattr(self, 'visualize_feature_importance'):
+                self.visualize_feature_importance(fi)
+            fi.to_csv(os.path.join(self.output_dir, 'feature_importance.csv'), index=False)
+            logging.info("Feature importance saved.")
+            
+            # Mark as complete and clear checkpoint
+            batch_info['stage'] = 'complete'
+            save_batch_checkpoint()
+        
+            return {
+                'model': final, 
+                'selected_features': sel_feats, 
+                'train_metrics': train_metrics,
+                'val_metrics': val_metrics, 
+                'cv_rmse': sel_rmse.mean(), 
+                'cv_rmse_std': sel_rmse.std(),
+                'feature_importances': fi, 
+                'training_time': ttime
+            }
+        else:
+            # Load final results from previously saved model
+            try:
+                with open(os.path.join(self.output_dir, output_file), 'rb') as f:
+                    model_data = pickle.load(f)
+                
+                # Extract metrics
+                metrics = model_data.get('metrics', {})
+                train_metrics = metrics.get('train', {})
+                val_metrics = metrics.get('val', {})
+                cv_metrics = metrics.get('cv', (0, 0))
+                
+                # Create feature importance from saved model
+                sel_feats = pd.Index(model_data.get('feature_names', []))
+                fi = pd.DataFrame({'feature': sel_feats, 'importance': model_data['model'].feature_importances_})
+                fi.sort_values('importance', ascending=False, inplace=True)
+                
+                logging.info("Loaded previous training results")
+                return {
+                    'model': model_data['model'],
+                    'selected_features': sel_feats,
+                    'train_metrics': train_metrics,
+                    'val_metrics': val_metrics,
+                    'cv_rmse': cv_metrics[0],
+                    'cv_rmse_std': cv_metrics[1],
+                    'feature_importances': fi,
+                    'training_time': 0  # Unknown since we loaded it
+                }
+            except Exception as e:
+                logging.error(f"Failed to load previous model: {e}")
+                return None
+    
+    def visualize_feature_importance(self, feature_importances, output_file='feature_importance.png'):
+        """Create and save feature importance visualization"""
+        plt.figure(figsize=(12, 8))
+        sns.barplot(x='importance', y='feature', data=feature_importances.head(15), palette='viridis')
+        plt.title('Top 15 Feature Importances for CTR Prediction', fontsize=14)
+        plt.xlabel('Importance', fontsize=12)
+        plt.ylabel('Feature', fontsize=12)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
+        plt.close()
+        logging.info(f"Feature importance visualization saved to {os.path.join(self.output_dir, output_file)}")
+    
+    def visualize_ctr_distribution(self, train_ctr, val_ctr=None, output_file='ctr_distribution.png'):
+        """Create and save CTR distribution visualization"""
+        plt.figure(figsize=(14, 7))
+        
+        # Plot histogram and KDE for training CTR
+        plt.subplot(1, 2, 1)
+        sns.histplot(train_ctr, kde=True, bins=50, color='blue', alpha=0.7)
+        plt.title('Training CTR Distribution', fontsize=14)
+        plt.xlabel('Click-Through Rate', fontsize=12)
+        plt.ylabel('Count', fontsize=12)
+        
+        # Plot transformed CTR if log transform is used
+        if self.use_log_transform:
+            plt.subplot(1, 2, 2)
+            log_ctr = np.log1p(train_ctr)
+            sns.histplot(log_ctr, kde=True, bins=50, color='green', alpha=0.7)
+            plt.title('Log-Transformed CTR Distribution', fontsize=14)
+            plt.xlabel('Log(CTR + 1)', fontsize=12)
+            plt.ylabel('Count', fontsize=12)
+        elif val_ctr is not None:
+            # If no log transform but we have validation data, plot validation CTR
+            plt.subplot(1, 2, 2)
+            sns.histplot(val_ctr, kde=True, bins=50, color='orange', alpha=0.7)
+            plt.title('Validation CTR Distribution', fontsize=14)
+            plt.xlabel('Click-Through Rate', fontsize=12)
+            plt.ylabel('Count', fontsize=12)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
+        plt.close()
+        logging.info(f"CTR distribution visualization saved to {os.path.join(self.output_dir, output_file)}")
+    
+    def visualize_predictions(self, true_values, predicted_values, output_file='prediction_scatter.png'):
+        """Create and save scatter plot of true vs predicted values"""
+        plt.figure(figsize=(10, 8))
+        
+        # Plot scatter plot with alpha for density visualization
+        plt.scatter(true_values, predicted_values, alpha=0.5, color='blue')
+        
+        # Add diagonal line (perfect predictions)
+        max_val = max(np.max(true_values), np.max(predicted_values))
+        min_val = min(np.min(true_values), np.min(predicted_values))
+        plt.plot([min_val, max_val], [min_val, max_val], 'r--')
+        
+        plt.title('True vs Predicted CTR Values', fontsize=14)
+        plt.xlabel('True CTR', fontsize=12)
+        plt.ylabel('Predicted CTR', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
+        plt.close()
+        logging.info(f"Prediction visualization saved to {os.path.join(self.output_dir, output_file)}")
     
     def run_training_pipeline(self, force_reprocess=False):
         if not force_reprocess:
             tf, ty, vf, vy, testf, testy = load_processed_data()
             if tf is not None:
                 logging.info("Using cached data.")
-                return self.train_model(tf, ty, vf, vy)
-        logging.info("Processing from scratch.")
+                # Check if we have a batch checkpoint
+                batch_checkpoint_path = os.path.join(self.output_dir, 'batch_checkpoint.pkl')
+                batch_info = None
+                if os.path.exists(batch_checkpoint_path):
+                    try:
+                        with open(batch_checkpoint_path, 'rb') as f:
+                            batch_info = pickle.load(f)
+                        if batch_info.get('stage') == 'complete':
+                            logging.info("Training already completed. Loading saved model.")
+                        else:
+                            logging.info(f"Resuming training from stage '{batch_info.get('stage')}'")
+                    except Exception:
+                        pass
+                return self.train_model(tf, ty, vf, vy, batch_info=batch_info)
+        """Run the complete model training pipeline with train/val/test splits"""
+        # Load data for all splits
         train_data = self.load_data('train')
         val_data = self.load_data('val')
         test_data = self.load_data('test')
+        
         if train_data is None or val_data is None:
-            logging.error("Missing train/val splits; aborting.")
+            logging.error("Could not load required data. Aborting.")
             return None
-        if test_data is None:
-            logging.warning("No test data; skipping test predictions.")
-        train_data.dropna(subset=['title', 'ctr'], inplace=True)
-        val_data.dropna(subset=['title', 'ctr'], inplace=True)
+        
+        # Handle NaN values
+        train_data = train_data.dropna(subset=['title', 'ctr'])
+        val_data = val_data.dropna(subset=['title', 'ctr'])
         if test_data is not None:
-            test_data.dropna(subset=['title', 'newsID'], inplace=True)
-
+            test_data = test_data.dropna(subset=['title'])
+        
+        # Visualize CTR distribution
         self.visualize_ctr_distribution(train_data['ctr'].values, val_data['ctr'].values)
-        train_feats = self.extract_features(train_data['title'].values)
-        val_feats = self.extract_features(val_data['title'].values)
-        test_feats = self.extract_features(test_data['title'].values) if test_data is not None else None
-
-        save_processed_data(train_feats, train_data['ctr'].values,
-                            val_feats, val_data['ctr'].values,
-                            test_feats, test_data['ctr'].values if test_data is not None and 'ctr' in test_data.columns else None)
-
-        result = self.train_model(train_feats, train_data['ctr'].values,
-                                   val_feats, val_data['ctr'].values)
-        if result and test_data is not None and test_feats is not None:
-            logging.info("Generating test predictions...")
-            preds = self.predict(test_feats)
-            out = test_data[['newsID', 'title']].copy()
-            out['predicted_ctr'] = preds
-            out.to_csv(os.path.join(self.output_dir, 'test_predictions.csv'), index=False)
-            logging.info("Test predictions saved.")
+        
+        # Extract features for all splits
+        logging.info("Extracting features for training data...")
+        train_features = self.extract_features(train_data['title'].values)
+        
+        logging.info("Extracting features for validation data...")
+        val_features = self.extract_features(val_data['title'].values)
+        
+        test_features = None
+        if test_data is not None:
+            logging.info("Extracting features for test data...")
+            test_features = self.extract_features(test_data['title'].values)
+        
+        # Train model using proper splits
+        result = self.train_model(
+            train_features, train_data['ctr'].values,
+            val_features, val_data['ctr'].values,
+            output_file='headline_ctr_model.pkl'
+        )
+        
+        # Visualize predictions for validation set
+        if self.use_log_transform:
+            val_pred = np.expm1(result['model'].predict(val_features))
+        else:
+            val_pred = result['model'].predict(val_features)
+            
+        self.visualize_predictions(val_data['ctr'].values, val_pred, 'validation_predictions.png')
+        
+        # If test data is available, generate predictions
+        if test_data is not None and test_features is not None:
+            logging.info("Generating predictions for test set...")
+            
+            if self.use_log_transform:
+                test_pred_transformed = result['model'].predict(test_features)
+                test_predictions = np.expm1(test_pred_transformed)
+            else:
+                test_predictions = result['model'].predict(test_features)
+            
+            # Save test predictions
+            test_results = test_data[['newsID', 'title']].copy()
+            test_results['predicted_ctr'] = test_predictions
+            test_results.to_csv(os.path.join(self.output_dir, 'test_predictions.csv'), index=False)
+            logging.info(f"Test predictions saved to {os.path.join(self.output_dir, 'test_predictions.csv')}")
+        
+        # Create a report
+        self.create_model_report(result, train_data, val_data, test_data)
+        
         return result
+    
+    def create_model_report(self, result, train_data, val_data, test_data=None):
+        """Create a markdown report about the model performance"""
+        if result is None:
+            return
+        
+        report = f"""# Headline CTR Prediction Model Report
+Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
+
+## Model Configuration
+- Model Type: RandomForestRegressor
+- Log Transform CTR: {self.use_log_transform}
+- Training Time: {result['training_time']:.2f} seconds
+
+## Model Performance
+- Training MSE: {result['train_mse']:.6f}
+- Training RMSE: {result['train_rmse']:.6f}
+- Training MAE: {result['train_mae']:.6f}
+- Training R-squared: {result['train_r2']:.4f}
+"""
+
+        if result['val_mse'] is not None:
+            report += f"""
+- Validation MSE: {result['val_mse']:.6f}
+- Validation RMSE: {result['val_rmse']:.6f}
+- Validation MAE: {result['val_mae']:.6f}
+- Validation R-squared: {result['val_r2']:.4f}
+"""
+
+        report += f"""
+## Dataset Summary
+- Training headlines: {len(train_data)}
+- Validation headlines: {len(val_data)}
+- Test headlines: {len(test_data) if test_data is not None else 'N/A'}
+- Training CTR range: {train_data['ctr'].min():.4f} to {train_data['ctr'].max():.4f}
+- Training Mean CTR: {train_data['ctr'].mean():.4f}
+- Validation Mean CTR: {val_data['ctr'].mean():.4f}
+
+## Key Feature Importances
+"""
+        
+        for i, row in result['feature_importances'].head(15).iterrows():
+            report += f"- {row['feature']}: {row['importance']:.4f}\n"
+        
+        report += """
+## Usage Guidelines
+This model can be used to predict the expected CTR of news headlines.
+It can be integrated into a headline optimization workflow for automated
+headline suggestions or ranking.
+
+## Features Used
+The model uses both basic text features and semantic embeddings:
+- Basic features: length, word count, question marks, numbers, etc.
+- Semantic features: BERT embeddings to capture meaning
+
+## Visualizations
+The following visualizations have been generated:
+- feature_importance.png: Importance of different features
+- ctr_distribution.png: Distribution of CTR values
+- validation_predictions.png: True vs predicted CTR values
+"""
+        
+        with open(os.path.join(self.output_dir, 'headline_model_report.md'), 'w') as f:
+            f.write(report)
+        
+        logging.info(f"Model report saved to {os.path.join(self.output_dir, 'headline_model_report.md')}")
 
 
 if __name__ == "__main__":
-    args = parse_arguments()
-    trainer = HeadlineModelTrainer(use_log_transform=True)
-    res = trainer.run_training_pipeline(force_reprocess=args.reprocess)
-    if res:
-        tm = res['train_metrics']['r2']
-        vm = res['val_metrics'].get('r2', None)
-        print(f"Training complete. R²: train={tm:.4f}, val={vm:.4f if vm is not None else 'N/A'}")
+    # Create trainer (set use_log_transform=False if you don't want log transformation)
+    trainer = HeadlineModelTrainer(use_log_transform=False)
+    result = trainer.run_training_pipeline()
+    
+    if result is not None:
+        print(f"Model training complete. Training R-squared: {result['train_r2']:.4f}, Validation R-squared: {result['val_r2']:.4f}")
     else:
-        print("Pipeline failed.")
+        print("Model training failed.")
