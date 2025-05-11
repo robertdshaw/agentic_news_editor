@@ -9,12 +9,10 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-from xgboost import XGBRegressor
-from xgboost import XGBClassifier  # Add this import
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 from xgboost import XGBRegressor, XGBClassifier
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-
+from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, 
+                            roc_auc_score, confusion_matrix, mean_squared_error, 
+                            r2_score, mean_absolute_error)
 
 
 # Configure logging
@@ -154,13 +152,13 @@ class HeadlineModelTrainer:
                     # Use the [CLS] token embedding
                     embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0]
                     
-                    # Add first 10 embedding dimensions as features
-                    for j in range(20):
+                    # Add first embedding dimensions as features
+                    for j in range(self.embedding_dims):
                         features[f'emb_{j}'] = embedding[j]
                 except Exception as e:
                     logging.error(f"Error extracting embedding for '{headline}': {e}")
                     # Add zero embeddings if failed
-                    for j in range(20):
+                    for j in range(self.embedding_dims):
                         features[f'emb_{j}'] = 0.0
                 
                 features_list.append(features)
@@ -364,7 +362,7 @@ class HeadlineModelTrainer:
                 'model_type': 'classification'
             }
         else:
-            # Original regression code - keep your existing train_model code here
+            # Original regression code
             logging.info("Training headline CTR prediction model (Regression mode)")
             
             # Apply log transform if specified
@@ -479,11 +477,137 @@ class HeadlineModelTrainer:
                 'model_type': 'regression'
             }
     
+    def visualize_ctr_distribution(self, train_ctr, val_ctr=None):
+        """Visualize the distribution of CTR values in train and val sets"""
+        try:
+            plt.figure(figsize=(12, 6))
+            
+            # Train distribution
+            plt.subplot(1, 2, 1)
+            sns.histplot(train_ctr, kde=True, bins=50)
+            plt.title('Train CTR Distribution')
+            plt.xlabel('CTR')
+            plt.ylabel('Count')
+            plt.grid(alpha=0.3)
+            
+            # Log distribution
+            plt.subplot(1, 2, 2)
+            non_zero_ctr = train_ctr[train_ctr > 0]
+            if len(non_zero_ctr) > 0:
+                sns.histplot(np.log1p(non_zero_ctr), kde=True, bins=50)
+                plt.title('Train log(CTR+1) Distribution (non-zero values)')
+                plt.xlabel('log(CTR+1)')
+                plt.ylabel('Count')
+                plt.grid(alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.output_dir, 'ctr_distribution.png'), dpi=300)
+            plt.close()
+            
+            # Compare train vs val if validation data provided
+            if val_ctr is not None:
+                plt.figure(figsize=(12, 5))
+                
+                # Plot distributions
+                plt.subplot(1, 2, 1)
+                sns.kdeplot(train_ctr, label='Train', fill=True, alpha=0.3)
+                sns.kdeplot(val_ctr, label='Validation', fill=True, alpha=0.3)
+                plt.title('CTR Distribution Comparison')
+                plt.xlabel('CTR')
+                plt.ylabel('Density')
+                plt.legend()
+                plt.grid(alpha=0.3)
+                
+                # Plot log distributions for non-zero values
+                plt.subplot(1, 2, 2)
+                train_non_zero = train_ctr[train_ctr > 0]
+                val_non_zero = val_ctr[val_ctr > 0]
+                
+                if len(train_non_zero) > 0 and len(val_non_zero) > 0:
+                    sns.kdeplot(np.log1p(train_non_zero), label='Train', fill=True, alpha=0.3)
+                    sns.kdeplot(np.log1p(val_non_zero), label='Validation', fill=True, alpha=0.3)
+                    plt.title('log(CTR+1) Distribution Comparison (non-zero)')
+                    plt.xlabel('log(CTR+1)')
+                    plt.ylabel('Density')
+                    plt.legend()
+                    plt.grid(alpha=0.3)
+                
+                plt.tight_layout()
+                plt.savefig(os.path.join(self.output_dir, 'ctr_distribution_comparison.png'), dpi=300)
+                plt.close()
+            
+            logging.info(f"CTR distribution visualizations saved to {self.output_dir}")
+        except Exception as e:
+            logging.error(f"Error creating CTR distribution visualization: {e}")
+    
+    def visualize_feature_importance(self, feature_importance_df, output_file='feature_importance.png'):
+        """Visualize feature importance from model"""
+        try:
+            # Get top features
+            top_n = min(20, len(feature_importance_df))
+            top_features = feature_importance_df.head(top_n)
+            
+            plt.figure(figsize=(10, 8))
+            sns.barplot(x='importance', y='feature', data=top_features)
+            plt.title(f'Top {top_n} Feature Importance')
+            plt.xlabel('Importance')
+            plt.ylabel('Feature')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
+            plt.close()
+            
+            logging.info(f"Feature importance visualization saved to {os.path.join(self.output_dir, output_file)}")
+        except Exception as e:
+            logging.error(f"Error creating feature importance visualization: {e}")
+    
+    def visualize_predictions(self, y_true, y_pred, output_file='predictions.png'):
+        """Create scatter plot of actual vs predicted values"""
+        try:
+            plt.figure(figsize=(10, 8))
+            
+            # Calculate metrics for title
+            rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+            r2 = r2_score(y_true, y_pred)
+            
+            # Create scatter plot
+            plt.scatter(y_true, y_pred, alpha=0.5)
+            
+            # Add perfect prediction line
+            max_val = max(np.max(y_true), np.max(y_pred))
+            min_val = min(np.min(y_true), np.min(y_pred))
+            plt.plot([min_val, max_val], [min_val, max_val], 'r--')
+            
+            plt.title(f'Actual vs Predicted CTR (RMSE: {rmse:.6f}, R²: {r2:.4f})')
+            plt.xlabel('Actual CTR')
+            plt.ylabel('Predicted CTR')
+            plt.grid(alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
+            plt.close()
+            
+            # Create additional plot with log scale if values are very small
+            if np.min(y_true) > 0 and np.min(y_pred) > 0:
+                plt.figure(figsize=(10, 8))
+                plt.scatter(y_true, y_pred, alpha=0.5)
+                plt.plot([min_val, max_val], [min_val, max_val], 'r--')
+                plt.xscale('log')
+                plt.yscale('log')
+                plt.title(f'Actual vs Predicted CTR (Log Scale)')
+                plt.xlabel('Actual CTR (log scale)')
+                plt.ylabel('Predicted CTR (log scale)')
+                plt.grid(alpha=0.3, which='both')
+                plt.tight_layout()
+                plt.savefig(os.path.join(self.output_dir, f'log_{output_file}'), dpi=300)
+                plt.close()
+            
+            logging.info(f"Prediction visualization saved to {os.path.join(self.output_dir, output_file)}")
+        except Exception as e:
+            logging.error(f"Error creating prediction visualization: {e}")
+          
     def visualize_classifier_performance(self, y_true, y_proba, output_file='classifier_performance.png'):
         """Create visualization of classifier performance with ROC curve and PR curve"""
         try:
             from sklearn.metrics import roc_curve, precision_recall_curve, auc
-            import matplotlib.pyplot as plt
             
             # Create a figure with two subplots
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -520,8 +644,8 @@ class HeadlineModelTrainer:
             
             logging.info(f"Classifier performance visualization saved to {os.path.join(self.output_dir, output_file)}")
         except Exception as e:
-            logging.error(f"Error creating classifier performance visualization: {e}")
-    
+            logging.error(f"Error creating classifier performance visualization: {e}")       
+        
     def run_training_pipeline(self):
         """Run the complete model training pipeline with train/val/test splits"""
         try:
@@ -595,7 +719,7 @@ class HeadlineModelTrainer:
             import traceback
             logging.error(traceback.format_exc())
             return None
-    
+
     def create_model_report(self, result, train_data, val_data, test_data=None):
         """Create a markdown report about the model performance"""
         if result is None:
@@ -634,7 +758,7 @@ class HeadlineModelTrainer:
     - Validation AUC: {val_metrics['auc']:.4f}
     """
         else:
-            # Original regression report - keep your existing code
+            # Original regression report
             report = f"""# Headline CTR Prediction Model Report
     Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
 
@@ -727,7 +851,7 @@ class HeadlineModelTrainer:
             f.write(report)
         
         logging.info(f"Model report saved to {os.path.join(self.output_dir, 'headline_model_report.md')}")
-        
+
     def predict_ctr(self, headlines, model_data=None, model_file='headline_ctr_model.pkl'):
         """
         Predict CTR for headlines
@@ -772,64 +896,14 @@ class HeadlineModelTrainer:
             # For classifier, return probability of click
             predictions = model_data['model'].predict_proba(features_filtered)[:, 1]
         else:
-            # For regressor, use original method
+            # For regressor
             predictions = model_data['model'].predict(features_filtered)
             # Apply inverse transform if needed
             if model_data.get('use_log_transform', False):
                 predictions = np.expm1(predictions)
                 
         return predictions
-        
-    def predict_ctr(self, headlines, model_data=None, model_file='headline_ctr_model.pkl'):
-        """
-        Predict CTR for headlines
-        
-        Args:
-            headlines: List of headlines
-            model_data: Model data dictionary (optional)
-            model_file: File to load model from if model_data not provided
-            
-        Returns:
-            array: Predicted CTR values
-        """
-        if model_data is None:
-            # Load the model
-            try:
-                model_path = os.path.join(self.output_dir, model_file)
-                with open(model_path, 'rb') as f:
-                    model_data = pickle.load(f)
-            except Exception as e:
-                logging.error(f"Error loading model: {e}")
-                return None
-        
-        # Extract features
-        features = self.extract_features(headlines)
-        
-        # Get selected features
-        feature_names = model_data['feature_names']
-        
-        # Filter features
-        selected_features = [f for f in feature_names if f in features.columns]
-        if len(selected_features) != len(feature_names):
-            logging.warning(f"Missing {len(feature_names) - len(selected_features)} features.")
-            
-            # Add missing features with zeros
-            for f in feature_names:
-                if f not in features.columns:
-                    features[f] = 0.0
-        
-        # Get filtered features
-        features_filtered = features[feature_names]
-        
-        # Make predictions
-        predictions = model_data['model'].predict(features_filtered)
-        
-        # Apply inverse transform if needed
-        if model_data.get('use_log_transform', False):
-            predictions = np.expm1(predictions)
-            
-        return predictions
-        
+
     def headline_analysis(self, headline, model_data=None, model_file='headline_ctr_model.pkl'):
         """
         Analyze what makes a headline perform well or poorly
@@ -940,7 +1014,7 @@ class HeadlineModelTrainer:
             print(f"- {c['feature']}: {c['raw_contribution']:.6f}")
         
         return analysis
-    
+
     def _detect_clickbait_patterns(self, headline):
         """Detect common clickbait patterns in a headline"""
         patterns = []
@@ -969,7 +1043,7 @@ class HeadlineModelTrainer:
             patterns.append('list')
             
         return patterns
-    
+
     def optimize_headline(self, headline, n_variations=10, model_data=None, model_file='headline_ctr_model.pkl'):
         """
         Generate optimized variations of a headline
@@ -1040,7 +1114,7 @@ class HeadlineModelTrainer:
         results = results.sort_values('predicted_ctr', ascending=False).reset_index(drop=True)
         
         return results
-
+    
 def main():
     """Main function to run the headline model training pipeline"""
     import argparse
@@ -1048,21 +1122,21 @@ def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Train headline CTR prediction model')
     parser.add_argument('--data_dir', type=str, default='agentic_news_editor/processed_data', 
-                        help='Directory containing processed data files')
+                    help='Directory containing processed data files')
     parser.add_argument('--log_transform', action='store_true',
-                        help='Apply log transform to CTR values (for regression mode)')
+                    help='Apply log transform to CTR values (for regression mode)')
     parser.add_argument('--mode', type=str, choices=['classification', 'regression'], default='classification',
-                        help='Training mode: classification or regression')
+                    help='Training mode: classification or regression')
     parser.add_argument('--predict', type=str,
-                        help='Enter a headline to predict CTR or click probability')
+                    help='Enter a headline to predict CTR or click probability')
     parser.add_argument('--analyze', type=str,
-                        help='Analyze what makes a headline perform well')
+                    help='Analyze what makes a headline perform well')
     parser.add_argument('--optimize', type=str,
-                        help='Generate optimized versions of a headline')
+                    help='Generate optimized versions of a headline')
     parser.add_argument('--n_variations', type=int, default=10,
-                        help='Number of headline variations to generate')
+                    help='Number of headline variations to generate')
     parser.add_argument('--model_file', type=str, default=None,
-                        help='Model file to use for prediction/analysis (auto-detected if None)')
+                    help='Model file to use for prediction/analysis (auto-detected if None)')
     
     args = parser.parse_args()
     
@@ -1234,5 +1308,5 @@ def main():
             print("Model training failed.")
 
 
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()
