@@ -50,10 +50,10 @@ try:
 except ImportError:
     st.error("FAISS not installed. Please install with 'pip install faiss-cpu'")
 
-# Handle SentenceTransformer with special care
+# Handle SentenceTransformer
 try:
     # Import in a way that avoids torch event loop conflicts
-    os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Disable parallelism to avoid deadlocks
+    os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Avoid deadlocks
     from sentence_transformers import SentenceTransformer
 except ImportError:
     st.error("SentenceTransformer not installed. Please install with 'pip install sentence-transformers'")
@@ -85,7 +85,7 @@ class HeadlineLearningLoop:
         except Exception as e:
             logging.error(f"Error initializing HeadlineMetrics: {e}")
         
-        # Initialize or load the dataset
+        # Initialize the dataset
         if os.path.exists(data_file):
             self.data = pd.read_csv(data_file)
             logging.info(f"Loaded {len(self.data)} headline pairs from {data_file}")

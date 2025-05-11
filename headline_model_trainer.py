@@ -262,6 +262,97 @@ class HeadlineModelTrainer:
         logging.info(f"Selected {len(selected_features)} features with threshold {threshold}")
         
         return selected_features
+    
+    # Add this method to your HeadlineModelTrainer class
+    def evaluate_model_ranking(self, result, val_data):
+        """
+        Evaluate model's headline ranking ability using validation data
+        
+        Args:
+            result: Dictionary returned by train_model
+            val_data: Validation DataFrame with 'title' and 'ctr' columns
+        """
+        logging.info("Evaluating model's headline ranking ability...")
+        
+        # Get validation headlines and CTRs
+        headlines = val_data['title'].values
+        actual_ctrs = val_data['ctr'].values
+        
+        # Get model and feature names from result
+        model = result['model']
+        selected_features = result['selected_features']
+        
+        # Extract features for validation data
+        val_features = self.extract_features(headlines)
+        val_features_selected = val_features[selected_features]
+        
+        # Get predictions
+        if result.get('model_type', 'regression') == 'classification':
+            predicted_probs = model.predict_proba(val_features_selected)[:, 1]
+        else:
+            predicted_probs = model.predict(val_features_selected)
+            if self.use_log_transform:
+                predicted_probs = np.expm1(predicted_probs)
+        
+        # Create results DataFrame
+        results = pd.DataFrame({
+            'headline': headlines,
+            'actual_ctr': actual_ctrs,
+            'predicted_prob': predicted_probs,
+            'has_clicks': (actual_ctrs > 0).astype(int)
+        })
+        
+        # Calculate correlation
+        correlation = results['predicted_prob'].corr(results['actual_ctr'], method='spearman')
+        logging.info(f"Spearman rank correlation: {correlation:.4f}")
+        
+        # Create buckets for analysis
+        results_sorted = results.sort_values('predicted_prob', ascending=False).reset_index(drop=True)
+        num_buckets = 10
+        bucket_size = max(5, len(results_sorted) // num_buckets)
+        
+        buckets = []
+        for i in range(0, len(results_sorted), bucket_size):
+            bucket_data = results_sorted.iloc[i:i+bucket_size]
+            bucket_num = i // bucket_size + 1
+            buckets.append({
+                'bucket': bucket_num,
+                'avg_pred': bucket_data['predicted_prob'].mean(),
+                'avg_ctr': bucket_data['actual_ctr'].mean(),
+                'click_rate': bucket_data['has_clicks'].mean() * 100
+            })
+        
+        buckets_df = pd.DataFrame(buckets)
+        
+        # Display and save results
+        logging.info("Ranking performance by bucket:")
+        for i, row in buckets_df.iterrows():
+            logging.info(f"Bucket {row['bucket']}: Avg Pred={row['avg_pred']:.4f}, "
+                        f"Avg CTR={row['avg_ctr']:.6f}, Click Rate={row['click_rate']:.1f}%")
+        
+        # Create visualization
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(1, 2, 1)
+        plt.bar(buckets_df['bucket'], buckets_df['avg_ctr'])
+        plt.xlabel('Predicted Probability Bucket (1=lowest, 10=highest)')
+        plt.ylabel('Average CTR')
+        plt.title('Average CTR by Predicted Probability Bucket')
+        
+        plt.subplot(1, 2, 2)
+        plt.bar(buckets_df['bucket'], buckets_df['click_rate'])
+        plt.xlabel('Predicted Probability Bucket (1=lowest, 10=highest)')
+        plt.ylabel('Headlines with Clicks (%)')
+        plt.title('% Headlines with Clicks by Bucket')
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, 'ranking_performance.png'), dpi=300)
+        
+        return {
+            'correlation': correlation,
+            'buckets': buckets_df,
+            'results': results
+        }
 
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None,
            output_file='headline_ctr_model.pkl', mode='classification', class_weight=None):
@@ -805,6 +896,20 @@ class HeadlineModelTrainer:
             # Create a report
             self.create_model_report(result, train_data, val_data, test_data)
             
+                    # Add this line to evaluate ranking performance
+            ranking_eval = self.evaluate_model_ranking(result, val_data)
+            
+            # You might want to add the ranking evaluation results to the result dictionary
+            if ranking_eval is not None:
+                result['ranking_evaluation'] = ranking_eval
+        
+            return result
+        except Exception as e:
+            logging.error(f"Error in training pipeline: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            return None
+                
             return result
         except Exception as e:
             logging.error(f"Error in training pipeline: {e}")
@@ -953,7 +1058,7 @@ class HeadlineModelTrainer:
         
         Args:
             headlines: List of headlines
-            model_data: Model data dictionary (optional)
+            model_data: Model data dictionary
             model_file: File to load model from if model_data not provided
             
         Returns:
