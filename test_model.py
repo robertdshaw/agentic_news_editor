@@ -79,6 +79,13 @@ def parse_arguments():
     parser.add_argument('--reprocess', action='store_true', help='Force reprocessing of data')
     return parser.parse_args()
 
+class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
+    """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
+    
+    @classmethod
+    def __sklearn_tags__(cls):
+        return {"estimator_type": "regressor"}
+
 class HeadlineModelTrainer:
     """
     Trains and evaluates a model for predicting headline CTR based on the MIND dataset
@@ -249,12 +256,6 @@ class HeadlineModelTrainer:
                 features_list.append(features)
         
         return pd.DataFrame(features_list)
-class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
-    """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
-    
-    @classmethod
-    def __sklearn_tags__(cls):
-        return {"estimator_type": "regressor"}
     
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
                 output_file='headline_ctr_model.pkl'):
@@ -848,69 +849,69 @@ class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
             return
         
         report = f"""# Headline CTR Prediction Model Report
-Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
+    Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
 
-## Model Configuration
-- Model Type: XGBoost Regressor
-- Log Transform CTR: {self.use_log_transform}
-- Training Time: {result['training_time']:.2f} seconds
+    ## Model Configuration
+    - Model Type: XGBoost Regressor
+    - Log Transform CTR: {self.use_log_transform}
+    - Training Time: {result['training_time']:.2f} seconds
 
-## Model Performance
-- Training MSE: {result['train_mse']:.6f}
-- Training RMSE: {result['train_rmse']:.6f}
-- Training MAE: {result['train_mae']:.6f}
-- Training R-squared: {result['train_r2']:.4f}
-"""
+    ## Model Performance
+    - Training MSE: {result['train_mse']:.6f}
+    - Training RMSE: {result['train_rmse']:.6f}
+    - Training MAE: {result['train_mae']:.6f}
+    - Training R-squared: {result['train_r2']:.4f}
+    """
 
         if result['val_mse'] is not None:
             report += f"""
-- Validation MSE: {result['val_mse']:.6f}
-- Validation RMSE: {result['val_rmse']:.6f}
-- Validation MAE: {result['val_mae']:.6f}
-- Validation R-squared: {result['val_r2']:.4f}
-"""
+    - Validation MSE: {result['val_mse']:.6f}
+    - Validation RMSE: {result['val_rmse']:.6f}
+    - Validation MAE: {result['val_mae']:.6f}
+    - Validation R-squared: {result['val_r2']:.4f}
+    """
 
         report += f"""
-## Cross-Validation Results
-- 5-fold CV RMSE: {result['cv_rmse']:.6f} ± {result['cv_rmse_std']:.6f}
+    ## Cross-Validation Results
+    - 5-fold CV RMSE: {result['cv_rmse']:.6f} ± {result['cv_rmse_std']:.6f}
 
-## Dataset Summary
-- Training headlines: {len(train_data)}
-- Validation headlines: {len(val_data)}
-- Test headlines: {len(test_data) if test_data is not None else 'N/A'}
-- Training CTR range: {train_data['ctr'].min():.4f} to {train_data['ctr'].max():.4f}
-- Training Mean CTR: {train_data['ctr'].mean():.4f}
-- Validation Mean CTR: {val_data['ctr'].mean():.4f}
+    ## Dataset Summary
+    - Training headlines: {len(train_data)}
+    - Validation headlines: {len(val_data)}
+    - Test headlines: {len(test_data) if test_data is not None else 'N/A'}
+    - Training CTR range: {train_data['ctr'].min():.4f} to {train_data['ctr'].max():.4f}
+    - Training Mean CTR: {train_data['ctr'].mean():.4f}
+    - Validation Mean CTR: {val_data['ctr'].mean():.4f}
 
-## Key Feature Importances
-"""
+    ## Key Feature Importances
+    """
         
         for i, row in result['feature_importances'].head(15).iterrows():
             report += f"- {row['feature']}: {row['importance']:.4f}\n"
         
         report += """
-## Selected Features
-The model used a subset of features after performing feature selection to improve performance.
+    ## Selected Features
+    The model used a subset of features after performing feature selection to improve performance.
 
-## Model Hyperparameters
-The final model was trained with optimal hyperparameters found through grid search.
+    ## Model Hyperparameters
+    The final model was trained with optimal hyperparameters found through grid search.
 
-## Usage Guidelines
-This model can be used to predict the expected CTR of news headlines.
-It can be integrated into a headline optimization workflow for automated
-headline suggestions or ranking.
+    ## Usage Guidelines
+    This model can be used to predict the expected CTR of news headlines.
+    It can be integrated into a headline optimization workflow for automated
+    headline suggestions or ranking.
 
-## Features Used
-The model uses both basic text features and semantic embeddings:
-- Basic features: length, word count, question marks, numbers, etc.
-- Semantic features: DistilBERT embeddings to capture meaning
+    ## Features Used
+    The model uses both basic text features and semantic embeddings:
+    - Basic features: length, word count, question marks, numbers, etc.
+    - Semantic features: DistilBERT embeddings to capture meaning
 
-## Visualizations
-The following visualizations have been generated:
-- feature_importance.png: Importance of different features
-- ctr_distribution.png: Distribution of CTR values
-- validation_predictions.png: True vs predicted CTR values
-"""
+    ## Visualizations
+    The following visualizations have been generated:
+    - feature_importance.png: Importance of different features
+    - ctr_distribution.png: Distribution of CTR values
+    - validation_predictions.png: True vs predicted CTR values
+    """
         
         # Create report directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
