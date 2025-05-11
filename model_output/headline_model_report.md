@@ -1,59 +1,64 @@
-# Headline CTR Prediction Model Report
-Generated: 2025-05-11 17:53
+# Headline Click Prediction Model Report
+    Generated: 2025-05-11 20:55
 
-## Model Configuration
-- Model Type: XGBRegressor
-- Log Transform CTR: False
-- Training Time: 1.95 seconds
+    ## Model Configuration
+    - Model Type: XGBClassifier (Binary Classification)
+    - Task: Predict if a headline will be clicked
+    - Training Time: 1.25 seconds
 
-## Model Performance
-- Training MSE: 0.007324
-- Training RMSE: 0.085580
-- Training MAE: 0.076589
-- Training R-squared: -1.3876
+    ## Model Performance
+    - Training Accuracy: 0.8654
+    - Training Precision: 0.0000
+    - Training Recall: 0.0000
+    - Training F1 Score: 0.0000
+    - Training AUC: 0.6623
+    
+    - Validation Accuracy: 0.9625
+    - Validation Precision: 0.0000
+    - Validation Recall: 0.0000
+    - Validation F1 Score: 0.0000
+    - Validation AUC: 0.5993
+    
+    ## Dataset Summary
+    - Training headlines: 28648
+    - Validation headlines: 13558
+    - Test headlines: 11358
+    
+    - Training Click Rate: 0.1346
+    - Validation Click Rate: 0.0375
+    
+    ## Key Feature Importances
+    - title_case_words: 0.0451
+- has_number_at_start: 0.0450
+- first_word_length: 0.0382
+- has_controversy: 0.0331
+- last_word_length: 0.0324
+- emb_1: 0.0317
+- emb_17: 0.0312
+- num_count: 0.0311
+- emb_3: 0.0307
+- emb_12: 0.0298
+- emb_8: 0.0298
+- emb_0: 0.0297
+- title_case_ratio: 0.0294
+- emb_18: 0.0293
+- emb_4: 0.0291
 
-- Validation MSE: 0.006394
-- Validation RMSE: 0.079965
-- Validation MAE: 0.077603
-- Validation R-squared: -7.3902
+    ## Usage Guidelines
+    
+    This model can be used to predict whether headlines will be clicked.
+    It outputs a probability score (0-1) representing the likelihood of a click.
+    It can be integrated into a headline optimization workflow for automated
+    headline suggestions or ranking.
+    
+    ## Features Used
+    The model uses both basic text features and semantic embeddings:
+    - Basic features: length, word count, question marks, numbers, etc.
+    - Semantic features: BERT embeddings to capture meaning
 
-## Dataset Summary
-- Training headlines: 28648
-- Validation headlines: 13558
-- Test headlines: 11358
-- Training CTR range: 0.0000 to 1.0000
-- Training Mean CTR: 0.0128
-- Validation Mean CTR: 0.0032
-
-## Key Feature Importances
-- emb_3: 0.3762
-- emb_11: 0.2677
-- emb_10: 0.1306
-- emb_7: 0.0804
-- word_count: 0.0713
-- emb_16: 0.0380
-- emb_15: 0.0298
-- length: 0.0059
-- has_urgency: 0.0000
-- emb_8: 0.0000
-- emb_19: 0.0000
-- has_controversy: 0.0000
-- emb_0: 0.0000
-- first_word_length: 0.0000
-- emb_4: 0.0000
-
-## Usage Guidelines
-This model can be used to predict the expected CTR of news headlines.
-It can be integrated into a headline optimization workflow for automated
-headline suggestions or ranking.
-
-## Features Used
-The model uses both basic text features and semantic embeddings:
-- Basic features: length, word count, question marks, numbers, etc.
-- Semantic features: BERT embeddings to capture meaning
-
-## Visualizations
-The following visualizations have been generated:
-- feature_importance.png: Importance of different features
-- ctr_distribution.png: Distribution of CTR values
-- validation_predictions.png: True vs predicted CTR values
+    ## Visualizations
+    The following visualizations have been generated:
+    - feature_importance.png: Importance of different features
+    
+    - validation_classifier_performance.png: ROC and PR curves for classification performance
+    

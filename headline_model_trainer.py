@@ -1,8 +1,14 @@
-import logging
-logging.basicConfig(level=logging.DEBUG, 
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-logger.debug("Script started")
+# Accuracy is high (86.54% on training, 96.25% on validation): This suggests that the model is correctly predicting the majority class.
+# AUC is moderate (0.6623 on training, 0.5993 on validation): The AUC score indicates that the model has some ability to distinguish between classes, but it's not strong.
+# Zero Precision/Recall/F1: This typically happens when the model is not predicting any positive instances (i.e., it's predicting all samples as the negative class).
+
+# Imbalanced Dataset Problem
+# This pattern strongly suggests you have a highly imbalanced dataset. In headline click prediction:
+
+# Most headlines probably have CTR = 0 (no clicks) → the majority class
+# Few headlines have CTR > 0 (got clicks) → the minority class
+
+# The model is taking the "easy way out" by predicting everything as the majority class (no clicks), which gives it a high accuracy but makes it useless for identifying which headlines will get clicks.
 
 import os
 import pandas as pd
@@ -61,6 +67,44 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Failed to load DistilBERT model: {e}")
             raise ValueError(f"Could not load embedding model: {e}")
+        
+    def extract_features_cached(self, headlines, cache_name):
+        """
+        Extract features with caching to disk
+        
+        Args:
+            headlines: List of headlines
+            cache_name: Name prefix for the cache file
+            
+        Returns:
+            DataFrame of features
+        """
+        # Create cache directory if it doesn't exist
+        cache_dir = os.path.join(self.output_dir, 'feature_cache')
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Define cache file path
+        cache_file = os.path.join(cache_dir, f'{cache_name}_features.pkl')
+        
+        # Check if cache exists
+        if os.path.exists(cache_file):
+            logging.info(f"Loading cached features from {cache_file}")
+            try:
+                return pd.read_pickle(cache_file)
+            except Exception as e:
+                logging.warning(f"Failed to load cached features: {e}")
+        
+        # Extract features if cache doesn't exist or couldn't be loaded
+        features = self.extract_features(headlines)
+        
+        # Save to cache
+        try:
+            logging.info(f"Saving features to cache: {cache_file}")
+            features.to_pickle(cache_file)
+        except Exception as e:
+            logging.warning(f"Failed to save features to cache: {e}")
+        
+        return features
     
     def load_data(self, data_type='train'):
         """Load processed headlines for specified split (train, val, or test)"""
@@ -220,9 +264,9 @@ class HeadlineModelTrainer:
         return selected_features
 
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None,
-           output_file='headline_ctr_model.pkl', mode='classification'):
+           output_file='headline_ctr_model.pkl', mode='classification', class_weight=None):
         """
-        Train model with simplified approach (no scikit-learn selection)
+        Train model
         
         Parameters:
         -----------
@@ -238,6 +282,8 @@ class HeadlineModelTrainer:
             Filename to save the trained model
         mode : str, optional
             'classification' or 'regression'
+         class_weight : dict, optional
+        Class weights for handling imbalanced data
             
         Returns:
         --------
@@ -272,6 +318,14 @@ class HeadlineModelTrainer:
                 'random_state': 42,
                 'n_jobs': -1
             }
+            
+            # Add scale_pos_weight parameter if class_weight provided
+            if class_weight is not None:
+                # XGBoost uses scale_pos_weight parameter
+                # This is the ratio of negative to positive samples
+                scale_pos_weight = class_weight[1] / class_weight[0]
+                params['scale_pos_weight'] = scale_pos_weight
+                logging.info(f"Using scale_pos_weight={scale_pos_weight} for imbalanced classes")
             
             logging.info(f"Training classification model with params: {params}")
             
@@ -652,7 +706,7 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Error creating classifier performance visualization: {e}")       
         
-    def run_training_pipeline(self):
+    def run_training_pipeline(self, use_cached_features=True):
         """Run the complete model training pipeline with train/val/test splits"""
         try:
             # Load data for all splits
@@ -670,27 +724,59 @@ class HeadlineModelTrainer:
             if test_data is not None:
                 test_data = test_data.dropna(subset=['title'])
             
+            
+            # Print class distribution
+            train_clicks = (train_data['ctr'] > 0).mean() * 100
+            val_clicks = (val_data['ctr'] > 0).mean() * 100
+            logging.info(f"Train dataset: {train_clicks:.2f}% headlines with clicks")
+            logging.info(f"Validation dataset: {val_clicks:.2f}% headlines with clicks")
+            
             # Visualize CTR distribution
             self.visualize_ctr_distribution(train_data['ctr'].values, val_data['ctr'].values)
             
-            # Extract features for all splits
+             # Extract features for all splits (with caching)
             logging.info("Extracting features for training data...")
-            train_features = self.extract_features(train_data['title'].values)
+            if use_cached_features:
+                train_features = self.extract_features_cached(train_data['title'].values, 'train')
+            else:
+                train_features = self.extract_features(train_data['title'].values)
             
             logging.info("Extracting features for validation data...")
-            val_features = self.extract_features(val_data['title'].values)
-            
+            if use_cached_features:
+                val_features = self.extract_features_cached(val_data['title'].values, 'val')
+            else:
+                val_features = self.extract_features(val_data['title'].values)
+                
             test_features = None
             if test_data is not None:
                 logging.info("Extracting features for test data...")
-                test_features = self.extract_features(test_data['title'].values)
+                if use_cached_features:
+                    test_features = self.extract_features_cached(test_data['title'].values, 'test')
+                else:
+                    test_features = self.extract_features(test_data['title'].values)
+                
+            # Compute class weights for handling imbalanced data
+            from sklearn.utils.class_weight import compute_class_weight
+            import numpy as np
             
+            # Convert to binary targets
+            train_y_binary = (train_data['ctr'].values > 0).astype(int)
+            
+            # Compute class weights - higher weight for minority class
+            class_weight = {}
+            class_weights = compute_class_weight('balanced', classes=np.unique(train_y_binary), y=train_y_binary)
+            for i, weight in enumerate(class_weights):
+                class_weight[i] = weight
+            
+            logging.info(f"Using class weights: {class_weight} to handle imbalanced data")
+        
             # Train model
             result = self.train_model(
                 train_features, train_data['ctr'].values,
                 val_features, val_data['ctr'].values,
                 output_file='headline_classifier_model.pkl',
                 mode='classification'
+                class_weight=class_weight
             )
             
             if result is None:
@@ -857,6 +943,9 @@ class HeadlineModelTrainer:
             f.write(report)
         
         logging.info(f"Model report saved to {os.path.join(self.output_dir, 'headline_model_report.md')}")
+        
+        print(f"Clicks percentage in training: {(train_data['ctr'] > 0).mean() * 100:.2f}%")
+        print(f"Clicks percentage in validation: {(val_data['ctr'] > 0).mean() * 100:.2f}%")
 
     def predict_ctr(self, headlines, model_data=None, model_file='headline_ctr_model.pkl'):
         """
@@ -1124,7 +1213,6 @@ class HeadlineModelTrainer:
 def main():
     """Main function to run the headline model training pipeline"""
     import argparse
-    print("Inside main function")
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Train headline CTR prediction model')
@@ -1144,7 +1232,8 @@ def main():
                     help='Number of headline variations to generate')
     parser.add_argument('--model_file', type=str, default=None,
                     help='Model file to use for prediction/analysis (auto-detected if None)')
-    
+    parser.add_argument('--use_cached_features', action='store_true',
+                       help='Use cached features if available')
     args = parser.parse_args()
     
     # Set default model file based on mode
@@ -1153,6 +1242,15 @@ def main():
             args.model_file = 'headline_classifier_model.pkl'
         else:
             args.model_file = 'headline_ctr_model.pkl'
+            
+    # Otherwise, run the training pipeline
+    else:
+        # Select the appropriate mode
+        mode = args.mode
+        output_file = 'headline_classifier_model.pkl' if mode == 'classification' else 'headline_ctr_model.pkl'
+        
+        print(f"Running training pipeline in {mode.upper()} mode...")
+        result = trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
     
     # Create trainer
     trainer = HeadlineModelTrainer(
