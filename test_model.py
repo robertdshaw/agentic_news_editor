@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import logging
+import argparse
 import re
 import time
 import torch
@@ -17,6 +18,65 @@ from xgboost import XGBRegressor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def save_processed_data(train_features, train_ctr, val_features, val_ctr, test_features, test_ctr, base_path='./processed_data'):
+    """Save processed feature data to pickle files to avoid reprocessing."""
+    # Create directory if it doesn't exist
+    os.makedirs(base_path, exist_ok=True)
+    
+    # Save training data
+    with open(os.path.join(base_path, 'train_features.pkl'), 'wb') as f:
+        pickle.dump(train_features, f)
+    with open(os.path.join(base_path, 'train_ctr.pkl'), 'wb') as f:
+        pickle.dump(train_ctr, f)
+    
+    # Save validation data
+    with open(os.path.join(base_path, 'val_features.pkl'), 'wb') as f:
+        pickle.dump(val_features, f)
+    with open(os.path.join(base_path, 'val_ctr.pkl'), 'wb') as f:
+        pickle.dump(val_ctr, f)
+    
+    # Save test data
+    with open(os.path.join(base_path, 'test_features.pkl'), 'wb') as f:
+        pickle.dump(test_features, f)
+    with open(os.path.join(base_path, 'test_ctr.pkl'), 'wb') as f:
+        pickle.dump(test_ctr, f)
+    
+    logging.info(f"Saved processed data to {base_path}")
+
+def load_processed_data(base_path='./processed_data'):
+    """Load processed feature data from pickle files if they exist."""
+    try:
+        # Load training data
+        with open(os.path.join(base_path, 'train_features.pkl'), 'rb') as f:
+            train_features = pickle.load(f)
+        with open(os.path.join(base_path, 'train_ctr.pkl'), 'rb') as f:
+            train_ctr = pickle.load(f)
+        
+        # Load validation data
+        with open(os.path.join(base_path, 'val_features.pkl'), 'rb') as f:
+            val_features = pickle.load(f)
+        with open(os.path.join(base_path, 'val_ctr.pkl'), 'rb') as f:
+            val_ctr = pickle.load(f)
+        
+        # Load test data
+        with open(os.path.join(base_path, 'test_features.pkl'), 'rb') as f:
+            test_features = pickle.load(f)
+        with open(os.path.join(base_path, 'test_ctr.pkl'), 'rb') as f:
+            test_ctr = pickle.load(f)
+        
+        logging.info(f"Loaded processed data from {base_path}")
+        return train_features, train_ctr, val_features, val_ctr, test_features, test_ctr
+    
+    except (FileNotFoundError, EOFError) as e:
+        logging.info(f"Could not load processed data: {e}")
+        return None, None, None, None, None, None
+    
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Headline CTR Prediction Model Training')
+    parser.add_argument('--reprocess', action='store_true', help='Force reprocessing of data')
+    return parser.parse_args()
 
 class HeadlineModelTrainer:
     """
@@ -648,15 +708,40 @@ class HeadlineModelTrainer:
         plt.close()
         logging.info(f"CTR distribution visualization saved to {os.path.join(self.output_dir, output_file)}")
     
-    def run_training_pipeline(self):
+    def run_training_pipeline(self, force_reprocess=False):
         """
         Run the complete model training pipeline with train/val/test splits
+        
+        Parameters:
+        -----------
+        force_reprocess : bool, optional (default=False)
+            If True, reprocess data from scratch even if cached data exists
         
         Returns:
         --------
         dict or None
             Results dictionary or None if training failed
         """
+        # Try to load processed features from pickle files if not forcing reprocessing
+        if not force_reprocess:
+            train_features, train_ctr, val_features, val_ctr, test_features, test_ctr = load_processed_data()
+            
+            # If data was successfully loaded
+            if train_features is not None:
+                logging.info("Using cached processed feature data")
+                
+                # Train model using loaded features
+                result = self.train_model(
+                    train_features, train_ctr,
+                    val_features, val_ctr,
+                    output_file='headline_ctr_model.pkl'
+                )
+                
+                return result
+        
+        # If we need to process from scratch (either force_reprocess=True or no cached data)
+        logging.info("Processing data from scratch...")
+        
         # Load data for all splits
         train_data = self.load_data('train')
         val_data = self.load_data('val')
@@ -678,19 +763,28 @@ class HeadlineModelTrainer:
         # Extract features for all splits
         logging.info("Extracting features for training data...")
         train_features = self.extract_features(train_data['title'].values)
+        train_ctr = train_data['ctr'].values
         
         logging.info("Extracting features for validation data...")
         val_features = self.extract_features(val_data['title'].values)
+        val_ctr = val_data['ctr'].values
         
         test_features = None
+        test_ctr = None
         if test_data is not None:
             logging.info("Extracting features for test data...")
             test_features = self.extract_features(test_data['title'].values)
+            # If test data has 'ctr' column
+            if 'ctr' in test_data.columns:
+                test_ctr = test_data['ctr'].values
+        
+        # Save the processed features for future runs
+        save_processed_data(train_features, train_ctr, val_features, val_ctr, test_features, test_ctr)
         
         # Train model using proper splits
         result = self.train_model(
-            train_features, train_data['ctr'].values,
-            val_features, val_data['ctr'].values,
+            train_features, train_ctr,
+            val_features, val_ctr,
             output_file='headline_ctr_model.pkl'
         )
         
@@ -701,7 +795,7 @@ class HeadlineModelTrainer:
             else:
                 val_pred = result['model'].predict(val_features[result['selected_features']])
                 
-            self.visualize_predictions(val_data['ctr'].values, val_pred, 'validation_predictions.png')
+            self.visualize_predictions(val_ctr, val_pred, 'validation_predictions.png')
             
             # If test data is available, generate predictions
             if test_data is not None and test_features is not None:
@@ -820,11 +914,15 @@ if __name__ == "__main__":
     """
     Main entry point for running the headline CTR model training pipeline
     """
+    
+    # Parse command-line arguments
+    args = parse_arguments()
+    
     # Create trainer (set use_log_transform=True for log transformation of CTR values)
     trainer = HeadlineModelTrainer(use_log_transform=True)
     
     # Run the complete training pipeline
-    result = trainer.run_training_pipeline()
+    result = trainer.run_training_pipeline(force_reprocess=args.reprocess)
     
     if result is not None:
         print(f"Model training complete. Training R-squared: {result['train_r2']:.4f}, Validation R-squared: {result['val_r2']:.4f}")
