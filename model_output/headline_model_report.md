@@ -1,23 +1,23 @@
 # Headline Click Prediction Model Report
-    Generated: 2025-05-11 20:55
+    Generated: 2025-05-11 23:00
 
     ## Model Configuration
     - Model Type: XGBClassifier (Binary Classification)
     - Task: Predict if a headline will be clicked
-    - Training Time: 1.25 seconds
+    - Training Time: 1.15 seconds
 
     ## Model Performance
-    - Training Accuracy: 0.8654
-    - Training Precision: 0.0000
-    - Training Recall: 0.0000
-    - Training F1 Score: 0.0000
-    - Training AUC: 0.6623
+    - Training Accuracy: 0.6259
+    - Training Precision: 0.2113
+    - Training Recall: 0.6512
+    - Training F1 Score: 0.3191
+    - Training AUC: 0.6930
     
-    - Validation Accuracy: 0.9625
-    - Validation Precision: 0.0000
-    - Validation Recall: 0.0000
-    - Validation F1 Score: 0.0000
-    - Validation AUC: 0.5993
+    - Validation Accuracy: 0.5895
+    - Validation Precision: 0.0481
+    - Validation Recall: 0.5295
+    - Validation F1 Score: 0.0882
+    - Validation AUC: 0.5796
     
     ## Dataset Summary
     - Training headlines: 28648
@@ -28,21 +28,21 @@
     - Validation Click Rate: 0.0375
     
     ## Key Feature Importances
-    - title_case_words: 0.0451
-- has_number_at_start: 0.0450
-- first_word_length: 0.0382
-- has_controversy: 0.0331
-- last_word_length: 0.0324
-- emb_1: 0.0317
-- emb_17: 0.0312
-- num_count: 0.0311
-- emb_3: 0.0307
-- emb_12: 0.0298
-- emb_8: 0.0298
-- emb_0: 0.0297
-- title_case_ratio: 0.0294
-- emb_18: 0.0293
-- emb_4: 0.0291
+    - num_count: 0.0440
+- has_number_at_start: 0.0377
+- first_word_length: 0.0344
+- emb_0: 0.0333
+- last_word_length: 0.0331
+- has_quote: 0.0323
+- emb_7: 0.0319
+- emb_12: 0.0319
+- title_case_ratio: 0.0312
+- length_question_interaction: 0.0306
+- emb_1: 0.0306
+- emb_3: 0.0305
+- last_word: 0.0303
+- emb_2: 0.0301
+- has_question_words: 0.0299
 
     ## Usage Guidelines
     

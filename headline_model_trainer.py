@@ -264,13 +264,16 @@ class HeadlineModelTrainer:
         return selected_features
     
     # Add this method to your HeadlineModelTrainer class
-    def evaluate_model_ranking(self, result, val_data):
+    def evaluate_model_ranking(self, model_data, val_data):
         """
-        Evaluate model's headline ranking ability using validation data
+        Evaluate model's ability to rank headlines by their likelihood of getting clicks
         
         Args:
-            result: Dictionary returned by train_model
-            val_data: Validation DataFrame with 'title' and 'ctr' columns
+            model_data: Dictionary containing model, feature_names and other model info
+            val_data: Validation data with 'title' and 'ctr' columns
+        
+        Returns:
+            Dictionary with ranking evaluation metrics
         """
         logging.info("Evaluating model's headline ranking ability...")
         
@@ -278,80 +281,141 @@ class HeadlineModelTrainer:
         headlines = val_data['title'].values
         actual_ctrs = val_data['ctr'].values
         
-        # Get model and feature names from result
-        model = result['model']
-        selected_features = result['selected_features']
-        
         # Extract features for validation data
         val_features = self.extract_features(headlines)
-        val_features_selected = val_features[selected_features]
         
-        # Get predictions
-        if result.get('model_type', 'regression') == 'classification':
-            predicted_probs = model.predict_proba(val_features_selected)[:, 1]
+        # Get selected features - FIX: Changed 'result' to 'model_data'
+        feature_names = model_data['feature_names']
+        
+        # Filter features
+        val_features_sel = val_features[feature_names]
+        
+        # Get model predictions
+        if model_data.get('model_type', 'regression') == 'classification':
+            # For classification model, get probability of click
+            predicted_probs = model_data['model'].predict_proba(val_features_sel)[:, 1]
         else:
-            predicted_probs = model.predict(val_features_selected)
-            if self.use_log_transform:
+            # For regression model, get predicted CTR
+            predicted_probs = model_data['model'].predict(val_features_sel)
+            if model_data.get('use_log_transform', False):
                 predicted_probs = np.expm1(predicted_probs)
         
-        # Create results DataFrame
-        results = pd.DataFrame({
+        # Create DataFrame with results
+        results_df = pd.DataFrame({
             'headline': headlines,
             'actual_ctr': actual_ctrs,
             'predicted_prob': predicted_probs,
             'has_clicks': (actual_ctrs > 0).astype(int)
         })
         
-        # Calculate correlation
-        correlation = results['predicted_prob'].corr(results['actual_ctr'], method='spearman')
-        logging.info(f"Spearman rank correlation: {correlation:.4f}")
+        # Calculate Spearman rank correlation
+        rank_correlation = results_df['predicted_prob'].corr(results_df['actual_ctr'], method='spearman')
+        logging.info(f"Spearman rank correlation: {rank_correlation:.4f}")
+        
+        # Sort by predicted probability
+        sorted_results = results_df.sort_values('predicted_prob', ascending=False).reset_index(drop=True)
         
         # Create buckets for analysis
-        results_sorted = results.sort_values('predicted_prob', ascending=False).reset_index(drop=True)
-        num_buckets = 10
-        bucket_size = max(5, len(results_sorted) // num_buckets)
+        num_headlines = len(sorted_results)
+        num_buckets = 10  # Aim for 10 buckets
+        bucket_size = max(10, num_headlines // num_buckets)  # At least 10 headlines per bucket
         
         buckets = []
-        for i in range(0, len(results_sorted), bucket_size):
-            bucket_data = results_sorted.iloc[i:i+bucket_size]
-            bucket_num = i // bucket_size + 1
+        for i in range(0, num_headlines, bucket_size):
+            end_idx = min(i + bucket_size, num_headlines)
+            bucket = sorted_results.iloc[i:end_idx]
+            
+            # Calculate metrics for this bucket
+            bucket_index = i // bucket_size + 1
+            avg_predicted = bucket['predicted_prob'].mean()
+            avg_ctr = bucket['actual_ctr'].mean()
+            click_rate = bucket['has_clicks'].mean() * 100
+            
             buckets.append({
-                'bucket': bucket_num,
-                'avg_pred': bucket_data['predicted_prob'].mean(),
-                'avg_ctr': bucket_data['actual_ctr'].mean(),
-                'click_rate': bucket_data['has_clicks'].mean() * 100
+                'bucket': bucket_index,
+                'size': len(bucket),
+                'avg_predicted': avg_predicted,
+                'avg_actual_ctr': avg_ctr,
+                'click_rate': click_rate
             })
         
+        # Create DataFrame of bucket results
         buckets_df = pd.DataFrame(buckets)
         
-        # Display and save results
-        logging.info("Ranking performance by bucket:")
-        for i, row in buckets_df.iterrows():
-            logging.info(f"Bucket {row['bucket']}: Avg Pred={row['avg_pred']:.4f}, "
-                        f"Avg CTR={row['avg_ctr']:.6f}, Click Rate={row['click_rate']:.1f}%")
+        # Calculate lift metrics
+        overall_avg_ctr = results_df['actual_ctr'].mean()
+        overall_click_rate = results_df['has_clicks'].mean() * 100
+        
+        # Get metrics for top buckets
+        top_bucket = buckets_df.iloc[0]
+        top_3_buckets = buckets_df.iloc[:3]
+        
+        top_bucket_lift = (top_bucket['avg_actual_ctr'] / overall_avg_ctr - 1) * 100
+        top_3_buckets_lift = (top_3_buckets['avg_actual_ctr'].mean() / overall_avg_ctr - 1) * 100
+        
+        logging.info(f"Overall average CTR: {overall_avg_ctr:.6f}")
+        logging.info(f"Overall click rate: {overall_click_rate:.2f}%")
+        logging.info(f"Top bucket average CTR: {top_bucket['avg_actual_ctr']:.6f} (lift: {top_bucket_lift:.1f}%)")
+        logging.info(f"Top 3 buckets average CTR: {top_3_buckets['avg_actual_ctr'].mean():.6f} (lift: {top_3_buckets_lift:.1f}%)")
+        
+        # Log bucket results
+        logging.info("CTR and click rate by bucket (higher bucket = higher predicted probability):")
+        for _, row in buckets_df.iterrows():
+            logging.info(f"Bucket {row['bucket']}: Avg CTR={row['avg_actual_ctr']:.6f}, Click Rate={row['click_rate']:.2f}%, Pred={row['avg_predicted']:.4f}")
         
         # Create visualization
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(14, 10))
         
-        plt.subplot(1, 2, 1)
-        plt.bar(buckets_df['bucket'], buckets_df['avg_ctr'])
-        plt.xlabel('Predicted Probability Bucket (1=lowest, 10=highest)')
+        # Plot 1: Average CTR by bucket
+        plt.subplot(2, 2, 1)
+        plt.bar(buckets_df['bucket'], buckets_df['avg_actual_ctr'])
+        plt.axhline(y=overall_avg_ctr, color='r', linestyle='--', label=f'Overall avg: {overall_avg_ctr:.6f}')
+        plt.xlabel('Bucket (1=lowest predicted, 10=highest predicted)')
         plt.ylabel('Average CTR')
         plt.title('Average CTR by Predicted Probability Bucket')
+        plt.legend()
         
-        plt.subplot(1, 2, 2)
+        # Plot 2: Click rate by bucket
+        plt.subplot(2, 2, 2)
         plt.bar(buckets_df['bucket'], buckets_df['click_rate'])
-        plt.xlabel('Predicted Probability Bucket (1=lowest, 10=highest)')
+        plt.axhline(y=overall_click_rate, color='r', linestyle='--', label=f'Overall: {overall_click_rate:.2f}%')
+        plt.xlabel('Bucket (1=lowest predicted, 10=highest predicted)')
         plt.ylabel('Headlines with Clicks (%)')
-        plt.title('% Headlines with Clicks by Bucket')
+        plt.title('% Headlines with Clicks by Predicted Probability Bucket')
+        plt.legend()
+        
+        # Plot 3: CTR Lift by bucket
+        plt.subplot(2, 2, 3)
+        ctr_lift = (buckets_df['avg_actual_ctr'] / overall_avg_ctr - 1) * 100
+        plt.bar(buckets_df['bucket'], ctr_lift)
+        plt.axhline(y=0, color='r', linestyle='--')
+        plt.xlabel('Bucket (1=lowest predicted, 10=highest predicted)')
+        plt.ylabel('CTR Lift (%)')
+        plt.title('CTR Lift Compared to Average')
+        
+        # Plot 4: Scatterplot of predicted vs actual
+        plt.subplot(2, 2, 4)
+        plt.scatter(results_df['predicted_prob'], results_df['actual_ctr'], alpha=0.3)
+        plt.xlabel('Predicted Probability')
+        plt.ylabel('Actual CTR')
+        plt.title(f'Actual vs Predicted (Spearman corr: {rank_correlation:.4f})')
         
         plt.tight_layout()
         plt.savefig(os.path.join(self.output_dir, 'ranking_performance.png'), dpi=300)
+        plt.close()
         
+        # Also save data for further analysis
+        sorted_results.to_csv(os.path.join(self.output_dir, 'headline_ranking_results.csv'), index=False)
+        buckets_df.to_csv(os.path.join(self.output_dir, 'headline_buckets.csv'), index=False)
+        
+        # Return evaluation results
         return {
-            'correlation': correlation,
+            'rank_correlation': rank_correlation,
             'buckets': buckets_df,
-            'results': results
+            'overall_avg_ctr': overall_avg_ctr,
+            'overall_click_rate': overall_click_rate,
+            'top_bucket_lift': top_bucket_lift,
+            'top_3_buckets_lift': top_3_buckets_lift
         }
 
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None,
