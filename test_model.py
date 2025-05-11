@@ -150,17 +150,7 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Error loading {data_type} data: {e}")
             return None
-
-from xgboost import XGBRegressor
-from sklearn.base import RegressorMixin
-
-class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
-    """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
-    
-    @classmethod
-    def __sklearn_tags__(cls):
-        return {"estimator_type": "regressor"}
-    
+        
     def extract_features(self, headlines):
         """
         Extract features from headlines for model training
@@ -258,6 +248,16 @@ class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
                 features_list.append(features)
         
         return pd.DataFrame(features_list)
+
+from xgboost import XGBRegressor
+from sklearn.base import RegressorMixin
+
+class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
+    """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
+    
+    @classmethod
+    def __sklearn_tags__(cls):
+        return {"estimator_type": "regressor"}
     
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
                 output_file='headline_ctr_model.pkl'):
