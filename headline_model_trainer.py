@@ -1,4 +1,8 @@
-print("Starting script")
+import logging
+logging.basicConfig(level=logging.DEBUG, 
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+logger.debug("Script started")
 
 import os
 import pandas as pd
@@ -1120,6 +1124,7 @@ class HeadlineModelTrainer:
 def main():
     """Main function to run the headline model training pipeline"""
     import argparse
+    print("Inside main function")
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Train headline CTR prediction model')
@@ -1310,5 +1315,5 @@ def main():
             print("Model training failed.")
 
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
