@@ -166,143 +166,267 @@ class HeadlineModelTrainer:
         return pd.DataFrame(features_list)
     
 
-    def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
-                    output_file='headline_ctr_model.pkl'):
-        """Train an XGBoost model to predict headline CTR"""
-        logging.info(f"Training headline CTR prediction model on {len(train_features)} examples")
-        
-        # Apply log transformation to handle skewed CTR distribution
-        if self.use_log_transform:
-            train_ctr_transformed = np.log1p(train_ctr)
-            logging.info(f"Applied log transformation to CTR values")
-        else:
-            train_ctr_transformed = train_ctr
+    def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None,
+                output_file='headline_ctr_model.pkl'):
+            """
+            Train model with cross-validation and feature selection
             
-        # Modify the XGBoost model parameters
-        model = XGBRegressor(
-            n_estimators=100,           # Reduce from 200
-            learning_rate=0.01,         # Reduce from 0.05
-            max_depth=4,                # Reduce from 6
-            min_child_weight=5,         # Increase from 3
-            subsample=0.7,              # Reduce from 0.8
-            colsample_bytree=0.7,       # Reduce from 0.8
-            reg_alpha=1.0,              # Add L1 regularization
-            reg_lambda=2.0,             # Add L2 regularization
-            objective='reg:squarederror',
-            random_state=42,
-            n_jobs=-1
-        )
-        start_time = time.time()
-        model.fit(train_features, train_ctr_transformed)
-        training_time = time.time() - start_time
+            Parameters:
+            -----------
+            train_features : pandas DataFrame
+                Features for training the model
+            train_ctr : numpy array or pandas Series
+                Target CTR values for training
+            val_features : pandas DataFrame, optional
+                Features for validation
+            val_ctr : numpy array or pandas Series, optional
+                Target CTR values for validation
+            output_file : str, optional
+                Filename to save the trained model
                 
-        model.fit(
-            train_features, 
-            train_ctr_transformed
-        )
-        
-        logging.info(f"Model training completed in {training_time:.2f} seconds")
-    
-    # def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
-    #                 output_file='headline_ctr_model.pkl'):
-    #     """Train a model to predict headline CTR using proper train/val splits"""
-    #     logging.info(f"Training headline CTR prediction model on {len(train_features)} examples")
-        
-    #     # Apply log transformation to handle skewed CTR distribution
-    #     if self.use_log_transform:
-    #         # Add a small constant to avoid log(0)
-    #         train_ctr_transformed = np.log1p(train_ctr)
-    #         logging.info(f"Applied log transformation to CTR values")
-    #     else:
-    #         train_ctr_transformed = train_ctr
-        
-    #     # Define and train model on full training set
-    #     model = RandomForestRegressor(
-    #         n_estimators=200, 
-    #         max_depth=7,
-    #         min_samples_split=15,
-    #         min_samples_leaf=5,
-    #         random_state=42,
-    #         n_jobs=-1  # Use all available cores
-    #     )
-        
-    #     # Record training time
-    #     start_time = time.time()
-    #     model.fit(train_features, train_ctr_transformed)
-    #     training_time = time.time() - start_time
-    #     logging.info(f"Model training completed in {training_time:.2f} seconds")
-        
-        # Evaluate on training set
-        train_pred_transformed = model.predict(train_features)
-        
-        # Convert predictions back to original scale if log transform was used
-        if self.use_log_transform:
-            train_pred = np.expm1(train_pred_transformed)
-        else:
-            train_pred = train_pred_transformed
-            
-        train_mse = mean_squared_error(train_ctr, train_pred)
-        train_mae = mean_absolute_error(train_ctr, train_pred)
-        train_rmse = np.sqrt(train_mse)
-        train_r2 = r2_score(train_ctr, train_pred)
-        
-        logging.info(f"Training metrics - MSE: {train_mse:.6f}, RMSE: {train_rmse:.6f}, MAE: {train_mae:.6f}, R²: {train_r2:.4f}")
-        
-        # Evaluate on validation set if provided
-        val_mse, val_mae, val_rmse, val_r2 = None, None, None, None
-        if val_features is not None and val_ctr is not None:
-            val_pred_transformed = model.predict(val_features)
-            
-            # Convert predictions back to original scale if log transform was used
+            Returns:
+            --------
+            dict
+                Dictionary containing model, selected features, and performance metrics
+            """
+            logging.info("Training headline CTR prediction model")
             if self.use_log_transform:
-                val_pred = np.expm1(val_pred_transformed)
+                train_y = np.log1p(train_ctr)
+                val_y = np.log1p(val_ctr) if val_ctr is not None else None
             else:
-                val_pred = val_pred_transformed
-                
-            val_mse = mean_squared_error(val_ctr, val_pred)
-            val_mae = mean_absolute_error(val_ctr, val_pred)
-            val_rmse = np.sqrt(val_mse)
-            val_r2 = r2_score(val_ctr, val_pred)
+                train_y = train_ctr
+                val_y = val_ctr
             
-            logging.info(f"Validation metrics - MSE: {val_mse:.6f}, RMSE: {val_rmse:.6f}, MAE: {val_mae:.6f}, R²: {val_r2:.4f}")
-        
-        # Feature importance
-        feature_importances = pd.DataFrame({
-            'feature': train_features.columns,
-            'importance': model.feature_importances_
-        }).sort_values('importance', ascending=False)
-        
-        logging.info("Top 10 important features:")
-        for i, row in feature_importances.head(10).iterrows():
-            logging.info(f"  {row['feature']}: {row['importance']:.4f}")
-        
-        # Plot feature importance
-        self.visualize_feature_importance(feature_importances)
-        
-        # Save model
-        with open(os.path.join(self.output_dir, output_file), 'wb') as f:
-            pickle.dump({
-                'model': model,
+            base = XGBRegressor(
+                n_estimators=100, learning_rate=0.01, max_depth=4,
+                min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                random_state=42, n_jobs=-1
+            )
+            
+            # Use manual cross-validation to avoid compatibility issues
+            logging.info("Performing 5-fold CV on base model...")
+            kf = KFold(n_splits=5, shuffle=True, random_state=42)
+            scores = []
+            for train_idx, val_idx in kf.split(train_features):
+                x_tr, x_val = train_features.iloc[train_idx], train_features.iloc[val_idx]
+                y_tr, y_val = train_y[train_idx], train_y[val_idx]
+                
+                # Train a model for this fold
+                fold_model = XGBRegressor(
+                    n_estimators=100, learning_rate=0.01, max_depth=4,
+                    min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                    reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                    random_state=42, n_jobs=-1
+                )
+                fold_model.fit(x_tr, y_tr)
+                
+                # Predict and get MSE (negative for compatibility with cross_val_score)
+                preds = fold_model.predict(x_val)
+                score = -mean_squared_error(y_val, preds)
+                scores.append(score)
+            
+            rmse = np.sqrt(-np.array(scores))
+            logging.info(f"Base CV RMSE: {rmse.mean():.4f} ± {rmse.std():.4f}")
+
+            # Feature selection
+            fs_model = XGBRegressor(n_estimators=50, learning_rate=0.05, max_depth=5, random_state=42)
+            fs_model.fit(train_features, train_y)
+            selector = SelectFromModel(fs_model, threshold='median', prefit=True)
+            mask = selector.get_support()
+            sel_feats = train_features.columns[mask]
+            logging.info(f"Selected {len(sel_feats)} features.")
+            tf_sel = train_features[sel_feats]
+            vf_sel = val_features[sel_feats] if val_features is not None else None
+
+            # Manual cross-validation with selected features
+            logging.info("CV on selected features...")
+            sel_scores = []
+            for train_idx, val_idx in kf.split(tf_sel):
+                x_tr, x_val = tf_sel.iloc[train_idx], tf_sel.iloc[val_idx]
+                y_tr, y_val = train_y[train_idx], train_y[val_idx]
+                
+                fold_model = XGBRegressor(
+                    n_estimators=100, learning_rate=0.01, max_depth=4,
+                    min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
+                    reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
+                    random_state=42, n_jobs=-1
+                )
+                fold_model.fit(x_tr, y_tr)
+                
+                preds = fold_model.predict(x_val)
+                score = -mean_squared_error(y_val, preds)
+                sel_scores.append(score)
+            
+            sel_rmse = np.sqrt(-np.array(sel_scores))
+            logging.info(f"Selected CV RMSE: {sel_rmse.mean():.4f} ± {sel_rmse.std():.4f}")
+
+            # Manual grid search for hyperparameter tuning
+            logging.info("Starting grid search...")
+            param_grid = {
+                'n_estimators': [100, 200], 
+                'learning_rate': [0.01, 0.05],
+                'max_depth': [3, 4, 5], 
+                'min_child_weight': [3, 5, 7],
+                'subsample': [0.7, 0.8], 
+                'colsample_bytree': [0.7, 0.8]
+            }
+            
+            if len(train_features) > 10000:
+                logging.info("Large dataset detected, using reduced parameter grid")
+                param_grid = {
+                    'n_estimators': [100], 
+                    'learning_rate': [0.01, 0.05],
+                    'max_depth': [4, 5], 
+                    'min_child_weight': [5]
+                }
+            
+            try:
+                # Simplified manual grid search
+                best_score = float('-inf')
+                best_params = {}
+                
+                # Try a few parameter combinations
+                for n_est in param_grid['n_estimators']:
+                    for lr in param_grid['learning_rate']:
+                        for depth in param_grid['max_depth']:
+                            for min_child in param_grid['min_child_weight']:
+                                # Only use one value for subsample/colsample to save time
+                                subsample = param_grid['subsample'][0]
+                                colsample = param_grid['colsample_bytree'][0]
+                                
+                                # Create model with these parameters
+                                model = XGBRegressor(
+                                    n_estimators=n_est, learning_rate=lr,
+                                    max_depth=depth, min_child_weight=min_child,
+                                    subsample=subsample, colsample_bytree=colsample,
+                                    reg_alpha=1.0, reg_lambda=2.0,
+                                    objective='reg:squarederror', random_state=42,
+                                    n_jobs=-1
+                                )
+                                
+                                # Use validation set if available, otherwise do CV
+                                if vf_sel is not None and val_y is not None:
+                                    model.fit(
+                                        tf_sel, train_y,
+                                        eval_set=[(vf_sel, val_y)],
+                                        eval_metric='rmse',
+                                        early_stopping_rounds=50,
+                                        verbose=0
+                                    )
+                                    # Get validation score
+                                    val_pred = model.predict(vf_sel)
+                                    score = -mean_squared_error(val_y, val_pred)
+                                else:
+                                    # Do quick 3-fold CV
+                                    cv_scores = []
+                                    small_cv = KFold(n_splits=3, shuffle=True, random_state=42)
+                                    for t_idx, v_idx in small_cv.split(tf_sel):
+                                        x_t, x_v = tf_sel.iloc[t_idx], tf_sel.iloc[v_idx]
+                                        y_t, y_v = train_y[t_idx], train_y[v_idx]
+                                        
+                                        m = XGBRegressor(
+                                            n_estimators=n_est, learning_rate=lr,
+                                            max_depth=depth, min_child_weight=min_child,
+                                            subsample=subsample, colsample_bytree=colsample,
+                                            reg_alpha=1.0, reg_lambda=2.0,
+                                            objective='reg:squarederror', random_state=42,
+                                            n_jobs=-1
+                                        )
+                                        m.fit(x_t, y_t)
+                                        p = m.predict(x_v)
+                                        cv_scores.append(-mean_squared_error(y_v, p))
+                                    score = np.mean(cv_scores)
+                                
+                                # Update best parameters if needed
+                                if score > best_score:
+                                    best_score = score
+                                    best_params = {
+                                        'n_estimators': n_est,
+                                        'learning_rate': lr,
+                                        'max_depth': depth,
+                                        'min_child_weight': min_child,
+                                        'subsample': subsample,
+                                        'colsample_bytree': colsample
+                                    }
+                
+                logging.info(f"Best parameters: {best_params}")
+                final = XGBRegressor(
+                    objective='reg:squarederror',
+                    reg_alpha=1.0, reg_lambda=2.0, 
+                    random_state=42, n_jobs=-1,
+                    **best_params
+                )
+            except Exception as e:
+                logging.warning(f"Grid search failed: {e}")
+                logging.info("Using base model instead")
+                final = base
+
+            # Train final model
+            logging.info("Training final model...")
+            start = time.time()
+            if vf_sel is not None and val_y is not None:
+                final.fit(
+                    tf_sel, train_y,
+                    eval_set=[(vf_sel, val_y)],
+                    eval_metric='rmse',
+                    early_stopping_rounds=50,
+                    verbose=0
+                )
+            else:
+                final.fit(tf_sel, train_y, verbose=0)
+            ttime = time.time() - start
+            logging.info(f"Final model trained in {ttime:.2f}s")
+
+            # Evaluate on train/val
+            train_pred_t = final.predict(tf_sel)
+            train_pred = np.expm1(train_pred_t) if self.use_log_transform else train_pred_t
+            train_metrics = {
+                'mse': mean_squared_error(train_ctr, train_pred),
+                'rmse': np.sqrt(mean_squared_error(train_ctr, train_pred)),
+                'mae': mean_absolute_error(train_ctr, train_pred),
+                'r2': r2_score(train_ctr, train_pred)
+            }
+            logging.info(f"Train metrics: {train_metrics}")
+
+            val_metrics = {}
+            if vf_sel is not None and val_ctr is not None:
+                val_pred_t = final.predict(vf_sel)
+                val_pred = np.expm1(val_pred_t) if self.use_log_transform else val_pred_t
+                val_metrics = {
+                    'mse': mean_squared_error(val_ctr, val_pred),
+                    'rmse': np.sqrt(mean_squared_error(val_ctr, val_pred)),
+                    'mae': mean_absolute_error(val_ctr, val_pred),
+                    'r2': r2_score(val_ctr, val_pred)
+                }
+                logging.info(f"Val metrics: {val_metrics}")
+                if hasattr(self, 'visualize_predictions'):
+                    self.visualize_predictions(val_ctr, val_pred, 'validation_predictions.png')
+
+            # Feature importances
+            fi = pd.DataFrame({'feature': sel_feats, 'importance': final.feature_importances_})
+            fi.sort_values('importance', ascending=False, inplace=True)
+            logging.info(f"Top features: {fi.head(10)}")
+
+            model_data = {
+                'model': final,
                 'use_log_transform': self.use_log_transform,
-                'feature_names': train_features.columns.tolist()
-            }, f)
-        
-        logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
-        
-        # Return results
-        return {
-            'model': model,
-            'train_mse': train_mse,
-            'train_rmse': train_rmse,
-            'train_mae': train_mae,
-            'train_r2': train_r2,
-            'val_mse': val_mse,
-            'val_rmse': val_rmse,
-            'val_mae': val_mae,
-            'val_r2': val_r2,
-            'feature_importances': feature_importances,
-            'training_time': training_time
-        }
+                'feature_names': sel_feats.tolist(),
+                'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'metrics': {'train': train_metrics, 'val': val_metrics, 'cv': (sel_rmse.mean(), sel_rmse.std())}
+            }
+            with open(os.path.join(self.output_dir, output_file), 'wb') as f:
+                pickle.dump(model_data, f)
+            logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
+
+            if hasattr(self, 'visualize_feature_importance'):
+                self.visualize_feature_importance(fi)
+            fi.to_csv(os.path.join(self.output_dir, 'feature_importance.csv'), index=False)
+            logging.info("Feature importance saved.")
+
+            return {'model': final, 'selected_features': sel_feats, 'train_metrics': train_metrics,
+                    'val_metrics': val_metrics, 'cv_rmse': sel_rmse.mean(), 'cv_rmse_std': sel_rmse.std(),
+                    'feature_importances': fi, 'training_time': ttime}
     
     def visualize_feature_importance(self, feature_importances, output_file='feature_importance.png'):
         """Create and save feature importance visualization"""

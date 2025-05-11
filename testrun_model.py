@@ -69,16 +69,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Headline CTR Prediction Model Training')
     parser.add_argument('--reprocess', action='store_true', help='Force reprocessing of data')
     return parser.parse_args()
-
-
-class SklearnCompatibleXGBRegressor(XGBRegressor):
-    # Instruct sklearn that this is a regressor
-    _more_tags = {"estimator_type": "regressor"}
-
-    def __sklearn_tags__(self):
-        # Bypass BaseEstimator.__sklearn_tags__ entirely
-        return {"estimator_type": "regressor"}
-
 class HeadlineModelTrainer:
     """
     Trains and evaluates a model for predicting headline CTR based on processed splits.
@@ -191,7 +181,7 @@ class HeadlineModelTrainer:
         else:
             train_y = train_ctr
             val_y = val_ctr
-        base = SklearnCompatibleXGBRegressor(
+        base = XGBRegressor(
             n_estimators=100, learning_rate=0.01, max_depth=4,
             min_child_weight=5, subsample=0.7, colsample_bytree=0.7,
             reg_alpha=1.0, reg_lambda=2.0, objective='reg:squarederror',
@@ -204,7 +194,7 @@ class HeadlineModelTrainer:
         logging.info(f"Base CV RMSE: {rmse.mean():.4f} ± {rmse.std():.4f}")
 
         # Feature selection
-        fs_model = SklearnCompatibleXGBRegressor(n_estimators=50, learning_rate=0.05, max_depth=5, random_state=42)
+        fs_model = XGBRegressor(n_estimators=50, learning_rate=0.05, max_depth=5, random_state=42)
         fs_model.fit(train_features, train_y)
         selector = SelectFromModel(fs_model, threshold='median', prefit=True)
         mask = selector.get_support()
@@ -228,7 +218,7 @@ class HeadlineModelTrainer:
         if len(train_features) > 10000:
             param_grid = {'n_estimators': [100], 'learning_rate': [0.01, 0.05], 'max_depth': [4, 5], 'min_child_weight': [5]}
         grid = GridSearchCV(
-            estimator=SklearnCompatibleXGBRegressor(objective='reg:squarederror', reg_alpha=1.0, reg_lambda=2.0,
+            estimator=XGBRegressor(objective='reg:squarederror', reg_alpha=1.0, reg_lambda=2.0,
                                                     random_state=42, n_jobs=-1),
             param_grid=param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1
         )
@@ -236,7 +226,7 @@ class HeadlineModelTrainer:
             grid.fit(tf_sel, train_y)
             best = grid.best_params_
             logging.info(f"Best params: {best}")
-            final = SklearnCompatibleXGBRegressor(objective='reg:squarederror', reg_alpha=1.0,
+            final = XGBRegressor(objective='reg:squarederror', reg_alpha=1.0,
                                                 reg_lambda=2.0, random_state=42, n_jobs=-1, **best)
         except Exception as e:
             logging.warning(f"Grid search failed: {e}")
