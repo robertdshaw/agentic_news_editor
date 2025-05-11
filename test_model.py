@@ -15,6 +15,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
 from sklearn.feature_selection import SelectFromModel
 from xgboost import XGBRegressor
+from sklearn.base import RegressorMixin
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -115,13 +116,6 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Failed to load DistilBERT model: {e}")
             raise ValueError(f"Could not load embedding model: {e}")
-    
-            # Fix method access
-        HeadlineModelTrainer.train_model = SklearnCompatibleXGBRegressor.train_model
-        HeadlineModelTrainer.predict = SklearnCompatibleXGBRegressor.predict
-        HeadlineModelTrainer.visualize_feature_importance = SklearnCompatibleXGBRegressor.visualize_feature_importance
-        HeadlineModelTrainer.visualize_predictions = SklearnCompatibleXGBRegressor.visualize_predictions
-        HeadlineModelTrainer.visualize_ctr_distribution = SklearnCompatibleXGBRegressor.visualize_ctr_distribution
     
     def load_data(self, data_type='train'):
         """
@@ -255,10 +249,6 @@ class HeadlineModelTrainer:
                 features_list.append(features)
         
         return pd.DataFrame(features_list)
-
-from xgboost import XGBRegressor
-from sklearn.base import RegressorMixin
-
 class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
     """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
     
@@ -936,11 +926,18 @@ if __name__ == "__main__":
     Main entry point for running the headline CTR model training pipeline
     """
     
+    # Debug print statements
+    print(f"Methods available in HeadlineModelTrainer: {[method for method in dir(HeadlineModelTrainer) if not method.startswith('_')]}")
+    print(f"Methods available in SklearnCompatibleXGBRegressor: {[method for method in dir(SklearnCompatibleXGBRegressor) if not method.startswith('_')]}")
+    
     # Parse command-line arguments
     args = parse_arguments()
     
     # Create trainer (set use_log_transform=True for log transformation of CTR values)
     trainer = HeadlineModelTrainer(use_log_transform=True)
+    
+    # More debug information
+    print(f"Methods available in trainer instance: {[method for method in dir(trainer) if not method.startswith('_')]}")
     
     # Run the complete training pipeline
     result = trainer.run_training_pipeline(force_reprocess=args.reprocess)
