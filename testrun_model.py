@@ -72,8 +72,12 @@ def parse_arguments():
 
 
 class SklearnCompatibleXGBRegressor(XGBRegressor):
+    # Instruct sklearn that this is a regressor
     _more_tags = {"estimator_type": "regressor"}
 
+    def __sklearn_tags__(self):
+        # Bypass BaseEstimator.__sklearn_tags__ entirely
+        return {"estimator_type": "regressor"}
 
 class HeadlineModelTrainer:
     """
