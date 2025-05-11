@@ -55,6 +55,47 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Failed to load DistilBERT model: {e}")
             raise ValueError(f"Could not load embedding model: {e}")
+            
+    @staticmethod
+    def save_processed_data(train_features, train_ctr, val_features, val_ctr, test_features, test_ctr,
+                            base_path='agentic_news_editor/processed_data'):
+        """Save processed feature data to pickle files to avoid reprocessing."""
+        os.makedirs(base_path, exist_ok=True)
+        with open(os.path.join(base_path, 'train_features.pkl'), 'wb') as f:
+            pickle.dump(train_features, f)
+        with open(os.path.join(base_path, 'train_ctr.pkl'), 'wb') as f:
+            pickle.dump(train_ctr, f)
+        with open(os.path.join(base_path, 'val_features.pkl'), 'wb') as f:
+            pickle.dump(val_features, f)
+        with open(os.path.join(base_path, 'val_ctr.pkl'), 'wb') as f:
+            pickle.dump(val_ctr, f)
+        with open(os.path.join(base_path, 'test_features.pkl'), 'wb') as f:
+            pickle.dump(test_features, f)
+        with open(os.path.join(base_path, 'test_ctr.pkl'), 'wb') as f:
+            pickle.dump(test_ctr, f)
+        logging.info(f"Saved processed data to {base_path}")
+
+    @staticmethod
+    def load_processed_data(base_path='agentic_news_editor/processed_data'):
+        """Load processed feature data from pickle files if they exist."""
+        try:
+            with open(os.path.join(base_path, 'train_features.pkl'), 'rb') as f:
+                train_features = pickle.load(f)
+            with open(os.path.join(base_path, 'train_ctr.pkl'), 'rb') as f:
+                train_ctr = pickle.load(f)
+            with open(os.path.join(base_path, 'val_features.pkl'), 'rb') as f:
+                val_features = pickle.load(f)
+            with open(os.path.join(base_path, 'val_ctr.pkl'), 'rb') as f:
+                val_ctr = pickle.load(f)
+            with open(os.path.join(base_path, 'test_features.pkl'), 'rb') as f:
+                test_features = pickle.load(f)
+            with open(os.path.join(base_path, 'test_ctr.pkl'), 'rb') as f:
+                test_ctr = pickle.load(f)
+            logging.info(f"Loaded processed data from {base_path}")
+            return train_features, train_ctr, val_features, val_ctr, test_features, test_ctr
+        except (FileNotFoundError, EOFError) as e:
+            logging.info(f"Could not load processed data: {e}")
+            return None, None, None, None, None, None
     
     def load_data(self, data_type='train'):
         """Load processed headlines for specified split (train, val, or test)"""
@@ -152,13 +193,13 @@ class HeadlineModelTrainer:
                     # Use the [CLS] token embedding
                     embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0]
                     
-                    # Add first 10 embedding dimensions as features
-                    for j in range(20):
+                    # Add embedding dimensions as features
+                    for j in range(self.embedding_dims):
                         features[f'emb_{j}'] = embedding[j]
                 except Exception as e:
                     logging.error(f"Error extracting embedding for '{headline}': {e}")
                     # Add zero embeddings if failed
-                    for j in range(10):
+                    for j in range(self.embedding_dims):
                         features[f'emb_{j}'] = 0.0
                 
                 features_list.append(features)
@@ -308,6 +349,7 @@ class HeadlineModelTrainer:
             'feature_importances': fi, 
             'training_time': ttime
         }
+
     
     def visualize_feature_importance(self, feature_importances, output_file='feature_importance.png'):
         """Create and save feature importance visualization"""
@@ -375,8 +417,10 @@ class HeadlineModelTrainer:
         logging.info(f"Prediction visualization saved to {os.path.join(self.output_dir, output_file)}")
     
     def run_training_pipeline(self, force_reprocess=False):
+        """Run the complete model training pipeline with train/val/test splits"""
         if not force_reprocess:
-            tf, ty, vf, vy, testf, testy = load_processed_data()
+            # Fixed: Calling the static method correctly
+            tf, ty, vf, vy, testf, testy = self.load_processed_data()
             if tf is not None:
                 logging.info("Using cached data.")
                 # Check if we have a batch checkpoint
@@ -393,7 +437,7 @@ class HeadlineModelTrainer:
                     except Exception:
                         pass
                 return self.train_model(tf, ty, vf, vy, batch_info=batch_info)
-        """Run the complete model training pipeline with train/val/test splits"""
+        
         # Load data for all splits
         train_data = self.load_data('train')
         val_data = self.load_data('val')
@@ -424,6 +468,21 @@ class HeadlineModelTrainer:
             logging.info("Extracting features for test data...")
             test_features = self.extract_features(test_data['title'].values)
         
+        # Save processed features for future runs
+        # Fixed: Using correct variable names
+        test_ctr_values = None
+        if test_data is not None and 'ctr' in test_data.columns:
+            test_ctr_values = test_data['ctr'].values
+            
+        self.save_processed_data(
+            train_features=train_features,
+            train_ctr=train_data['ctr'].values,
+            val_features=val_features,
+            val_ctr=val_data['ctr'].values,
+            test_features=test_features,
+            test_ctr=test_ctr_values
+        )
+        
         # Train model using proper splits
         result = self.train_model(
             train_features, train_data['ctr'].values,
@@ -432,31 +491,32 @@ class HeadlineModelTrainer:
         )
         
         # Visualize predictions for validation set
-        if self.use_log_transform:
-            val_pred = np.expm1(result['model'].predict(val_features))
-        else:
-            val_pred = result['model'].predict(val_features)
-            
-        self.visualize_predictions(val_data['ctr'].values, val_pred, 'validation_predictions.png')
-        
-        # If test data is available, generate predictions
-        if test_data is not None and test_features is not None:
-            logging.info("Generating predictions for test set...")
-            
+        if result is not None:  # Check if training was successful
             if self.use_log_transform:
-                test_pred_transformed = result['model'].predict(test_features)
-                test_predictions = np.expm1(test_pred_transformed)
+                val_pred = np.expm1(result['model'].predict(val_features[result['selected_features']]))
             else:
-                test_predictions = result['model'].predict(test_features)
+                val_pred = result['model'].predict(val_features[result['selected_features']])
+                
+            self.visualize_predictions(val_data['ctr'].values, val_pred, 'validation_predictions.png')
             
-            # Save test predictions
-            test_results = test_data[['newsID', 'title']].copy()
-            test_results['predicted_ctr'] = test_predictions
-            test_results.to_csv(os.path.join(self.output_dir, 'test_predictions.csv'), index=False)
-            logging.info(f"Test predictions saved to {os.path.join(self.output_dir, 'test_predictions.csv')}")
+            # If test data is available, generate predictions
+            if test_data is not None and test_features is not None:
+                logging.info("Generating predictions for test set...")
+                
+                if self.use_log_transform:
+                    test_pred_transformed = result['model'].predict(test_features[result['selected_features']])
+                    test_predictions = np.expm1(test_pred_transformed)
+                else:
+                    test_predictions = result['model'].predict(test_features[result['selected_features']])
+                
+                # Save test predictions
+                test_results = test_data[['newsID', 'title']].copy()
+                test_results['predicted_ctr'] = test_predictions
+                test_results.to_csv(os.path.join(self.output_dir, 'test_predictions.csv'), index=False)
+                logging.info(f"Test predictions saved to {os.path.join(self.output_dir, 'test_predictions.csv')}")
         
-        # Create a report
-        self.create_model_report(result, train_data, val_data, test_data)
+            # Create a report
+            self.create_model_report(result, train_data, val_data, test_data)
         
         return result
     
@@ -469,23 +529,23 @@ class HeadlineModelTrainer:
 Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
 
 ## Model Configuration
-- Model Type: RandomForestRegressor
+- Model Type: XGBoost Regressor
 - Log Transform CTR: {self.use_log_transform}
 - Training Time: {result['training_time']:.2f} seconds
 
 ## Model Performance
-- Training MSE: {result['train_mse']:.6f}
-- Training RMSE: {result['train_rmse']:.6f}
-- Training MAE: {result['train_mae']:.6f}
-- Training R-squared: {result['train_r2']:.4f}
+- Training MSE: {result['train_metrics']['mse']:.6f}
+- Training RMSE: {result['train_metrics']['rmse']:.6f}
+- Training MAE: {result['train_metrics']['mae']:.6f}
+- Training R-squared: {result['train_metrics']['r2']:.4f}
 """
 
-        if result['val_mse'] is not None:
+        if result['val_metrics'] and 'mse' in result['val_metrics']:
             report += f"""
-- Validation MSE: {result['val_mse']:.6f}
-- Validation RMSE: {result['val_rmse']:.6f}
-- Validation MAE: {result['val_mae']:.6f}
-- Validation R-squared: {result['val_r2']:.4f}
+- Validation MSE: {result['val_metrics']['mse']:.6f}
+- Validation RMSE: {result['val_metrics']['rmse']:.6f}
+- Validation MAE: {result['val_metrics']['mae']:.6f}
+- Validation R-squared: {result['val_metrics']['r2']:.4f}
 """
 
         report += f"""
@@ -528,11 +588,21 @@ The following visualizations have been generated:
 
 
 if __name__ == "__main__":
-    # Create trainer (set use_log_transform=False if you don't want log transformation)
-    trainer = HeadlineModelTrainer(use_log_transform=False)
-    result = trainer.run_training_pipeline()
+    import argparse
+    
+    # Add command-line arguments
+    parser = argparse.ArgumentParser(description='Train headline CTR prediction model')
+    parser.add_argument('--reprocess', action='store_true', help='Force reprocessing data from scratch')
+    args = parser.parse_args()
+    
+    # Create trainer (set use_log_transform=True for log transformation of CTR values)
+    trainer = HeadlineModelTrainer(use_log_transform=True)
+    
+    # Run the complete training pipeline
+    result = trainer.run_training_pipeline(force_reprocess=args.reprocess)
     
     if result is not None:
-        print(f"Model training complete. Training R-squared: {result['train_r2']:.4f}, Validation R-squared: {result['val_r2']:.4f}")
+        print(f"Model training complete. Training R-squared: {result['train_metrics']['r2']:.4f}, Validation R-squared: {result['val_metrics'].get('r2', 'N/A')}")
+        print(f"Model saved to {os.path.join(trainer.output_dir, 'headline_ctr_model.pkl')}")
     else:
         print("Model training failed.")
