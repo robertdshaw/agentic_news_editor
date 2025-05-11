@@ -775,7 +775,7 @@ class HeadlineModelTrainer:
                 train_features, train_data['ctr'].values,
                 val_features, val_data['ctr'].values,
                 output_file='headline_classifier_model.pkl',
-                mode='classification'
+                mode='classification',
                 class_weight=class_weight
             )
             
