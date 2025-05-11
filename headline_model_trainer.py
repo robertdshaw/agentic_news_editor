@@ -7,10 +7,13 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import re
 from transformers import AutoTokenizer, AutoModel
+from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
+from sklearn.feature_selection import SelectFromModel
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
+from xgboost import XGBRegressor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,6 +27,7 @@ class HeadlineModelTrainer:
     def __init__(self, processed_data_dir='agentic_news_editor/processed_data', use_log_transform=True):
         """Initialize the headline model trainer"""
         self.processed_data_dir = processed_data_dir
+        self.embedding_dims = 20
         self.use_log_transform = use_log_transform
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logging.info(f"Using device: {self.device}")
@@ -33,7 +37,15 @@ class HeadlineModelTrainer:
         self.output_dir = 'model_output'
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        
+            
+        # Create mapping for common first/last words in headlines
+        self.word_to_index = {}
+        common_words = ['the', 'a', 'to', 'how', 'why', 'what', 'when', 'is', 'are', 
+                        'says', 'report', 'announces', 'reveals', 'show', 'study',
+                        'new', 'top', 'best', 'worst', 'first', 'last', 'latest']
+        for i, word in enumerate(common_words, 1):  # Start from 1, 0 for unknown
+            self.word_to_index[word] = i
+            
         # Load and prepare models
         try:
             self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
@@ -99,6 +111,35 @@ class HeadlineModelTrainer:
                 features['first_word_length'] = len(headline.split()[0]) if len(headline.split()) > 0 else 0
                 features['last_word_length'] = len(headline.split()[-1]) if len(headline.split()) > 0 else 0
                 features['avg_word_length'] = sum(len(word) for word in headline.split()) / len(headline.split()) if len(headline.split()) > 0 else 0
+    
+                # 1. Headline structure features
+                features['has_number_at_start'] = int(bool(re.match(r'^\d+', headline)))
+                features['starts_with_digit'] = int(headline[0].isdigit() if len(headline) > 0 else 0)
+                features['has_date'] = int(bool(re.search(r'\b(20\d\d|19\d\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b', headline.lower())))
+                
+                # 2. Clickbait pattern detection
+                features['has_question_words'] = int(bool(re.search(r'\b(how|what|why|when|where|who|which)\b', headline.lower())))
+                features['has_suspense'] = int(bool(re.search(r'\b(secret|reveal|shock|stun|surprise|you won\'t believe)\b', headline.lower())))
+                features['has_urgency'] = int(bool(re.search(r'\b(breaking|urgent|just in|now|today)\b', headline.lower())))
+                features['has_list'] = int(bool(re.search(r'\b(\d+ (?:things|ways|tips|reasons|facts))\b', headline.lower())))
+                
+                # 3. Emotional content
+                features['has_positive'] = int(bool(re.search(r'\b(best|top|good|great|amazing|awesome|success)\b', headline.lower())))
+                features['has_negative'] = int(bool(re.search(r'\b(worst|bad|terrible|fail|problem|crisis|disaster)\b', headline.lower())))
+                features['has_controversy'] = int(bool(re.search(r'\b(vs|versus|against|fight|battle|war|clash)\b', headline.lower())))
+                
+                # 4. Structure analysis  
+                words = headline.split()
+                if len(words) > 0:
+                    features['first_word'] = self.word_to_index.get(words[0].lower(), 0)
+                    features['last_word'] = self.word_to_index.get(words[-1].lower(), 0)
+                    features['has_quotes'] = int("\"" in headline or "'" in headline)
+                    features['title_case_words'] = sum(1 for word in words if word and word[0].isupper())
+                    features['title_case_ratio'] = features['title_case_words'] / len(words) if len(words) > 0 else 0
+                
+                # 5. Feature interactions (very powerful!)
+                features['length_question_interaction'] = features['length'] * features['is_question']
+                features['word_count_list_interaction'] = features['word_count'] * features['has_list']
                 
                 # Get embedding for semantic features
                 try:
@@ -112,7 +153,7 @@ class HeadlineModelTrainer:
                     embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0]
                     
                     # Add first 10 embedding dimensions as features
-                    for j in range(10):
+                    for j in range(20):
                         features[f'emb_{j}'] = embedding[j]
                 except Exception as e:
                     logging.error(f"Error extracting embedding for '{headline}': {e}")
@@ -124,33 +165,72 @@ class HeadlineModelTrainer:
         
         return pd.DataFrame(features_list)
     
+
     def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
                     output_file='headline_ctr_model.pkl'):
-        """Train a model to predict headline CTR using proper train/val splits"""
+        """Train an XGBoost model to predict headline CTR"""
         logging.info(f"Training headline CTR prediction model on {len(train_features)} examples")
         
         # Apply log transformation to handle skewed CTR distribution
         if self.use_log_transform:
-            # Add a small constant to avoid log(0)
             train_ctr_transformed = np.log1p(train_ctr)
             logging.info(f"Applied log transformation to CTR values")
         else:
             train_ctr_transformed = train_ctr
-        
-        # Define and train model on full training set
-        model = RandomForestRegressor(
-            n_estimators=100, 
-            max_depth=10,
-            min_samples_split=10,
+            
+        # Modify the XGBoost model parameters
+        model = XGBRegressor(
+            n_estimators=100,           # Reduce from 200
+            learning_rate=0.01,         # Reduce from 0.05
+            max_depth=4,                # Reduce from 6
+            min_child_weight=5,         # Increase from 3
+            subsample=0.7,              # Reduce from 0.8
+            colsample_bytree=0.7,       # Reduce from 0.8
+            reg_alpha=1.0,              # Add L1 regularization
+            reg_lambda=2.0,             # Add L2 regularization
+            objective='reg:squarederror',
             random_state=42,
-            n_jobs=-1  # Use all available cores
+            n_jobs=-1
         )
-        
-        # Record training time
         start_time = time.time()
         model.fit(train_features, train_ctr_transformed)
         training_time = time.time() - start_time
+                
+        model.fit(
+            train_features, 
+            train_ctr_transformed
+        )
+        
         logging.info(f"Model training completed in {training_time:.2f} seconds")
+    
+    # def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None, 
+    #                 output_file='headline_ctr_model.pkl'):
+    #     """Train a model to predict headline CTR using proper train/val splits"""
+    #     logging.info(f"Training headline CTR prediction model on {len(train_features)} examples")
+        
+    #     # Apply log transformation to handle skewed CTR distribution
+    #     if self.use_log_transform:
+    #         # Add a small constant to avoid log(0)
+    #         train_ctr_transformed = np.log1p(train_ctr)
+    #         logging.info(f"Applied log transformation to CTR values")
+    #     else:
+    #         train_ctr_transformed = train_ctr
+        
+    #     # Define and train model on full training set
+    #     model = RandomForestRegressor(
+    #         n_estimators=200, 
+    #         max_depth=7,
+    #         min_samples_split=15,
+    #         min_samples_leaf=5,
+    #         random_state=42,
+    #         n_jobs=-1  # Use all available cores
+    #     )
+        
+    #     # Record training time
+    #     start_time = time.time()
+    #     model.fit(train_features, train_ctr_transformed)
+    #     training_time = time.time() - start_time
+    #     logging.info(f"Model training completed in {training_time:.2f} seconds")
         
         # Evaluate on training set
         train_pred_transformed = model.predict(train_features)
@@ -426,7 +506,7 @@ The following visualizations have been generated:
 
 if __name__ == "__main__":
     # Create trainer (set use_log_transform=False if you don't want log transformation)
-    trainer = HeadlineModelTrainer(use_log_transform=True)
+    trainer = HeadlineModelTrainer(use_log_transform=False)
     result = trainer.run_training_pipeline()
     
     if result is not None:
