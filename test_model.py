@@ -415,28 +415,49 @@ class HeadlineModelTrainer:
         logging.info("Training final model with selected features...")
         start_time = time.time()
 
-        # Import required callbacks for XGBoost 3.0.0
-        from xgboost.callback import EarlyStopping
-        
         # If we have validation data, use it for early stopping
         if val_features_selected is not None and val_ctr_transformed is not None:
-            # Create callbacks list with EarlyStopping
-            callbacks = [
-                EarlyStopping(
-                    rounds=50,                # Number of rounds for early stopping
-                    metric_name="rmse",       # Metric to monitor
-                    data_name="validation_0"  # Dataset to monitor (validation set)
+            try:
+                # First try with callbacks (XGBoost 3.0.0 approach)
+                from xgboost.callback import EarlyStopping
+                
+                callbacks = [
+                    EarlyStopping(
+                        rounds=50,
+                        metric_name="rmse",
+                        data_name="validation_0"
+                    )
+                ]
+                
+                final_model.fit(
+                    train_features_selected,
+                    train_ctr_transformed,
+                    eval_set=[(val_features_selected, val_ctr_transformed)],
+                    callbacks=callbacks,
+                    verbose=False
                 )
-            ]
-            
-            # Fit model with evaluation set and callbacks
-            final_model.fit(
-                train_features_selected,
-                train_ctr_transformed,
-                eval_set=[(val_features_selected, val_ctr_transformed)],
-                callbacks=callbacks,
-                verbose=False
-            )
+            except TypeError:
+                # If callbacks fails, try with early_stopping_rounds (older XGBoost approach)
+                logging.info("Callbacks approach failed, trying with early_stopping_rounds")
+                
+                final_model.fit(
+                    train_features_selected,
+                    train_ctr_transformed,
+                    eval_set=[(val_features_selected, val_ctr_transformed)],
+                    eval_metric="rmse",
+                    early_stopping_rounds=50,
+                    verbose=False
+                )
+            except Exception as e:
+                # If both approaches fail, try without any validation parameters
+                logging.warning(f"Error during model training with validation data: {str(e)}")
+                logging.info("Falling back to training without early stopping")
+                
+                final_model.fit(
+                    train_features_selected,
+                    train_ctr_transformed,
+                    verbose=False
+                )
         else:
             # If no validation data, fit without early stopping
             final_model.fit(
@@ -444,10 +465,10 @@ class HeadlineModelTrainer:
                 train_ctr_transformed,
                 verbose=False
             )
-        
+
         training_time = time.time() - start_time
         logging.info(f"Final model training completed in {training_time:.2f} seconds")
-
+        
         # STEP 8: Evaluate on training set
         train_pred_transformed = final_model.predict(train_features_selected)
         
