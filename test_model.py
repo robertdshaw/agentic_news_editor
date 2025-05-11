@@ -150,6 +150,16 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Error loading {data_type} data: {e}")
             return None
+
+from xgboost import XGBRegressor
+from sklearn.base import RegressorMixin
+
+class SklearnCompatibleXGBRegressor(XGBRegressor, RegressorMixin):
+    """Wrapper to make XGBoost compatible with scikit-learn's cross-validation"""
+    
+    @classmethod
+    def __sklearn_tags__(cls):
+        return {"estimator_type": "regressor"}
     
     def extract_features(self, headlines):
         """
@@ -284,7 +294,7 @@ class HeadlineModelTrainer:
             val_ctr_transformed = val_ctr
         
         # STEP 2: Define base model
-        base_model = XGBRegressor(
+        base_model = SklearnCompatibleXGBRegressor(
             n_estimators=100,
             learning_rate=0.01,
             max_depth=4,
@@ -320,7 +330,7 @@ class HeadlineModelTrainer:
         logging.info("Performing feature selection...")
         
         # Train a model for feature selection
-        selection_model = XGBRegressor(
+        selection_model = SklearnCompatibleXGBRegressor(
             n_estimators=50,
             learning_rate=0.05,
             max_depth=5,
@@ -379,7 +389,7 @@ class HeadlineModelTrainer:
             }
         
         grid_search = GridSearchCV(
-            estimator=XGBRegressor(
+            estimator=SklearnCompatibleXGBRegressor(
                 objective='reg:squarederror',
                 reg_alpha=1.0,
                 reg_lambda=2.0,
@@ -399,7 +409,7 @@ class HeadlineModelTrainer:
             logging.info(f"Best parameters from grid search: {best_params}")
             
             # Create final model with best parameters
-            final_model = XGBRegressor(
+            final_model = SklearnCompatibleXGBRegressor(
                 objective='reg:squarederror',
                 reg_alpha=1.0,
                 reg_lambda=2.0,
