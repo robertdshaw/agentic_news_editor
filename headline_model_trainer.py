@@ -511,8 +511,17 @@ class HeadlineModelTrainer:
         y_val = (val_ctr > 0).astype(int) if val_ctr is not None else None
 
         # 2) Feature selection
-        selected = self.manual_feature_selection(train_features, y_train, threshold=0.2)
-        X_tr = train_features[selected]
+        X_tr_full = train_features.copy()
+        if do_resample:
+            from imblearn.combine import SMOTETomek
+            sampler = SMOTETomek(random_state=42)
+            X_tr_full, y_train = sampler.fit_resample(X_tr_full, y_train)
+            logging.info(f"Resampled to {len(y_train)} rows; "
+                        f"{y_train.sum()} clicks, {len(y_train)-y_train.sum()} no-clicks")
+
+       # 3) Now do feature selection on the (possibly balanced) data
+        selected = self.manual_feature_selection(X_tr_full, y_train, threshold=0.2)
+        X_tr      = X_tr_full[selected]
         X_val = val_features[selected] if val_features is not None else None
 
         # 3) Set up classifier params
@@ -536,13 +545,6 @@ class HeadlineModelTrainer:
 
         logging.info(f"Classifier params: {params}")
         model = XGBClassifier(**params)
-
-        if do_resample:
-            from imblearn.combine import SMOTETomek
-            sampler = SMOTETomek(random_state=42)
-            X_tr, y_train = sampler.fit_resample(X_tr, y_train)
-            logging.info(f"Resampled to {len(y_train)} rows; "
-                        f"{y_train.sum()} clicks, {len(y_train)-y_train.sum()} no-clicks")
 
         # 4) Train with early stopping
         start = time.time()
@@ -574,7 +576,17 @@ class HeadlineModelTrainer:
         val_metrics = {}
         if X_val is not None and y_val is not None:
             p_val = model.predict_proba(X_val)[:, 1]
-            y_val_pred = (p_val > 0.5).astype(int)
+            from sklearn.metrics import precision_recall_curve
+        # Compute precision, recall and thresholds
+            prec, rec, thresh = precision_recall_curve(y_val, p_val)
+            # Compute F1 for each threshold
+            f1s = 2 * prec * rec / (prec + rec + 1e-8)
+            # Pick the threshold that gives the highest F1
+            best_thr = thresh[np.argmax(f1s)]
+            logging.info(f"Optimal validation threshold for F1 = {best_thr:.3f}")
+
+            # Then use best_thr instead of 0.5 when you binarize:
+            y_val_pred = (p_val >= best_thr).astype(int)
             val_metrics = {
                 'accuracy': accuracy_score(y_val, y_val_pred),
                 'precision': precision_score(y_val, y_val_pred, zero_division=0),
