@@ -423,6 +423,7 @@ class HeadlineModelTrainer:
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
         logging.info(f"Top features: {fi.head(10).to_dict('records')}")
+        model_data['feature_importances'] = fi
 
         # 7) Save model + metadata
         model_data = {
@@ -937,164 +938,114 @@ class HeadlineModelTrainer:
 def main():
     """Main function to run the headline model training pipeline"""
     import argparse
-    
-    # Set up argument parser
+    import os, pickle, logging, traceback
+
     parser = argparse.ArgumentParser(description='Train headline CTR prediction model')
-    parser.add_argument('--data_dir', type=str, default='agentic_news_editor/processed_data', 
-                    help='Directory containing processed data files')
-    parser.add_argument('--predict', type=str,
-                    help='Enter a headline to predict CTR or click probability')
-    parser.add_argument('--analyze', type=str,
-                    help='Analyze what makes a headline perform well')
-    parser.add_argument('--optimize', type=str,
-                    help='Generate optimized versions of a headline')
+    parser.add_argument('--data_dir', type=str, default='agentic_news_editor/processed_data',
+                        help='Directory containing processed data files')
+    parser.add_argument('--predict', type=str, help='Enter a headline to predict CTR or click probability')
+    parser.add_argument('--analyze', type=str, help='Analyze what makes a headline perform well')
+    parser.add_argument('--optimize', type=str, help='Generate optimized versions of a headline')
     parser.add_argument('--n_variations', type=int, default=10,
-                    help='Number of headline variations to generate')
+                        help='Number of headline variations to generate')
     parser.add_argument('--model_file', type=str, default=None,
-                    help='Model file to use for prediction/analysis (auto-detected if None)')
+                        help='Model file to use for prediction/analysis (auto-detected if None)')
     parser.add_argument('--use_cached_features', action='store_true',
-                       help='Use cached features if available')
+                        help='Use cached features if available')
     args = parser.parse_args()
-             
-    # Create trainer
-    trainer = HeadlineModelTrainer(
-        processed_data_dir=args.data_dir,
-    )
-    
-    print(f"Running training pipeline in classification mode...")
+
+    # 1) Instantiate trainer
+    trainer = HeadlineModelTrainer(processed_data_dir=args.data_dir)
+
+    # 2) Run the training pipeline ONCE
+    print("Running training pipeline in classification mode…")
     result = trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
-    
-    # Check if we're predicting a headline
+    if result is None:
+        print("Training pipeline failed.")
+        return
+
+    # 3) If user wants to predict, analyze or optimize, handle those and exit
     if args.predict:
         try:
-            # Find the model file
-            if not os.path.exists(os.path.join(trainer.output_dir, args.model_file)):
-                # Try to find any model file
-                model_files = [f for f in os.listdir(trainer.output_dir) if f.endswith('.pkl')]
-                if model_files:
-                    args.model_file = model_files[0]
-                    print(f"Using model file: {args.model_file}")
-                else:
-                    print("No model file found. Please train a model first.")
-                    return
-            
-            # Load model
-            model_path = os.path.join(trainer.output_dir, args.model_file)
-            with open(model_path, 'rb') as f:
+            # auto-detect model file if needed
+            if args.model_file is None or not os.path.exists(os.path.join(trainer.output_dir, args.model_file)):
+                candidates = [f for f in os.listdir(trainer.output_dir) if f.endswith('.pkl')]
+                args.model_file = candidates[0] if candidates else None
+            if not args.model_file:
+                print("No model file found. Please train a model first.")
+                return
+
+            with open(os.path.join(trainer.output_dir, args.model_file), 'rb') as f:
                 model_data = pickle.load(f)
-                
-            prediction = trainer.predict_ctr([args.predict], model_data)[0]
+            p = trainer.predict_ctr([args.predict], model_data)[0]
             print(f"\nHeadline: '{args.predict}'")
-            print(f"Click probability: {prediction:.4f} ({prediction*100:.1f}%)")
-            print(f"Interpretation: {'Likely to be clicked' if prediction > 0.5 else 'Unlikely to be clicked'}")   
+            print(f"Click probability: {p:.4f} ({p*100:.1f}%)")
+            print("Likely to be clicked" if p > 0.5 else "Unlikely to be clicked")
         except Exception as e:
             logging.error(f"Error predicting headline CTR: {e}")
-            import traceback
             logging.error(traceback.format_exc())
-            
-    # Check if we're analyzing a headline
-    elif args.analyze:
+        return
+
+    if args.analyze:
         try:
-            # Find the model file
-            if not os.path.exists(os.path.join(trainer.output_dir, args.model_file)):
-                # Try to find any model file
-                model_files = [f for f in os.listdir(trainer.output_dir) if f.endswith('.pkl')]
-                if model_files:
-                    args.model_file = model_files[0]
-                    print(f"Using model file: {args.model_file}")
-                else:
-                    print("No model file found. Please train a model first.")
-                    return
-            
-            # Load model
-            model_path = os.path.join(trainer.output_dir, args.model_file)
-            with open(model_path, 'rb') as f:
+            if args.model_file is None or not os.path.exists(os.path.join(trainer.output_dir, args.model_file)):
+                candidates = [f for f in os.listdir(trainer.output_dir) if f.endswith('.pkl')]
+                args.model_file = candidates[0] if candidates else None
+            if not args.model_file:
+                print("No model file found. Please train a model first.")
+                return
+
+            with open(os.path.join(trainer.output_dir, args.model_file), 'rb') as f:
                 model_data = pickle.load(f)
-                
-            # Analyze headline
             trainer.headline_analysis(args.analyze, model_data)
-            
         except Exception as e:
             logging.error(f"Error analyzing headline: {e}")
-            import traceback
             logging.error(traceback.format_exc())
-            
-    # Check if we're optimizing a headline
-    elif args.optimize:
+        return
+
+    if args.optimize:
         try:
-            # Find the model file
-            if not os.path.exists(os.path.join(trainer.output_dir, args.model_file)):
-                # Try to find any model file
-                model_files = [f for f in os.listdir(trainer.output_dir) if f.endswith('.pkl')]
-                if model_files:
-                    args.model_file = model_files[0]
-                    print(f"Using model file: {args.model_file}")
-                else:
-                    print("No model file found. Please train a model first.")
-                    return
-            
-            # Load model
-            model_path = os.path.join(trainer.output_dir, args.model_file)
-            with open(model_path, 'rb') as f:
+            if args.model_file is None or not os.path.exists(os.path.join(trainer.output_dir, args.model_file)):
+                candidates = [f for f in os.listdir(trainer.output_dir) if f.endswith('.pkl')]
+                args.model_file = candidates[0] if candidates else None
+            if not args.model_file:
+                print("No model file found. Please train a model first.")
+                return
+
+            with open(os.path.join(trainer.output_dir, args.model_file), 'rb') as f:
                 model_data = pickle.load(f)
-                
-            # Optimize headline
-            results = trainer.optimize_headline(
-                args.optimize,
-                n_variations=args.n_variations,
-                model_data=model_data
-            )
-            
-            # Display results
-            original = results[results['is_original']]
-            original_ctr = original['predicted_ctr'].iloc[0]            
-            print(f"\nOriginal headline: '{args.optimize}'")
-            print(f"{original_ctr:.6f}")
-            
-            if original_ctr > 0.5:
-                print("Interpretation: Likely to be clicked")
-            else:
-                print("Interpretation: Unlikely to be clicked")
-            
-            print("\nOptimized headlines:")
+
+            results = trainer.optimize_headline(args.optimize,
+                                                n_variations=args.n_variations,
+                                                model_data=model_data)
+            original = results[results['is_original']].iloc[0]
+            print(f"\nOriginal CTR: {original.predicted_ctr:.6f} → " +
+                  ("Likely clicked" if original.predicted_ctr > 0.5 else "Unlikely clicked"))
+            print("\nTop variations:")
             for i, row in results[~results['is_original']].head(5).iterrows():
-                improvement = (row['predicted_ctr'] / original_ctr - 1) * 100
-                print(f"{i+1}. '{row['headline']}'")
-                print(f"   {row['predicted_ctr']:.6f} ({improvement:.1f}% improvement)")
-                
+                imp = (row.predicted_ctr/original.predicted_ctr - 1) * 100
+                print(f"{i+1}. {row.headline}  →  {row.predicted_ctr:.6f} ({imp:.1f}% ↑)")
         except Exception as e:
             logging.error(f"Error optimizing headline: {e}")
-            import traceback
             logging.error(traceback.format_exc())
-            
-    # Otherwise, run the training pipeline
-    else:
-        trainer = HeadlineModelTrainer()
-        trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
-        result = trainer.run_training_pipeline()
-        
-        if result is not None:
-            print(f"Model training complete.")
-            
-            if result:
-                print("Training metrics:")
-                print(f"  Accuracy : {result['train_metrics']['accuracy']:.4f}")
-                print(f"  Precision: {result['train_metrics']['precision']:.4f}")
-                print(f"  Recall   : {result['train_metrics']['recall']:.4f}")
-                print(f"  F1 Score : {result['train_metrics']['f1']:.4f}")
-                print(f"  AUC      : {result['train_metrics']['auc']:.4f}")
-                
-                if result.get('val_metrics'):
-                    print("Validation metrics:")
-                    print(f"  Accuracy : {result['val_metrics']['accuracy']:.4f}")
-                    print(f"  Precision: {result['val_metrics']['precision']:.4f}")
-                    print(f"  Recall   : {result['val_metrics']['recall']:.4f}")
-                    print(f"  F1 Score : {result['val_metrics']['f1']:.4f}")
-                    print(f"  AUC      : {result['val_metrics']['auc']:.4f}")
-                
-                print(f"Results saved to {trainer.output_dir}")
-            else:
-                print("Model training failed.")
+        return
+
+    # 4) If we get here, we only did training
+    print("Model training complete. Summary metrics:")
+    tm = result['train_metrics']
+    print(f"  Accuracy : {tm['accuracy']:.4f}")
+    print(f"  Precision: {tm['precision']:.4f}")
+    print(f"  Recall   : {tm['recall']:.4f}")
+    print(f"  F1 Score : {tm['f1']:.4f}")
+    print(f"  AUC      : {tm['auc']:.4f}")
+    if result.get('val_metrics'):
+        vm = result['val_metrics']
+        print("Validation:")
+        print(f"  Accuracy : {vm['accuracy']:.4f}")
+        print(f"  Precision: {vm['precision']:.4f}")
+        print(f"  Recall   : {vm['recall']:.4f}")
+        print(f"  F1 Score : {vm['f1']:.4f}")
+        print(f"  AUC      : {vm['auc']:.4f}")
 
 if __name__ == "__main__":
     main()

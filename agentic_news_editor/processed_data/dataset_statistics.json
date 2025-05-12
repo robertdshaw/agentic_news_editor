@@ -1,7 +1,7 @@
 {
   "overall": {
-    "total_processing_time_minutes": 266.01259041229883,
-    "timestamp": "2025-05-09 03:28:35",
+    "total_processing_time_minutes": 6.008994825681051,
+    "timestamp": "2025-05-12 14:39:08",
     "sampling_configuration": {
       "behavior_sample_rate": 1.0,
       "max_impressions_per_behavior": 20
@@ -25,7 +25,7 @@
       "items_with_sufficient_impressions": 5537,
       "total_items": 7163
     },
-    "timestamp": "2025-05-09 03:08:19",
+    "timestamp": "2025-05-12 14:38:07",
     "sampling": {
       "article_sample_rate": 0.3,
       "max_impressions_per_behavior": 20
@@ -49,7 +49,7 @@
       "items_with_sufficient_impressions": 760,
       "total_items": 1125
     },
-    "timestamp": "2025-05-09 03:28:14",
+    "timestamp": "2025-05-12 14:38:47",
     "sampling": {
       "article_sample_rate": 0.2,
       "max_impressions_per_behavior": 20
@@ -59,6 +59,6 @@
     "data_type": "test",
     "news_articles": 11358,
     "processing_approach": "headline_features_only",
-    "timestamp": "2025-05-09 03:28:34"
+    "timestamp": "2025-05-12 14:39:08"
   }
 }

@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 class ModelTuner:
     """
-    Simple utility for fine-tuning headline CTR models you just trained
+    Simple utility for fine-tuning headline CTR models just trained
     """
     
     def __init__(self, model_dir='model_output', data_dir='agentic_news_editor/processed_data'):
@@ -135,19 +135,15 @@ class ModelTuner:
             val_features = val_features[feature_names]
             
         # Prepare targets
-        if use_log_transform:
-            train_y = np.log1p(train_data['ctr'].values)
-            val_y = np.log1p(val_data['ctr'].values) if val_data is not None else None
-        else:
-            train_y = train_data['ctr'].values
-            val_y = val_data['ctr'].values if val_data is not None else None
+        train_y = train_data['ctr'].values
+        val_y = val_data['ctr'].values if val_data is not None else None
             
         # Set up evaluation set
         eval_set = [(train_features, train_y)]
         if val_features is not None and val_y is not None:
             eval_set.append((val_features, val_y))
             
-        print(f"\n⏳ Fine-tuning model with {n_est} additional trees...")
+        print(f"\n Fine-tuning model with {n_est} additional trees...")
         print(f"   Learning rate: {lr}")
         print(f"   Early stopping rounds: {early_stop}")
         
@@ -169,10 +165,7 @@ class ModelTuner:
             print("\n⏳ Evaluating fine-tuned model...")
             
             train_pred = model.predict(train_features)
-            if use_log_transform:
-                train_pred_orig = np.expm1(train_pred)
-            else:
-                train_pred_orig = train_pred
+            train_pred_orig = train_pred
                 
             train_metrics = {
                 'mse': mean_squared_error(train_data['ctr'].values, train_pred_orig),
@@ -184,10 +177,7 @@ class ModelTuner:
             val_metrics = {}
             if val_features is not None:
                 val_pred = model.predict(val_features)
-                if use_log_transform:
-                    val_pred_orig = np.expm1(val_pred)
-                else:
-                    val_pred_orig = val_pred
+                val_pred_orig = val_pred
                     
                 val_metrics = {
                     'mse': mean_squared_error(val_data['ctr'].values, val_pred_orig),
@@ -210,7 +200,6 @@ class ModelTuner:
             # Also save metadata in JSON for easier inspection
             meta_data = {
                 'model_type': str(type(model).__name__),
-                'use_log_transform': use_log_transform,
                 'feature_count': len(feature_names),
                 'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'fine_tuned_from': os.path.basename(self.model_path),
@@ -317,17 +306,12 @@ class ModelTuner:
         # Get model components
         model = self.model['model']
         feature_names = self.model['feature_names']
-        use_log_transform = self.model.get('use_log_transform', False)
         
         # Select only the features used by the model
         features_filtered = features[feature_names]
         
         # Make predictions
         predictions = model.predict(features_filtered)
-        
-        # Apply inverse transform if log transform was used
-        if use_log_transform:
-            predictions = np.expm1(predictions)
             
         # Create results
         results = pd.DataFrame({
@@ -445,17 +429,12 @@ class ModelTuner:
         # Get model components
         model = self.model['model']
         feature_names = self.model['feature_names']
-        use_log_transform = self.model.get('use_log_transform', False)
         
         # Select only the features used by the model
         features_filtered = features[feature_names]
         
         # Make predictions
         predictions = model.predict(features_filtered)
-        
-        # Apply inverse transform if log transform was used
-        if use_log_transform:
-            predictions = np.expm1(predictions)
             
         # Create results
         results = pd.DataFrame({
