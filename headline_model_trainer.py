@@ -1074,7 +1074,7 @@ def main():
     # Otherwise, run the training pipeline
     else:
         trainer = HeadlineModelTrainer()
-        trainer.run_training_pipeline(output_file='headline_classifier_model.pkl')
+        trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
         result = trainer.run_training_pipeline()
         
         if result is not None:
