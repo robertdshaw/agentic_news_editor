@@ -148,9 +148,9 @@ class HeadlineModelTrainer:
 
             # 9) Reports and ranking evaluation
             self.create_model_report(result, train_data, val_data, test_data)
-            ranking = self.evaluate_model_ranking(result, val_data)
-            if ranking:
-                result['ranking_evaluation'] = ranking
+            # ranking = self.evaluate_model_ranking(result, val_data)
+            # if ranking:
+            #     result['ranking_evaluation'] = ranking
 
             return result
         finally:
