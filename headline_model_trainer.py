@@ -41,6 +41,7 @@ class HeadlineModelTrainer:
         self.processed_data_dir = processed_data_dir
         self.embedding_dims = 20
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.feature_selection_threshold = 0.4
         logging.info(f"Using device: {self.device}")
         
         # Create output directory for results
@@ -66,7 +67,7 @@ class HeadlineModelTrainer:
             raise ValueError(f"Could not load embedding model: {e}")
     
     def run_training_pipeline(self, use_cached_features: bool = True,
-                              do_resample: bool = False):
+                              do_resample: bool = False, feature_sel_thresh=0.4):
         """Run the complete classification pipeline with train/val/test splits."""
         try:
             # 1) Load splits
@@ -367,18 +368,22 @@ class HeadlineModelTrainer:
         
         return pd.DataFrame(features_list)
     
-    def manual_feature_selection(self, features, target, threshold=0.4):
+    def manual_feature_selection(self, features, target, threshold=None):
         """
         Feature selection based on feature importance.
         
         Args:
             features: DataFrame of features
             target: Target values
-            threshold: Importance threshold for keeping features (0-1)
+            threshold: relative importance threshold; if None, use the
+                       class‐level self.feature_selection_threshold
             
         Returns:
             list: Selected feature names
         """
+        
+        if threshold is None:
+            threshold = self.feature_selection_threshold
         logging.info("Performing manual feature selection...")
         
         # Create a simple model for getting feature importances
@@ -520,7 +525,7 @@ class HeadlineModelTrainer:
                         f"{y_train.sum()} clicks, {len(y_train)-y_train.sum()} no-clicks")
 
        # 3) Now do feature selection on the (possibly balanced) data
-        selected = self.manual_feature_selection(X_tr_full, y_train, threshold=0.2)
+        selected = self.manual_feature_selection(X_tr_full, y_train, threshold=self.feature_sel_thresh)
         X_tr      = X_tr_full[selected]
         X_val = val_features[selected] if val_features is not None else None
 
