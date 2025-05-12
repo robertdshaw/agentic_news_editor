@@ -63,6 +63,98 @@ class HeadlineModelTrainer:
         except Exception as e:
             logging.error(f"Failed to load DistilBERT model: {e}")
             raise ValueError(f"Could not load embedding model: {e}")
+    
+    def run_training_pipeline(self, use_cached_features: bool = True,
+                              do_resample: bool = False):
+        """Run the complete classification pipeline with train/val/test splits."""
+        try:
+            # 1) Load splits
+            train_data = self.load_data('train')
+            val_data   = self.load_data('val')
+            test_data  = self.load_data('test')
+
+            if train_data is None or val_data is None:
+                logging.error("Missing train/val splits. Aborting.")
+                return None
+
+            # 2) Drop any rows with missing titles or CTR
+            train_data.dropna(subset=['title', 'ctr'], inplace=True)
+            val_data.dropna(subset=['title', 'ctr'], inplace=True)
+            if test_data is not None:
+                test_data.dropna(subset=['title'], inplace=True)
+
+            # 3) Log class distribution
+            train_click_rate = (train_data['ctr'] > 0).mean() * 100
+            val_click_rate   = (val_data['ctr'] > 0).mean() * 100
+            logging.info(f"Train click rate: {train_click_rate:.2f}%")
+            logging.info(f"Val   click rate: {val_click_rate:.2f}%")
+
+            # 4) Visualize Click distribution
+            self.visualize_click_distribution(train_data['ctr'].values,
+                                            val_data['ctr'].values)
+
+            # 5) Feature extraction
+            logging.info("Extracting features for training set...")
+            train_feats = (self.extract_features_cached(train_data['title'].values, 'train')
+                        if use_cached_features else
+                        self.extract_features(train_data['title'].values))
+
+            logging.info("Extracting features for validation set...")
+            val_feats = (self.extract_features_cached(val_data['title'].values, 'val')
+                        if use_cached_features else
+                        self.extract_features(val_data['title'].values))
+
+            test_feats = None
+            if test_data is not None:
+                logging.info("Extracting features for test set...")
+                test_feats = (self.extract_features_cached(test_data['title'].values, 'test')
+                            if use_cached_features else
+                            self.extract_features(test_data['title'].values))
+
+            # 6) Compute class weights for imbalanced binary classes
+            from sklearn.utils.class_weight import compute_class_weight
+            y_train_binary = (train_data['ctr'] > 0).astype(int)
+            weights = compute_class_weight('balanced',
+                                        classes=np.unique(y_train_binary),
+                                        y=y_train_binary)
+            class_weight = {cls: w for cls, w in zip(np.unique(y_train_binary), weights)}
+            logging.info(f"Using class weights: {class_weight}")
+
+            # 7) Train the classifier
+            result = self.train_model(
+                train_feats,
+                train_data['ctr'].values,
+                val_feats,
+                val_data['ctr'].values,
+                output_file='headline_classifier_model.pkl',
+                class_weight=class_weight,
+                do_resample=do_resample
+            )
+            if result is None:
+                logging.error("Model training failed.")
+                return None
+
+            # 8) Test‐set predictions (click probabilities)
+            if test_data is not None and test_feats is not None and 'selected_features' in result:
+                logging.info("Generating test‐set click probabilities...")
+                feats_sel = test_feats[result['selected_features']]
+                probs = result['model'].predict_proba(feats_sel)[:, 1]
+
+                test_out = test_data[['newsID', 'title']].copy()
+                test_out['click_probability'] = probs
+                out_path = os.path.join(self.output_dir, 'test_predictions.csv')
+                test_out.to_csv(out_path, index=False)
+                logging.info(f"Test predictions saved to {out_path}")
+
+            # 9) Reports and ranking evaluation
+            self.create_model_report(result, train_data, val_data, test_data)
+            ranking = self.evaluate_model_ranking(result, val_data)
+            if ranking:
+                result['ranking_evaluation'] = ranking
+
+            return result
+        finally:
+            logging.info("Finished run_training_pipeline.")
         
     def extract_features_cached(self, headlines, cache_name):
         """
@@ -338,7 +430,9 @@ class HeadlineModelTrainer:
                     val_features: pd.DataFrame = None,
                     val_ctr: np.ndarray = None,
                     output_file: str = 'headline_classifier_model.pkl',
-                    class_weight: dict = None) -> dict:
+                    class_weight: dict = None,
+                    do_resample: bool = False
+                    ) -> dict:
         """
         Train a binary click-probability classifier for headlines.
 
@@ -378,6 +472,13 @@ class HeadlineModelTrainer:
 
         logging.info(f"Classifier params: {params}")
         model = XGBClassifier(**params)
+
+        if do_resample:
+            from imblearn.combine import SMOTETomek
+            sampler = SMOTETomek(random_state=42)
+            X_tr, y_train = sampler.fit_resample(X_tr, y_train)
+            logging.info(f"Resampled to {len(y_train)} rows; "
+                        f"{y_train.sum()} clicks, {len(y_train)-y_train.sum()} no-clicks")
 
         # 4) Train with early stopping
         start = time.time()
@@ -534,97 +635,6 @@ class HeadlineModelTrainer:
 
         logging.info(f"Classifier performance visuals saved to {self.output_dir}")
         
-        
-    def run_training_pipeline(self, use_cached_features: bool = True):
-        """Run the complete classification pipeline with train/val/test splits."""
-        try:
-            # 1) Load splits
-            train_data = self.load_data('train')
-            val_data   = self.load_data('val')
-            test_data  = self.load_data('test')
-
-            if train_data is None or val_data is None:
-                logging.error("Missing train/val splits. Aborting.")
-                return None
-
-            # 2) Drop any rows with missing titles or CTR
-            train_data.dropna(subset=['title', 'ctr'], inplace=True)
-            val_data.dropna(subset=['title', 'ctr'], inplace=True)
-            if test_data is not None:
-                test_data.dropna(subset=['title'], inplace=True)
-
-            # 3) Log class distribution
-            train_click_rate = (train_data['ctr'] > 0).mean() * 100
-            val_click_rate   = (val_data['ctr'] > 0).mean() * 100
-            logging.info(f"Train click rate: {train_click_rate:.2f}%")
-            logging.info(f"Val   click rate: {val_click_rate:.2f}%")
-
-            # 4) Visualize Click distribution
-            self.visualize_click_distribution(train_data['ctr'].values,
-                                            val_data['ctr'].values)
-
-            # 5) Feature extraction
-            logging.info("Extracting features for training set...")
-            train_feats = (self.extract_features_cached(train_data['title'].values, 'train')
-                        if use_cached_features else
-                        self.extract_features(train_data['title'].values))
-
-            logging.info("Extracting features for validation set...")
-            val_feats = (self.extract_features_cached(val_data['title'].values, 'val')
-                        if use_cached_features else
-                        self.extract_features(val_data['title'].values))
-
-            test_feats = None
-            if test_data is not None:
-                logging.info("Extracting features for test set...")
-                test_feats = (self.extract_features_cached(test_data['title'].values, 'test')
-                            if use_cached_features else
-                            self.extract_features(test_data['title'].values))
-
-            # 6) Compute class weights for imbalanced binary classes
-            from sklearn.utils.class_weight import compute_class_weight
-            y_train_binary = (train_data['ctr'] > 0).astype(int)
-            weights = compute_class_weight('balanced',
-                                        classes=np.unique(y_train_binary),
-                                        y=y_train_binary)
-            class_weight = {cls: w for cls, w in zip(np.unique(y_train_binary), weights)}
-            logging.info(f"Using class weights: {class_weight}")
-
-            # 7) Train the classifier
-            result = self.train_model(
-                train_feats,
-                train_data['ctr'].values,
-                val_feats,
-                val_data['ctr'].values,
-                output_file='headline_classifier_model.pkl',
-                class_weight=class_weight
-            )
-            if result is None:
-                logging.error("Model training failed.")
-                return None
-
-            # 8) Test‐set predictions (click probabilities)
-            if test_data is not None and test_feats is not None and 'selected_features' in result:
-                logging.info("Generating test‐set click probabilities...")
-                feats_sel = test_feats[result['selected_features']]
-                probs = result['model'].predict_proba(feats_sel)[:, 1]
-
-                test_out = test_data[['newsID', 'title']].copy()
-                test_out['click_probability'] = probs
-                out_path = os.path.join(self.output_dir, 'test_predictions.csv')
-                test_out.to_csv(out_path, index=False)
-                logging.info(f"Test predictions saved to {out_path}")
-
-            # 9) Reports and ranking evaluation
-            self.create_model_report(result, train_data, val_data, test_data)
-            ranking = self.evaluate_model_ranking(result, val_data)
-            if ranking:
-                result['ranking_evaluation'] = ranking
-
-            return result
-        finally:
-            logging.info("Finished run_training_pipeline.")
-
     def create_model_report(self, result, train_data, val_data, test_data=None):
         """
         Create a markdown report about the binary classification model performance.
@@ -955,6 +965,9 @@ def main():
                         help='Model file to use for prediction/analysis (auto-detected if None)')
     parser.add_argument('--use_cached_features', action='store_true',
                         help='Use cached features if available')
+    parser.add_argument('--resample', action='store_true',
+                    help='Balance train set with SMOTE+Tomek')
+
     args = parser.parse_args()
 
     # 1) Instantiate trainer
@@ -962,7 +975,8 @@ def main():
 
     # 2) Run the training pipeline ONCE
     print("Running training pipeline in classification mode…")
-    result = trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
+    result = trainer.run_training_pipeline(use_cached_features=args.use_cached_features,
+                                           do_resample=args.resample)
     if result is None:
         print("Training pipeline failed.")
         return
