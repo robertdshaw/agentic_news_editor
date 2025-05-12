@@ -275,7 +275,7 @@ class HeadlineModelTrainer:
         headlines     = val_data['title'].values
         actual_clicks = (val_data['ctr'].values > 0).astype(int)
 
-        features = self.extract_features(headlines)
+        features = self.extract_features_cached(headlines)
         feats_sel = features[model_data['feature_names']]
 
         # 2) Get predicted click probabilities
@@ -555,11 +555,11 @@ class HeadlineModelTrainer:
             logging.info(f"Train click rate: {train_click_rate:.2f}%")
             logging.info(f"Val   click rate: {val_click_rate:.2f}%")
 
-            # 4) Visualize CTR distribution (optional)
-            self.visualize_ctr_distribution(train_data['ctr'].values,
+            # 4) Visualize Click distribution
+            self.visualize_click_distribution(train_data['ctr'].values,
                                             val_data['ctr'].values)
 
-            # 5) Feature extraction (with optional caching)
+            # 5) Feature extraction
             logging.info("Extracting features for training set...")
             train_feats = (self.extract_features_cached(train_data['title'].values, 'train')
                         if use_cached_features else
@@ -618,12 +618,8 @@ class HeadlineModelTrainer:
                 result['ranking_evaluation'] = ranking
 
             return result
-
-        except Exception as e:
-            logging.error(f"Error in training pipeline: {e}")
-            import traceback
-            logging.error(traceback.format_exc())
-            return None
+        finally:
+            logging.info("Finished run_training_pipeline.")
 
     def create_model_report(self, result, train_data, val_data, test_data=None):
         """
@@ -733,7 +729,7 @@ class HeadlineModelTrainer:
                 raise
 
         # 2) Extract features for the input headlines
-        features = self.extract_features(headlines)
+        features = self.extract_features_cached(headlines)
 
         # 3) Align to the training feature set
         feature_names = model_data['feature_names']
@@ -769,7 +765,7 @@ class HeadlineModelTrainer:
                 return None
         
         # Extract features
-        features = self.extract_features([headline])
+        features = self.extract_features_cached([headline])
         
         # Get selected features
         feature_names = model_data['feature_names']
