@@ -525,7 +525,7 @@ class HeadlineModelTrainer:
                         f"{y_train.sum()} clicks, {len(y_train)-y_train.sum()} no-clicks")
 
        # 3) Now do feature selection on the (possibly balanced) data
-        selected = self.manual_feature_selection(X_tr_full, y_train, threshold=self.feature_sel_thresh)
+        selected = self.manual_feature_selection(X_tr_full, y_train, threshold=self.feature_selection_threshold)
         X_tr      = X_tr_full[selected]
         X_val = val_features[selected] if val_features is not None else None
 
