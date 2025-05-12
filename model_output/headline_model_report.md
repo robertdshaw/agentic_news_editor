@@ -1,10 +1,10 @@
 # Headline Click Prediction Model Report
-    Generated: 2025-05-12 22:49
+    Generated: 2025-05-12 23:11
 
     ## Model Configuration
     - Model Type: XGBClassifier (Binary Classification)
     - Task: Predict whether a headline will be clicked
-    - Training Time: 0.20 seconds
+    - Training Time: 0.19 seconds
 
     ## Model Performance
     - Training Accuracy : 0.5171
@@ -13,10 +13,10 @@
     - Training F1 Score : 0.0666
     - Training AUC      : 0.6656
     
-    - Validation Accuracy : 0.9622
-    - Validation Precision: 0.1667
-    - Validation Recall   : 0.0020
-    - Validation F1 Score : 0.0039
+    - Validation Accuracy : 0.3315
+    - Validation Precision: 0.0396
+    - Validation Recall   : 0.7244
+    - Validation F1 Score : 0.0751
     - Validation AUC      : 0.5085
     
     ## Dataset Summary

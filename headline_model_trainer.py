@@ -367,7 +367,7 @@ class HeadlineModelTrainer:
         
         return pd.DataFrame(features_list)
     
-    def manual_feature_selection(self, features, target, threshold=0.2):
+    def manual_feature_selection(self, features, target, threshold=0.4):
         """
         Feature selection based on feature importance.
         
@@ -528,12 +528,12 @@ class HeadlineModelTrainer:
         params = {
             'n_estimators': 100,
             'learning_rate': 0.1,
-            'max_depth': 5,
-            'min_child_weight': 3,
+            'max_depth': 3,
+            'min_child_weight': 5,
             'subsample': 0.8,
             'colsample_bytree': 0.8,
-            'reg_alpha': 0.5,
-            'reg_lambda': 1.0,
+            'reg_alpha': 1.0,
+            'reg_lambda': 1.5,
             'objective': 'binary:logistic',
             'random_state': 42,
             'n_jobs': -1
