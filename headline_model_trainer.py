@@ -21,10 +21,9 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-from xgboost import XGBRegressor, XGBClassifier
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, 
-                            roc_auc_score, confusion_matrix, mean_squared_error, 
-                            r2_score, mean_absolute_error)
+                            roc_auc_score, confusion_matrix)
 
 
 # Configure logging
@@ -36,19 +35,16 @@ class HeadlineModelTrainer:
     Use XGBoost regression model to select important features, train, validate and test.
     """
     
-    def __init__(self, processed_data_dir='agentic_news_editor/processed_data', use_log_transform=True):
+    def __init__(self, processed_data_dir='agentic_news_editor/processed_data'):
         """Initialize the headline model trainer"""
         self.processed_data_dir = processed_data_dir
         self.embedding_dims = 20
-        self.use_log_transform = use_log_transform
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logging.info(f"Using device: {self.device}")
-        logging.info(f"Log transform for CTR: {self.use_log_transform}")
         
         # Create output directory for results
         self.output_dir = 'model_output'
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        os.makedirs(self.output_dir)
             
         # Create mapping for common first/last words in headlines
         self.word_to_index = {}
@@ -217,8 +213,7 @@ class HeadlineModelTrainer:
     
     def manual_feature_selection(self, features, target, threshold=0.2):
         """
-        Manual feature selection based on feature importance.
-        This replaces the SelectFromModel approach that causes compatibility issues.
+        Feature selection based on feature importance.
         
         Args:
             features: DataFrame of features
@@ -265,713 +260,365 @@ class HeadlineModelTrainer:
     
     def evaluate_model_ranking(self, model_data, val_data):
         """
-        Evaluate model's ability to rank headlines by their likelihood of getting clicks
-        
+        Evaluate the classifier’s ability to rank headlines by click likelihood.
+
         Args:
-            model_data: Dictionary containing model, feature_names and other model info
-            val_data: Validation data with 'title' and 'ctr' columns
-        
+            model_data (dict): Contains 'model' and 'feature_names'.
+            val_data (DataFrame): Must have columns ['title', 'ctr'].
+
         Returns:
-            Dictionary with ranking evaluation metrics
+            dict: Spearman correlation, per-bucket click rates, and overall metrics.
         """
         logging.info("Evaluating model's headline ranking ability...")
-        
-        # Get validation headlines and CTRs
-        headlines = val_data['title'].values
-        actual_ctrs = val_data['ctr'].values
-        
-        # Extract features for validation data
-        val_features = self.extract_features(headlines)
-        
-        # Get selected features - FIX: Changed 'result' to 'model_data'
-        feature_names = model_data['feature_names']
-        
-        # Filter features
-        val_features_sel = val_features[feature_names]
-        
-        # Get model predictions
-        if model_data.get('model_type', 'regression') == 'classification':
-            # For classification model, get probability of click
-            predicted_probs = model_data['model'].predict_proba(val_features_sel)[:, 1]
-        else:
-            # For regression model, get predicted CTR
-            predicted_probs = model_data['model'].predict(val_features_sel)
-            if model_data.get('use_log_transform', False):
-                predicted_probs = np.expm1(predicted_probs)
-        
-        # Create DataFrame with results
-        results_df = pd.DataFrame({
-            'headline': headlines,
-            'actual_ctr': actual_ctrs,
-            'predicted_prob': predicted_probs,
-            'has_clicks': (actual_ctrs > 0).astype(int)
+
+        # 1) Prepare true binary clicks and features
+        headlines     = val_data['title'].values
+        actual_clicks = (val_data['ctr'].values > 0).astype(int)
+
+        features = self.extract_features(headlines)
+        feats_sel = features[model_data['feature_names']]
+
+        # 2) Get predicted click probabilities
+        probs = model_data['model'].predict_proba(feats_sel)[:, 1]
+
+        # 3) Build results DataFrame
+        df = pd.DataFrame({
+            'headline'      : headlines,
+            'actual_click'  : actual_clicks,
+            'predicted_prob': probs
         })
-        
-        # Calculate Spearman rank correlation
-        rank_correlation = results_df['predicted_prob'].corr(results_df['actual_ctr'], method='spearman')
-        logging.info(f"Spearman rank correlation: {rank_correlation:.4f}")
-        
-        # Sort by predicted probability
-        sorted_results = results_df.sort_values('predicted_prob', ascending=False).reset_index(drop=True)
-        
-        # Create buckets for analysis
-        num_headlines = len(sorted_results)
-        num_buckets = 10  # Aim for 10 buckets
-        bucket_size = max(10, num_headlines // num_buckets)  # At least 10 headlines per bucket
-        
+
+        # 4) Spearman rank correlation between score and true click flag
+        rank_corr = df['predicted_prob'].corr(df['actual_click'], method='spearman')
+        logging.info(f"Spearman rank correlation: {rank_corr:.4f}")
+
+        # 5) Bucket into deciles by predicted probability
+        df = df.sort_values('predicted_prob', ascending=False).reset_index(drop=True)
+        n = len(df)
+        bucket_size = max(1, n // 10)
         buckets = []
-        for i in range(0, num_headlines, bucket_size):
-            end_idx = min(i + bucket_size, num_headlines)
-            bucket = sorted_results.iloc[i:end_idx]
-            
-            # Calculate metrics for this bucket
-            bucket_index = i // bucket_size + 1
-            avg_predicted = bucket['predicted_prob'].mean()
-            avg_ctr = bucket['actual_ctr'].mean()
-            click_rate = bucket['has_clicks'].mean() * 100
-            
+        for i in range(0, n, bucket_size):
+            block = df.iloc[i : i + bucket_size]
             buckets.append({
-                'bucket': bucket_index,
-                'size': len(bucket),
-                'avg_predicted': avg_predicted,
-                'avg_actual_ctr': avg_ctr,
-                'click_rate': click_rate
+                'bucket'       : i // bucket_size + 1,
+                'size'         : len(block),
+                'click_rate'   : block['actual_click'].mean() * 100,
+                'mean_prob'    : block['predicted_prob'].mean()
             })
-        
-        # Create DataFrame of bucket results
         buckets_df = pd.DataFrame(buckets)
-        
-        # Calculate lift metrics
-        overall_avg_ctr = results_df['actual_ctr'].mean()
-        overall_click_rate = results_df['has_clicks'].mean() * 100
-        
-        # Get metrics for top buckets
-        top_bucket = buckets_df.iloc[0]
-        top_3_buckets = buckets_df.iloc[:3]
-        
-        top_bucket_lift = (top_bucket['avg_actual_ctr'] / overall_avg_ctr - 1) * 100
-        top_3_buckets_lift = (top_3_buckets['avg_actual_ctr'].mean() / overall_avg_ctr - 1) * 100
-        
-        logging.info(f"Overall average CTR: {overall_avg_ctr:.6f}")
+
+        overall_click_rate = df['actual_click'].mean() * 100
         logging.info(f"Overall click rate: {overall_click_rate:.2f}%")
-        logging.info(f"Top bucket average CTR: {top_bucket['avg_actual_ctr']:.6f} (lift: {top_bucket_lift:.1f}%)")
-        logging.info(f"Top 3 buckets average CTR: {top_3_buckets['avg_actual_ctr'].mean():.6f} (lift: {top_3_buckets_lift:.1f}%)")
-        
-        # Log bucket results
-        logging.info("CTR and click rate by bucket (higher bucket = higher predicted probability):")
         for _, row in buckets_df.iterrows():
-            logging.info(f"Bucket {row['bucket']}: Avg CTR={row['avg_actual_ctr']:.6f}, Click Rate={row['click_rate']:.2f}%, Pred={row['avg_predicted']:.4f}")
-        
-        # Create visualization
-        plt.figure(figsize=(14, 10))
-        
-        # Plot 1: Average CTR by bucket
-        plt.subplot(2, 2, 1)
-        plt.bar(buckets_df['bucket'], buckets_df['avg_actual_ctr'])
-        plt.axhline(y=overall_avg_ctr, color='r', linestyle='--', label=f'Overall avg: {overall_avg_ctr:.6f}')
-        plt.xlabel('Bucket (1=lowest predicted, 10=highest predicted)')
-        plt.ylabel('Average CTR')
-        plt.title('Average CTR by Predicted Probability Bucket')
-        plt.legend()
-        
-        # Plot 2: Click rate by bucket
-        plt.subplot(2, 2, 2)
+            logging.info(f"Bucket {int(row['bucket'])}: Click rate = {row['click_rate']:.2f}%")
+
+        # 6) Plot click rate by bucket
+        plt.figure()
         plt.bar(buckets_df['bucket'], buckets_df['click_rate'])
-        plt.axhline(y=overall_click_rate, color='r', linestyle='--', label=f'Overall: {overall_click_rate:.2f}%')
-        plt.xlabel('Bucket (1=lowest predicted, 10=highest predicted)')
-        plt.ylabel('Headlines with Clicks (%)')
-        plt.title('% Headlines with Clicks by Predicted Probability Bucket')
+        plt.axhline(overall_click_rate, linestyle='--', label=f'Overall: {overall_click_rate:.2f}%')
+        plt.xlabel('Bucket (1 = highest predicted probability)')
+        plt.ylabel('Click Rate (%)')
+        plt.title('Click Rate by Predicted‐Probability Bucket')
         plt.legend()
-        
-        # Plot 3: CTR Lift by bucket
-        plt.subplot(2, 2, 3)
-        ctr_lift = (buckets_df['avg_actual_ctr'] / overall_avg_ctr - 1) * 100
-        plt.bar(buckets_df['bucket'], ctr_lift)
-        plt.axhline(y=0, color='r', linestyle='--')
-        plt.xlabel('Bucket (1=lowest predicted, 10=highest predicted)')
-        plt.ylabel('CTR Lift (%)')
-        plt.title('CTR Lift Compared to Average')
-        
-        # Plot 4: Scatterplot of predicted vs actual
-        plt.subplot(2, 2, 4)
-        plt.scatter(results_df['predicted_prob'], results_df['actual_ctr'], alpha=0.3)
-        plt.xlabel('Predicted Probability')
-        plt.ylabel('Actual CTR')
-        plt.title(f'Actual vs Predicted (Spearman corr: {rank_correlation:.4f})')
-        
         plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, 'ranking_performance.png'), dpi=300)
+        plt.savefig(os.path.join(self.output_dir, 'ranking_click_rate_by_bucket.png'), dpi=300)
         plt.close()
-        
-        # Also save data for further analysis
-        sorted_results.to_csv(os.path.join(self.output_dir, 'headline_ranking_results.csv'), index=False)
-        buckets_df.to_csv(os.path.join(self.output_dir, 'headline_buckets.csv'), index=False)
-        
-        # Return evaluation results
+        logging.info("Saved ranking plot to ranking_click_rate_by_bucket.png")
+
         return {
-            'rank_correlation': rank_correlation,
-            'buckets': buckets_df,
-            'overall_avg_ctr': overall_avg_ctr,
+            'spearman_corr'    : rank_corr,
             'overall_click_rate': overall_click_rate,
-            'top_bucket_lift': top_bucket_lift,
-            'top_3_buckets_lift': top_3_buckets_lift
+            'buckets'          : buckets_df
         }
 
-    def train_model(self, train_features, train_ctr, val_features=None, val_ctr=None,
-           output_file='headline_ctr_model.pkl', mode='classification', class_weight=None):
+    def train_model(self,
+                    train_features: pd.DataFrame,
+                    train_ctr: np.ndarray,
+                    val_features: pd.DataFrame = None,
+                    val_ctr: np.ndarray = None,
+                    output_file: str = 'headline_classifier_model.pkl',
+                    class_weight: dict = None) -> dict:
         """
-        Train model
-        
-        Parameters:
-        -----------
-        train_features : pandas DataFrame
-            Features for training the model
-        train_ctr : numpy array or pandas Series
-            Target CTR values for training
-        val_features : pandas DataFrame, optional
-            Features for validation
-        val_ctr : numpy array or pandas Series, optional
-            Target CTR values for validation
-        output_file : str, optional
-            Filename to save the trained model
-        mode : str, optional
-            'classification' or 'regression'
-         class_weight : dict, optional
-        Class weights for handling imbalanced data
-            
-        Returns:
-        --------
-        dict
-            Dictionary containing model, selected features, and performance metrics
+        Train a binary click-probability classifier for headlines.
+
+        Returns a dict with the trained model, feature names, metrics, and metadata.
         """
-        if mode == 'classification':
-            logging.info("Training headline CTR prediction model (Classification mode)")
-            
-            # Convert CTR to binary targets (1 if CTR > 0, 0 if CTR = 0)
-            train_y_binary = (train_ctr > 0).astype(int)
-            val_y_binary = (val_ctr > 0).astype(int) if val_ctr is not None else None
-            
-            # Get feature selection
-            selected_features = self.manual_feature_selection(train_features, train_y_binary, threshold=0.2)
-            
-            # Filter features
-            train_features_sel = train_features[selected_features]
-            val_features_sel = val_features[selected_features] if val_features is not None else None
-            
-            # Define model parameters for classification
-            params = {
-                'n_estimators': 100, 
-                'learning_rate': 0.1,
-                'max_depth': 5, 
-                'min_child_weight': 3,
-                'subsample': 0.8, 
-                'colsample_bytree': 0.8,
-                'reg_alpha': 0.5,
-                'reg_lambda': 1.0,
-                'objective': 'binary:logistic',
-                'random_state': 42,
-                'n_jobs': -1
-            }
-            
-            # Add scale_pos_weight parameter if class_weight provided
-            if class_weight is not None:
-                # XGBoost uses scale_pos_weight parameter
-                # This is the ratio of negative to positive samples
-                scale_pos_weight = class_weight[1] / class_weight[0]
-                params['scale_pos_weight'] = scale_pos_weight
-                logging.info(f"Using scale_pos_weight={scale_pos_weight} for imbalanced classes")
-            
-            logging.info(f"Training classification model with params: {params}")
-            
-            # Create model
-            final = XGBClassifier(**params)
-            
-            # Train model
-            start = time.time()
-            if val_features_sel is not None and val_y_binary is not None:
-                final.fit(
-                    train_features_sel, train_y_binary,
-                    eval_set=[(val_features_sel, val_y_binary)],
-                    eval_metric='auc',
-                    early_stopping_rounds=10,
-                    verbose=0
-                )
-            else:
-                final.fit(train_features_sel, train_y_binary, verbose=0)
-            
-            ttime = time.time() - start
-            logging.info(f"Model trained in {ttime:.2f}s")
-            
-            # Training metrics
-            train_pred_proba = final.predict_proba(train_features_sel)[:, 1]
-            train_pred = (train_pred_proba > 0.5).astype(int)
-            
-            train_metrics = {
-                'accuracy': accuracy_score(train_y_binary, train_pred),
-                'precision': precision_score(train_y_binary, train_pred, zero_division=0),
-                'recall': recall_score(train_y_binary, train_pred, zero_division=0),
-                'f1': f1_score(train_y_binary, train_pred, zero_division=0),
-                'auc': roc_auc_score(train_y_binary, train_pred_proba) if len(np.unique(train_y_binary)) > 1 else 0.5
-            }
-            
-            logging.info(f"Train metrics: {train_metrics}")
-            
-            # Validation metrics
-            val_metrics = {}
-            if val_features_sel is not None and val_y_binary is not None:
-                val_pred_proba = final.predict_proba(val_features_sel)[:, 1]
-                val_pred = (val_pred_proba > 0.5).astype(int)
-                
-                val_metrics = {
-                    'accuracy': accuracy_score(val_y_binary, val_pred),
-                    'precision': precision_score(val_y_binary, val_pred, zero_division=0),
-                    'recall': recall_score(val_y_binary, val_pred, zero_division=0),
-                    'f1': f1_score(val_y_binary, val_pred, zero_division=0),
-                    'auc': roc_auc_score(val_y_binary, val_pred_proba) if len(np.unique(val_y_binary)) > 1 else 0.5
-                }
-                
-                logging.info(f"Val metrics: {val_metrics}")
-                
-                # Confusion matrix
-                cm = confusion_matrix(val_y_binary, val_pred)
-                logging.info(f"Validation confusion matrix:\n{cm}")
-                
-                # Create visualization of classifier performance
-                self.visualize_classifier_performance(val_y_binary, val_pred_proba, 'validation_classifier_performance.png')
-            
-            # Get feature importances
-            importances = final.feature_importances_
-            fi = pd.DataFrame({
-                'feature': selected_features,
-                'importance': importances
-            }).sort_values('importance', ascending=False)
-            
-            logging.info(f"Top features: {fi.head(10).to_string()}")
-            
-            # Save model
-            model_data = {
-                'model': final,
-                'model_type': 'classification',
-                'feature_names': selected_features,
-                'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'metrics': {'train': train_metrics, 'val': val_metrics}
-            }
-            
-            with open(os.path.join(self.output_dir, output_file), 'wb') as f:
-                pickle.dump(model_data, f)
-            logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
-            
-            # Visualize feature importance
-            self.visualize_feature_importance(fi)
-            fi.to_csv(os.path.join(self.output_dir, 'feature_importance.csv'), index=False)
-            logging.info("Feature importance saved.")
-            
-            return {
-                'model': final, 
-                'selected_features': selected_features, 
-                'train_metrics': train_metrics,
-                'val_metrics': val_metrics,
-                'feature_importances': fi, 
-                'training_time': ttime,
-                'model_type': 'classification'
-            }
+        logging.info("Training headline click-probability classification model")
+
+        # 1) Binary targets
+        y_train = (train_ctr > 0).astype(int)
+        y_val = (val_ctr > 0).astype(int) if val_ctr is not None else None
+
+        # 2) Feature selection
+        selected = self.manual_feature_selection(train_features, y_train, threshold=0.2)
+        X_tr = train_features[selected]
+        X_val = val_features[selected] if val_features is not None else None
+
+        # 3) Set up classifier params
+        params = {
+            'n_estimators': 100,
+            'learning_rate': 0.1,
+            'max_depth': 5,
+            'min_child_weight': 3,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'reg_alpha': 0.5,
+            'reg_lambda': 1.0,
+            'objective': 'binary:logistic',
+            'random_state': 42,
+            'n_jobs': -1
+        }
+        if class_weight:
+            scale_pos = class_weight.get(0,1)/class_weight.get(1,1)
+            params['scale_pos_weight'] = scale_pos
+            logging.info(f"Using scale_pos_weight={scale_pos}")
+
+        logging.info(f"Classifier params: {params}")
+        model = XGBClassifier(**params)
+
+        # 4) Train with early stopping
+        start = time.time()
+        if X_val is not None and y_val is not None:
+            model.fit(
+                X_tr, y_train,
+                eval_set=[(X_val, y_val)],
+                eval_metric='auc',
+                early_stopping_rounds=10,
+                verbose=False
+            )
         else:
-            # Original regression code
-            logging.info("Training headline CTR prediction model (Regression mode)")
-            
-            # Apply log transform if specified
-            if self.use_log_transform:
-                train_y = np.log1p(train_ctr)
-                val_y = np.log1p(val_ctr) if val_ctr is not None else None
-            else:
-                train_y = train_ctr
-                val_y = val_ctr
-            
-            # Manual feature selection (doesn't depend on scikit-learn)
-            selected_features = self.manual_feature_selection(train_features, train_y, threshold=0.2)
-            
-            # Filter features
-            train_features_sel = train_features[selected_features]
-            val_features_sel = val_features[selected_features] if val_features is not None else None
-            
-            # Define final model parameters
-            final_params = {
-                'n_estimators': 200, 
-                'learning_rate': 0.01,
-                'max_depth': 4, 
-                'min_child_weight': 5,
-                'subsample': 0.7, 
-                'colsample_bytree': 0.7,
-                'reg_alpha': 1.0,
-                'reg_lambda': 2.0,
-                'objective': 'reg:squarederror',
-                'random_state': 42,
-                'n_jobs': -1
+            model.fit(X_tr, y_train, verbose=False)
+        elapsed = time.time() - start
+        logging.info(f"Training completed in {elapsed:.2f}s")
+
+        # 5) Compute metrics
+        p_tr = model.predict_proba(X_tr)[:, 1]
+        y_tr_pred = (p_tr > 0.5).astype(int)
+        train_metrics = {
+            'accuracy': accuracy_score(y_train, y_tr_pred),
+            'precision': precision_score(y_train, y_tr_pred, zero_division=0),
+            'recall': recall_score(y_train, y_tr_pred, zero_division=0),
+            'f1': f1_score(y_train, y_tr_pred, zero_division=0),
+            'auc': roc_auc_score(y_train, p_tr)
+        }
+        logging.info(f"Train metrics: {train_metrics}")
+
+        val_metrics = {}
+        if X_val is not None and y_val is not None:
+            p_val = model.predict_proba(X_val)[:, 1]
+            y_val_pred = (p_val > 0.5).astype(int)
+            val_metrics = {
+                'accuracy': accuracy_score(y_val, y_val_pred),
+                'precision': precision_score(y_val, y_val_pred, zero_division=0),
+                'recall': recall_score(y_val, y_val_pred, zero_division=0),
+                'f1': f1_score(y_val, y_val_pred, zero_division=0),
+                'auc': roc_auc_score(y_val, p_val)
             }
-            
-            logging.info(f"Training final model with params: {final_params}")
-            
-            # Create final model
-            final = XGBRegressor(**final_params)
-            
-            # Train final model
-            start = time.time()
-            if val_features_sel is not None and val_y is not None:
-                final.fit(
-                    train_features_sel, train_y,
-                    eval_set=[(val_features_sel, val_y)],
-                    eval_metric='rmse',
-                    early_stopping_rounds=50,
-                    verbose=0
-                )
-            else:
-                final.fit(train_features_sel, train_y, verbose=0)
-            ttime = time.time() - start
-            logging.info(f"Final model trained in {ttime:.2f}s")
-            
-            # Evaluate on train/val
-            train_pred_t = final.predict(train_features_sel)
-            train_pred = np.expm1(train_pred_t) if self.use_log_transform else train_pred_t
-            train_metrics = {
-                'mse': mean_squared_error(train_ctr, train_pred),
-                'rmse': np.sqrt(mean_squared_error(train_ctr, train_pred)),
-                'mae': mean_absolute_error(train_ctr, train_pred),
-                'r2': r2_score(train_ctr, train_pred)
-            }
-            logging.info(f"Train metrics: {train_metrics}")
-            
-            val_metrics = {}
-            if val_features_sel is not None and val_ctr is not None:
-                val_pred_t = final.predict(val_features_sel)
-                val_pred = np.expm1(val_pred_t) if self.use_log_transform else val_pred_t
-                val_metrics = {
-                    'mse': mean_squared_error(val_ctr, val_pred),
-                    'rmse': np.sqrt(mean_squared_error(val_ctr, val_pred)),
-                    'mae': mean_absolute_error(val_ctr, val_pred),
-                    'r2': r2_score(val_ctr, val_pred)
-                }
-                logging.info(f"Val metrics: {val_metrics}")
-                self.visualize_predictions(val_ctr, val_pred, 'validation_predictions.png')
-            
-            # Feature importances
-            importances = final.feature_importances_
-            fi = pd.DataFrame({
-                'feature': selected_features,
-                'importance': importances
-            }).sort_values('importance', ascending=False)
-            
-            logging.info(f"Top features: {fi.head(10).to_string()}")
-            
-            # Save model and metrics
-            model_data = {
-                'model': final,
-                'model_type': 'regression',
-                'use_log_transform': self.use_log_transform,
-                'feature_names': selected_features,
-                'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'metrics': {'train': train_metrics, 'val': val_metrics}
-            }
-            
-            with open(os.path.join(self.output_dir, output_file), 'wb') as f:
-                pickle.dump(model_data, f)
-            logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
-            
-            # Visualize feature importance
-            self.visualize_feature_importance(fi)
-            fi.to_csv(os.path.join(self.output_dir, 'feature_importance.csv'), index=False)
-            logging.info("Feature importance saved.")
-            
-            return {
-                'model': final, 
-                'selected_features': selected_features, 
-                'train_metrics': train_metrics,
-                'val_metrics': val_metrics,
-                'feature_importances': fi, 
-                'training_time': ttime,
-                'model_type': 'regression'
-            }
+            logging.info(f"Validation metrics: {val_metrics}")
+            self.visualize_classifier_performance(y_val, p_val, output_prefix='validation_performance')
+
+        # 6) Feature importances
+        fi = pd.DataFrame({
+            'feature': selected,
+            'importance': model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        logging.info(f"Top features: {fi.head(10).to_dict('records')}")
+
+        # 7) Save model + metadata
+        model_data = {
+            'model': model,
+            'feature_names': selected,
+            'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'train_metrics': train_metrics,
+            'val_metrics': val_metrics,
+            'training_time': elapsed
+        }
+        with open(os.path.join(self.output_dir, output_file), 'wb') as f:
+            pickle.dump(model_data, f)
+        logging.info(f"Model saved to {os.path.join(self.output_dir, output_file)}")
+
+        # 8) Save and plot importances
+        self.visualize_feature_importance(fi)
+        fi.to_csv(os.path.join(self.output_dir, 'feature_importance.csv'), index=False)
+        logging.info("Feature importances saved.")
+
+        return model_data
     
-    def visualize_ctr_distribution(self, train_ctr, val_ctr=None):
-        """Visualize the distribution of CTR values in train and val sets"""
-        try:
-            plt.figure(figsize=(12, 6))
-            
-            # Train distribution
-            plt.subplot(1, 2, 1)
-            sns.histplot(train_ctr, kde=True, bins=50)
-            plt.title('Train CTR Distribution')
-            plt.xlabel('CTR')
+    def visualize_click_distribution(self, train_y, val_y=None):
+        """
+        Bar‐plot of click vs no‐click counts for train (and optional validation).
+        """
+        # Convert to binary: 0 = no click, 1 = click
+        train_counts = np.bincount((train_y > 0).astype(int))
+        labels = ['No Click', 'Click']
+
+        # Training
+        plt.figure()
+        plt.bar(labels, train_counts)
+        plt.title('Training Click Distribution')
+        plt.ylabel('Count')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, 'click_distribution_train.png'), dpi=300)
+        plt.close()
+
+        # Validation (if provided)
+        if val_y is not None:
+            val_counts = np.bincount((val_y > 0).astype(int))
+            plt.figure()
+            plt.bar(labels, val_counts)
+            plt.title('Validation Click Distribution')
             plt.ylabel('Count')
-            plt.grid(alpha=0.3)
-            
-            # Log distribution
-            plt.subplot(1, 2, 2)
-            non_zero_ctr = train_ctr[train_ctr > 0]
-            if len(non_zero_ctr) > 0:
-                sns.histplot(np.log1p(non_zero_ctr), kde=True, bins=50)
-                plt.title('Train log(CTR+1) Distribution (non-zero values)')
-                plt.xlabel('log(CTR+1)')
-                plt.ylabel('Count')
-                plt.grid(alpha=0.3)
-            
             plt.tight_layout()
-            plt.savefig(os.path.join(self.output_dir, 'ctr_distribution.png'), dpi=300)
+            plt.savefig(os.path.join(self.output_dir, 'click_distribution_val.png'), dpi=300)
             plt.close()
-            
-            # Compare train vs val if validation data provided
-            if val_ctr is not None:
-                plt.figure(figsize=(12, 5))
-                
-                # Plot distributions
-                plt.subplot(1, 2, 1)
-                sns.kdeplot(train_ctr, label='Train', fill=True, alpha=0.3)
-                sns.kdeplot(val_ctr, label='Validation', fill=True, alpha=0.3)
-                plt.title('CTR Distribution Comparison')
-                plt.xlabel('CTR')
-                plt.ylabel('Density')
-                plt.legend()
-                plt.grid(alpha=0.3)
-                
-                # Plot log distributions for non-zero values
-                plt.subplot(1, 2, 2)
-                train_non_zero = train_ctr[train_ctr > 0]
-                val_non_zero = val_ctr[val_ctr > 0]
-                
-                if len(train_non_zero) > 0 and len(val_non_zero) > 0:
-                    sns.kdeplot(np.log1p(train_non_zero), label='Train', fill=True, alpha=0.3)
-                    sns.kdeplot(np.log1p(val_non_zero), label='Validation', fill=True, alpha=0.3)
-                    plt.title('log(CTR+1) Distribution Comparison (non-zero)')
-                    plt.xlabel('log(CTR+1)')
-                    plt.ylabel('Density')
-                    plt.legend()
-                    plt.grid(alpha=0.3)
-                
-                plt.tight_layout()
-                plt.savefig(os.path.join(self.output_dir, 'ctr_distribution_comparison.png'), dpi=300)
-                plt.close()
-            
-            logging.info(f"CTR distribution visualizations saved to {self.output_dir}")
-        except Exception as e:
-            logging.error(f"Error creating CTR distribution visualization: {e}")
+
+        logging.info(f"Click distribution plots saved to {self.output_dir}")
+
     
-    def visualize_feature_importance(self, feature_importance_df, output_file='feature_importance.png'):
-        """Visualize feature importance from model"""
-        try:
-            # Get top features
-            top_n = min(20, len(feature_importance_df))
-            top_features = feature_importance_df.head(top_n)
-            
-            plt.figure(figsize=(10, 8))
-            sns.barplot(x='importance', y='feature', data=top_features)
-            plt.title(f'Top {top_n} Feature Importance')
-            plt.xlabel('Importance')
-            plt.ylabel('Feature')
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
-            plt.close()
-            
-            logging.info(f"Feature importance visualization saved to {os.path.join(self.output_dir, output_file)}")
-        except Exception as e:
-            logging.error(f"Error creating feature importance visualization: {e}")
-    
-    def visualize_predictions(self, y_true, y_pred, output_file='predictions.png'):
-        """Create scatter plot of actual vs predicted values"""
-        try:
-            plt.figure(figsize=(10, 8))
-            
-            # Calculate metrics for title
-            rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-            r2 = r2_score(y_true, y_pred)
-            
-            # Create scatter plot
-            plt.scatter(y_true, y_pred, alpha=0.5)
-            
-            # Add perfect prediction line
-            max_val = max(np.max(y_true), np.max(y_pred))
-            min_val = min(np.min(y_true), np.min(y_pred))
-            plt.plot([min_val, max_val], [min_val, max_val], 'r--')
-            
-            plt.title(f'Actual vs Predicted CTR (RMSE: {rmse:.6f}, R²: {r2:.4f})')
-            plt.xlabel('Actual CTR')
-            plt.ylabel('Predicted CTR')
-            plt.grid(alpha=0.3)
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
-            plt.close()
-            
-            # Create additional plot with log scale if values are very small
-            if np.min(y_true) > 0 and np.min(y_pred) > 0:
-                plt.figure(figsize=(10, 8))
-                plt.scatter(y_true, y_pred, alpha=0.5)
-                plt.plot([min_val, max_val], [min_val, max_val], 'r--')
-                plt.xscale('log')
-                plt.yscale('log')
-                plt.title(f'Actual vs Predicted CTR (Log Scale)')
-                plt.xlabel('Actual CTR (log scale)')
-                plt.ylabel('Predicted CTR (log scale)')
-                plt.grid(alpha=0.3, which='both')
-                plt.tight_layout()
-                plt.savefig(os.path.join(self.output_dir, f'log_{output_file}'), dpi=300)
-                plt.close()
-            
-            logging.info(f"Prediction visualization saved to {os.path.join(self.output_dir, output_file)}")
-        except Exception as e:
-            logging.error(f"Error creating prediction visualization: {e}")
+    def visualize_feature_importance(self, df, output_file='feature_importance.png'):
+        """
+        Horizontal bar‐chart of top N feature importances.
+        """
+        top_n = min(15, len(df))
+        top = df.head(top_n)
+
+        plt.figure()
+        plt.barh(top['feature'], top['importance'])
+        plt.title(f'Top {top_n} Feature Importances')
+        plt.xlabel('Importance')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
+        plt.close()
+        logging.info(f"Feature importance visualization saved to {self.output_dir}/{output_file}")
           
-    def visualize_classifier_performance(self, y_true, y_proba, output_file='classifier_performance.png'):
-        """Create visualization of classifier performance with ROC curve and PR curve"""
-        try:
-            from sklearn.metrics import roc_curve, precision_recall_curve, auc
-            
-            # Create a figure with two subplots
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-            
-            # ROC Curve
-            fpr, tpr, _ = roc_curve(y_true, y_proba)
-            roc_auc = auc(fpr, tpr)
-            
-            ax1.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.3f})')
-            ax1.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-            ax1.set_xlim([0.0, 1.0])
-            ax1.set_ylim([0.0, 1.05])
-            ax1.set_xlabel('False Positive Rate')
-            ax1.set_ylabel('True Positive Rate')
-            ax1.set_title('Receiver Operating Characteristic')
-            ax1.legend(loc="lower right")
-            
-            # Precision-Recall Curve
-            precision, recall, _ = precision_recall_curve(y_true, y_proba)
-            pr_auc = auc(recall, precision)
-            
-            ax2.plot(recall, precision, color='blue', lw=2, label=f'PR curve (AUC = {pr_auc:.3f})')
-            ax2.set_xlim([0.0, 1.0])
-            ax2.set_ylim([0.0, 1.05])
-            ax2.set_xlabel('Recall')
-            ax2.set_ylabel('Precision')
-            ax2.set_title('Precision-Recall Curve')
-            ax2.axhline(y=sum(y_true)/len(y_true), color='red', linestyle='--', label=f'Baseline ({sum(y_true)/len(y_true):.3f})')
-            ax2.legend(loc="lower left")
-            
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.output_dir, output_file), dpi=300)
-            plt.close()
-            
-            logging.info(f"Classifier performance visualization saved to {os.path.join(self.output_dir, output_file)}")
-        except Exception as e:
-            logging.error(f"Error creating classifier performance visualization: {e}")       
+    def visualize_classifier_performance(self, y_true, y_proba, output_prefix='classifier_performance'):
+        """
+        Create separate visualizations of classifier performance:
+        - ROC Curve → {output_prefix}_roc.png
+        - Precision-Recall Curve → {output_prefix}_pr.png
+        """
+        from sklearn.metrics import roc_curve, precision_recall_curve, auc
+
+        # 1) ROC Curve
+        fpr, tpr, _ = roc_curve(y_true, y_proba)
+        roc_auc = auc(fpr, tpr)
+        plt.figure()
+        plt.plot(fpr, tpr, label=f'AUC = {roc_auc:.3f}')
+        plt.plot([0, 1], [0, 1], linestyle='--')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Curve')
+        plt.legend(loc='lower right')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, f'{output_prefix}_roc.png'), dpi=300)
+        plt.close()
+
+        # 2) Precision-Recall Curve
+        precision, recall, _ = precision_recall_curve(y_true, y_proba)
+        pr_auc = auc(recall, precision)
+        baseline = (y_true.sum() / len(y_true))
+        plt.figure()
+        plt.plot(recall, precision, label=f'AUC = {pr_auc:.3f}')
+        plt.plot([0, 1], [baseline, baseline], linestyle='--', label=f'Baseline = {baseline:.3f}')
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title('Precision–Recall Curve')
+        plt.legend(loc='lower left')
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, f'{output_prefix}_pr.png'), dpi=300)
+        plt.close()
+
+        logging.info(f"Classifier performance visuals saved to {self.output_dir}")
         
-    def run_training_pipeline(self, use_cached_features=True):
-        """Run the complete model training pipeline with train/val/test splits"""
+        
+    def run_training_pipeline(self, use_cached_features: bool = True):
+        """Run the complete classification pipeline with train/val/test splits."""
         try:
-            # Load data for all splits
+            # 1) Load splits
             train_data = self.load_data('train')
-            val_data = self.load_data('val')
-            test_data = self.load_data('test')
-            
+            val_data   = self.load_data('val')
+            test_data  = self.load_data('test')
+
             if train_data is None or val_data is None:
-                logging.error("Could not load required data. Aborting.")
+                logging.error("Missing train/val splits. Aborting.")
                 return None
-            
-            # Handle NaN values
-            train_data = train_data.dropna(subset=['title', 'ctr'])
-            val_data = val_data.dropna(subset=['title', 'ctr'])
+
+            # 2) Drop any rows with missing titles or CTR
+            train_data.dropna(subset=['title', 'ctr'], inplace=True)
+            val_data.dropna(subset=['title', 'ctr'], inplace=True)
             if test_data is not None:
-                test_data = test_data.dropna(subset=['title'])
-            
-            
-            # Print class distribution
-            train_clicks = (train_data['ctr'] > 0).mean() * 100
-            val_clicks = (val_data['ctr'] > 0).mean() * 100
-            logging.info(f"Train dataset: {train_clicks:.2f}% headlines with clicks")
-            logging.info(f"Validation dataset: {val_clicks:.2f}% headlines with clicks")
-            
-            # Visualize CTR distribution
-            self.visualize_ctr_distribution(train_data['ctr'].values, val_data['ctr'].values)
-            
-             # Extract features for all splits (with caching)
-            logging.info("Extracting features for training data...")
-            if use_cached_features:
-                train_features = self.extract_features_cached(train_data['title'].values, 'train')
-            else:
-                train_features = self.extract_features(train_data['title'].values)
-            
-            logging.info("Extracting features for validation data...")
-            if use_cached_features:
-                val_features = self.extract_features_cached(val_data['title'].values, 'val')
-            else:
-                val_features = self.extract_features(val_data['title'].values)
-                
-            test_features = None
+                test_data.dropna(subset=['title'], inplace=True)
+
+            # 3) Log class distribution
+            train_click_rate = (train_data['ctr'] > 0).mean() * 100
+            val_click_rate   = (val_data['ctr'] > 0).mean() * 100
+            logging.info(f"Train click rate: {train_click_rate:.2f}%")
+            logging.info(f"Val   click rate: {val_click_rate:.2f}%")
+
+            # 4) Visualize CTR distribution (optional)
+            self.visualize_ctr_distribution(train_data['ctr'].values,
+                                            val_data['ctr'].values)
+
+            # 5) Feature extraction (with optional caching)
+            logging.info("Extracting features for training set...")
+            train_feats = (self.extract_features_cached(train_data['title'].values, 'train')
+                        if use_cached_features else
+                        self.extract_features(train_data['title'].values))
+
+            logging.info("Extracting features for validation set...")
+            val_feats = (self.extract_features_cached(val_data['title'].values, 'val')
+                        if use_cached_features else
+                        self.extract_features(val_data['title'].values))
+
+            test_feats = None
             if test_data is not None:
-                logging.info("Extracting features for test data...")
-                if use_cached_features:
-                    test_features = self.extract_features_cached(test_data['title'].values, 'test')
-                else:
-                    test_features = self.extract_features(test_data['title'].values)
-                
-            # Compute class weights for handling imbalanced data
+                logging.info("Extracting features for test set...")
+                test_feats = (self.extract_features_cached(test_data['title'].values, 'test')
+                            if use_cached_features else
+                            self.extract_features(test_data['title'].values))
+
+            # 6) Compute class weights for imbalanced binary classes
             from sklearn.utils.class_weight import compute_class_weight
-            import numpy as np
-            
-            # Convert to binary targets
-            train_y_binary = (train_data['ctr'].values > 0).astype(int)
-            
-            # Compute class weights - higher weight for minority class
-            class_weight = {}
-            class_weights = compute_class_weight('balanced', classes=np.unique(train_y_binary), y=train_y_binary)
-            for i, weight in enumerate(class_weights):
-                class_weight[i] = weight
-            
-            logging.info(f"Using class weights: {class_weight} to handle imbalanced data")
-        
-            # Train model
+            y_train_binary = (train_data['ctr'] > 0).astype(int)
+            weights = compute_class_weight('balanced',
+                                        classes=np.unique(y_train_binary),
+                                        y=y_train_binary)
+            class_weight = {cls: w for cls, w in zip(np.unique(y_train_binary), weights)}
+            logging.info(f"Using class weights: {class_weight}")
+
+            # 7) Train the classifier
             result = self.train_model(
-                train_features, train_data['ctr'].values,
-                val_features, val_data['ctr'].values,
+                train_feats,
+                train_data['ctr'].values,
+                val_feats,
+                val_data['ctr'].values,
                 output_file='headline_classifier_model.pkl',
-                mode='classification',
                 class_weight=class_weight
             )
-            
             if result is None:
-                logging.error("Model training failed. Aborting pipeline.")
+                logging.error("Model training failed.")
                 return None
-                
-            # If test data is available, generate predictions
-            if test_data is not None and test_features is not None and 'selected_features' in result:
-                logging.info("Generating predictions for test set...")
-                
-                # Ensure we're using the selected features only
-                test_features_selected = test_features[result['selected_features']]
-                
-                if self.use_log_transform:
-                    test_pred_transformed = result['model'].predict(test_features_selected)
-                    test_predictions = np.expm1(test_pred_transformed)
-                else:
-                    test_predictions = result['model'].predict(test_features_selected)
-                
-                # Save test predictions
-                test_results = test_data[['newsID', 'title']].copy()
-                test_results['predicted_ctr'] = test_predictions
-                test_results.to_csv(os.path.join(self.output_dir, 'test_predictions.csv'), index=False)
-                logging.info(f"Test predictions saved to {os.path.join(self.output_dir, 'test_predictions.csv')}")
-            
+
+            # 8) Test‐set predictions (click probabilities)
+            if test_data is not None and test_feats is not None and 'selected_features' in result:
+                logging.info("Generating test‐set click probabilities...")
+                feats_sel = test_feats[result['selected_features']]
+                probs = result['model'].predict_proba(feats_sel)[:, 1]
+
+                test_out = test_data[['newsID', 'title']].copy()
+                test_out['click_probability'] = probs
+                out_path = os.path.join(self.output_dir, 'test_predictions.csv')
+                test_out.to_csv(out_path, index=False)
+                logging.info(f"Test predictions saved to {out_path}")
+
+            # 9) Reports and ranking evaluation
             self.create_model_report(result, train_data, val_data, test_data)
-            
-            ranking_eval = self.evaluate_model_ranking(result, val_data)
-            
-            # Add the ranking evaluation results to the result dictionary
-            if ranking_eval is not None:
-                result['ranking_evaluation'] = ranking_eval
-        
+            ranking = self.evaluate_model_ranking(result, val_data)
+            if ranking:
+                result['ranking_evaluation'] = ranking
+
             return result
-        except Exception as e:
-            logging.error(f"Error in training pipeline: {e}")
-            import traceback
-            logging.error(traceback.format_exc())
-            return None
-                
-            return result
+
         except Exception as e:
             logging.error(f"Error in training pipeline: {e}")
             import traceback
@@ -979,191 +626,125 @@ class HeadlineModelTrainer:
             return None
 
     def create_model_report(self, result, train_data, val_data, test_data=None):
-        """Create a markdown report about the model performance"""
+        """
+        Create a markdown report about the binary classification model performance.
+        """
         if result is None:
             return
-            
-        # Access nested metrics correctly
+
+        # Pull out metrics
         train_metrics = result['train_metrics']
-        val_metrics = result['val_metrics']
-        
-        # Check model type
-        is_classifier = result.get('model_type', 'regression') == 'classification'
-        
-        if is_classifier:
-            report = f"""# Headline Click Prediction Model Report
+        val_metrics   = result.get('val_metrics', {})
+
+        # Header and configuration
+        report = f"""# Headline Click Prediction Model Report
     Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
 
     ## Model Configuration
     - Model Type: XGBClassifier (Binary Classification)
-    - Task: Predict if a headline will be clicked
+    - Task: Predict whether a headline will be clicked
     - Training Time: {result['training_time']:.2f} seconds
 
     ## Model Performance
-    - Training Accuracy: {train_metrics['accuracy']:.4f}
+    - Training Accuracy : {train_metrics['accuracy']:.4f}
     - Training Precision: {train_metrics['precision']:.4f}
-    - Training Recall: {train_metrics['recall']:.4f}
-    - Training F1 Score: {train_metrics['f1']:.4f}
-    - Training AUC: {train_metrics['auc']:.4f}
+    - Training Recall   : {train_metrics['recall']:.4f}
+    - Training F1 Score : {train_metrics['f1']:.4f}
+    - Training AUC      : {train_metrics['auc']:.4f}
     """
 
-            if val_metrics:
-                report += f"""
-    - Validation Accuracy: {val_metrics['accuracy']:.4f}
+        if val_metrics:
+            report += f"""
+    - Validation Accuracy : {val_metrics['accuracy']:.4f}
     - Validation Precision: {val_metrics['precision']:.4f}
-    - Validation Recall: {val_metrics['recall']:.4f}
-    - Validation F1 Score: {val_metrics['f1']:.4f}
-    - Validation AUC: {val_metrics['auc']:.4f}
-    """
-        else:
-            # Original regression report
-            report = f"""# Headline CTR Prediction Model Report
-    Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
-
-    ## Model Configuration
-    - Model Type: XGBRegressor
-    - Log Transform CTR: {self.use_log_transform}
-    - Training Time: {result['training_time']:.2f} seconds
-
-    ## Model Performance
-    - Training MSE: {train_metrics['mse']:.6f}
-    - Training RMSE: {train_metrics['rmse']:.6f}
-    - Training MAE: {train_metrics['mae']:.6f}
-    - Training R-squared: {train_metrics['r2']:.4f}
+    - Validation Recall   : {val_metrics['recall']:.4f}
+    - Validation F1 Score : {val_metrics['f1']:.4f}
+    - Validation AUC      : {val_metrics['auc']:.4f}
     """
 
-            if val_metrics:
-                report += f"""
-    - Validation MSE: {val_metrics['mse']:.6f}
-    - Validation RMSE: {val_metrics['rmse']:.6f}
-    - Validation MAE: {val_metrics['mae']:.6f}
-    - Validation R-squared: {val_metrics['r2']:.4f}
-    """
-
+        # Dataset summary
         report += f"""
     ## Dataset Summary
-    - Training headlines: {len(train_data)}
+    - Training headlines  : {len(train_data)}
     - Validation headlines: {len(val_data)}
-    - Test headlines: {len(test_data) if test_data is not None else 'N/A'}
-    """
+    - Test headlines      : {len(test_data) if test_data is not None else 'N/A'}
+    - Training click rate : {(train_data['ctr'] > 0).mean():.4f}
+    - Validation click rate: {(val_data['ctr'] > 0).mean():.4f}
 
-        if not is_classifier:
-            report += f"""
-    - Training CTR range: {train_data['ctr'].min():.4f} to {train_data['ctr'].max():.4f}
-    - Training Mean CTR: {train_data['ctr'].mean():.4f}
-    - Validation Mean CTR: {val_data['ctr'].mean():.4f}
-    """
-        else:
-            report += f"""
-    - Training Click Rate: {(train_data['ctr'] > 0).mean():.4f}
-    - Validation Click Rate: {(val_data['ctr'] > 0).mean():.4f}
-    """
-
-        report += """
     ## Key Feature Importances
     """
-        
-        for i, row in result['feature_importances'].head(15).iterrows():
-            report += f"- {row['feature']}: {row['importance']:.4f}\n"
-        
+        for feat, imp in result['feature_importances'].head(15).itertuples(index=False):
+            report += f"- {feat}: {imp:.4f}\n"
+
         report += """
     ## Usage Guidelines
-    """
+    This model predicts the probability that a headline will be clicked.
+    It returns a score between 0 and 1 indicating click likelihood,
+    and can be integrated into automated headline optimization workflows.
 
-        if is_classifier:
-            report += """
-    This model can be used to predict whether headlines will be clicked.
-    It outputs a probability score (0-1) representing the likelihood of a click.
-    It can be integrated into a headline optimization workflow for automated
-    headline suggestions or ranking.
-    """
-        else:
-            report += """
-    This model can be used to predict the expected CTR of news headlines.
-    It can be integrated into a headline optimization workflow for automated
-    headline suggestions or ranking.
-    """
-
-        report += """
     ## Features Used
-    The model uses both basic text features and semantic embeddings:
-    - Basic features: length, word count, question marks, numbers, etc.
+    - Basic text features: length, word count, punctuation, etc.
     - Semantic features: BERT embeddings to capture meaning
 
     ## Visualizations
-    The following visualizations have been generated:
-    - feature_importance.png: Importance of different features
+    - feature_importance.png: Top feature importances
+    - validation_classifier_performance.png: ROC and precision–recall curves
     """
 
-        if is_classifier:
-            report += """
-    - validation_classifier_performance.png: ROC and PR curves for classification performance
-    """
-        else:
-            report += """
-    - ctr_distribution.png: Distribution of CTR values
-    - validation_predictions.png: True vs predicted CTR values
-    """
-        
-        with open(os.path.join(self.output_dir, 'headline_model_report.md'), 'w') as f:
+        # Write the markdown file
+        report_path = os.path.join(self.output_dir, 'headline_model_report.md')
+        with open(report_path, 'w') as f:
             f.write(report)
-        
-        logging.info(f"Model report saved to {os.path.join(self.output_dir, 'headline_model_report.md')}")
-        
-        print(f"Clicks percentage in training: {(train_data['ctr'] > 0).mean() * 100:.2f}%")
+        logging.info(f"Model report saved to {report_path}")
+
+        # Print click‐rate summaries to console
+        print(f"Clicks percentage in training  : {(train_data['ctr'] > 0).mean() * 100:.2f}%")
         print(f"Clicks percentage in validation: {(val_data['ctr'] > 0).mean() * 100:.2f}%")
 
-    def predict_ctr(self, headlines, model_data=None, model_file='headline_ctr_model.pkl'):
+
+    def predict_click_proba(
+        self,
+        headlines: list[str],
+        model_data: dict | None = None,
+        model_file: str = 'headline_classifier_model.pkl'
+    ) -> np.ndarray:
         """
-        Predict CTR for headlines
-        
+        Predict click probability for each headline.
+
         Args:
-            headlines: List of headlines
-            model_data: Model data dictionary
-            model_file: File to load model from if model_data not provided
-            
+            headlines (list of str): Headlines to score.
+            model_data (dict, optional): Loaded model dict containing
+                'model' and 'feature_names'. If None, it will be loaded
+                from self.output_dir/model_file.
+            model_file (str): Filename (in self.output_dir) of the
+                classifier pickle to load if model_data is None.
+
         Returns:
-            array: Predicted CTR values or click probabilities
+            np.ndarray: Array of click probabilities in [0,1].
         """
+        # 1) Load model_data from disk if not provided
         if model_data is None:
-            # Load the model
+            model_path = os.path.join(self.output_dir, model_file)
             try:
-                model_path = os.path.join(self.output_dir, model_file)
                 with open(model_path, 'rb') as f:
                     model_data = pickle.load(f)
             except Exception as e:
-                logging.error(f"Error loading model: {e}")
-                return None
-        
-        # Extract features
+                logging.error(f"Error loading classifier model: {e}")
+                raise
+
+        # 2) Extract features for the input headlines
         features = self.extract_features(headlines)
-        
-        # Get selected features
+
+        # 3) Align to the training feature set
         feature_names = model_data['feature_names']
-        
-        # Add missing features with zeros
-        for f in feature_names:
-            if f not in features.columns:
-                features[f] = 0.0
-        
-        # Get filtered features
-        features_filtered = features[feature_names]
-        
-        # Check model type
-        is_classifier = model_data.get('model_type', 'regression') == 'classification'
-        
-        # Make predictions
-        if is_classifier:
-            # For classifier, return probability of click
-            predictions = model_data['model'].predict_proba(features_filtered)[:, 1]
-        else:
-            # For regressor
-            predictions = model_data['model'].predict(features_filtered)
-            # Apply inverse transform if needed
-            if model_data.get('use_log_transform', False):
-                predictions = np.expm1(predictions)
-                
-        return predictions
+        for feat in feature_names:
+            if feat not in features.columns:
+                features[feat] = 0.0
+        features = features[feature_names]
+
+        # 4) Return the probability of the positive (clicked) class
+        return model_data['model'].predict_proba(features)[:, 1]
+
 
     def headline_analysis(self, headline, model_data=None, model_file='headline_ctr_model.pkl'):
         """
@@ -1198,26 +779,11 @@ class HeadlineModelTrainer:
             if f not in features.columns:
                 features[f] = 0.0
         
-        # Get filtered features
         features_filtered = features[feature_names]
         
-        # Check model type
-        is_classifier = model_data.get('model_type', 'regression') == 'classification'
+        prediction = model_data['model'].predict_proba(features_filtered)[0, 1]
+        prediction_label = "Click probability"
         
-        # Make prediction
-        if is_classifier:
-            # For classifier, get probability
-            prediction = model_data['model'].predict_proba(features_filtered)[0, 1]
-            prediction_label = "Click probability"
-        else:
-            # For regressor, get CTR
-            prediction = model_data['model'].predict(features_filtered)[0]
-            # Apply inverse transform if needed
-            if model_data.get('use_log_transform', False):
-                prediction = np.expm1(prediction)
-            prediction_label = "Predicted CTR"
-        
-        # Get feature importances
         importances = model_data['model'].feature_importances_
         
         # Calculate feature contributions
@@ -1252,19 +818,16 @@ class HeadlineModelTrainer:
         analysis = {
             'headline': headline,
             'prediction': prediction,
-            'prediction_type': 'click_probability' if is_classifier else 'ctr',
+            'prediction_type': 'click_probability',
             'headline_stats': headline_stats,
             'top_contributions': contributions[:10],
             'negative_contributions': [c for c in contributions if c['raw_contribution'] < 0][:5],
             'positive_contributions': [c for c in contributions if c['raw_contribution'] > 0][:5]
         }
         
-        # Print analysis
         print(f"\nHeadline: '{headline}'")
         print(f"{prediction_label}: {prediction:.6f}")
-        
-        if is_classifier:
-            print(f"Interpretation: {'Likely to be clicked' if prediction > 0.5 else 'Unlikely to be clicked'}")
+        print(f"Interpretation: {'Likely to be clicked' if prediction > 0.5 else 'Unlikely to be clicked'}")
         
         print("\nPositive contributing factors:")
         for c in analysis['positive_contributions']:
@@ -1312,7 +875,7 @@ class HeadlineModelTrainer:
         Args:
             headline: Original headline
             n_variations: Number of variations to generate
-            model_data: Model data dictionary (optional)
+            model_data: Model data dictionary
             model_file: File to load model from if model_data not provided
             
         Returns:
@@ -1373,7 +936,6 @@ class HeadlineModelTrainer:
         
         # Sort by predicted CTR
         results = results.sort_values('predicted_ctr', ascending=False).reset_index(drop=True)
-        
         return results
     
 def main():
@@ -1384,10 +946,6 @@ def main():
     parser = argparse.ArgumentParser(description='Train headline CTR prediction model')
     parser.add_argument('--data_dir', type=str, default='agentic_news_editor/processed_data', 
                     help='Directory containing processed data files')
-    parser.add_argument('--log_transform', action='store_true',
-                    help='Apply log transform to CTR values (for regression mode)')
-    parser.add_argument('--mode', type=str, choices=['classification', 'regression'], default='classification',
-                    help='Training mode: classification or regression')
     parser.add_argument('--predict', type=str,
                     help='Enter a headline to predict CTR or click probability')
     parser.add_argument('--analyze', type=str,
@@ -1401,28 +959,14 @@ def main():
     parser.add_argument('--use_cached_features', action='store_true',
                        help='Use cached features if available')
     args = parser.parse_args()
-    
-    # Set default model file based on mode
-    if args.model_file is None:
-        if args.mode == 'classification':
-            args.model_file = 'headline_classifier_model.pkl'
-        else:
-            args.model_file = 'headline_ctr_model.pkl'
-            
-    # Otherwise, run the training pipeline
-    else:
-        # Select the appropriate mode
-        mode = args.mode
-        output_file = 'headline_classifier_model.pkl' if mode == 'classification' else 'headline_ctr_model.pkl'
-        
-        print(f"Running training pipeline in {mode.upper()} mode...")
-        result = trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
-    
+             
     # Create trainer
     trainer = HeadlineModelTrainer(
         processed_data_dir=args.data_dir,
-        use_log_transform=args.log_transform
     )
+    
+    print(f"Running training pipeline in classification mode...")
+    result = trainer.run_training_pipeline(use_cached_features=args.use_cached_features)
     
     # Check if we're predicting a headline
     if args.predict:
@@ -1443,19 +987,10 @@ def main():
             with open(model_path, 'rb') as f:
                 model_data = pickle.load(f)
                 
-            # Get prediction
             prediction = trainer.predict_ctr([args.predict], model_data)[0]
-            
-            # Check model type
-            is_classifier = model_data.get('model_type', 'regression') == 'classification'
-            
             print(f"\nHeadline: '{args.predict}'")
-            if is_classifier:
-                print(f"Click probability: {prediction:.4f} ({prediction*100:.1f}%)")
-                print(f"Interpretation: {'Likely to be clicked' if prediction > 0.5 else 'Unlikely to be clicked'}")
-            else:
-                print(f"Predicted CTR: {prediction:.6f}")
-            
+            print(f"Click probability: {prediction:.4f} ({prediction*100:.1f}%)")
+            print(f"Interpretation: {'Likely to be clicked' if prediction > 0.5 else 'Unlikely to be clicked'}")   
         except Exception as e:
             logging.error(f"Error predicting headline CTR: {e}")
             import traceback
@@ -1516,25 +1051,20 @@ def main():
             
             # Display results
             original = results[results['is_original']]
-            original_ctr = original['predicted_ctr'].iloc[0]
-            
-            # Check model type
-            is_classifier = model_data.get('model_type', 'regression') == 'classification'
-            prediction_label = "Click probability" if is_classifier else "Predicted CTR"
-            
+            original_ctr = original['predicted_ctr'].iloc[0]            
             print(f"\nOriginal headline: '{args.optimize}'")
-            print(f"{prediction_label}: {original_ctr:.6f}")
+            print(f"{original_ctr:.6f}")
             
-            if is_classifier and original_ctr > 0.5:
+            if original_ctr > 0.5:
                 print("Interpretation: Likely to be clicked")
-            elif is_classifier:
+            else:
                 print("Interpretation: Unlikely to be clicked")
             
             print("\nOptimized headlines:")
             for i, row in results[~results['is_original']].head(5).iterrows():
                 improvement = (row['predicted_ctr'] / original_ctr - 1) * 100
                 print(f"{i+1}. '{row['headline']}'")
-                print(f"   {prediction_label}: {row['predicted_ctr']:.6f} ({improvement:.1f}% improvement)")
+                print(f"   {row['predicted_ctr']:.6f} ({improvement:.1f}% improvement)")
                 
         except Exception as e:
             logging.error(f"Error optimizing headline: {e}")
@@ -1543,41 +1073,32 @@ def main():
             
     # Otherwise, run the training pipeline
     else:
-        # Select the appropriate mode
-        mode = args.mode
-        output_file = 'headline_classifier_model.pkl' if mode == 'classification' else 'headline_ctr_model.pkl'
-        
-        print(f"Running training pipeline in {mode.upper()} mode...")
+        trainer = HeadlineModelTrainer()
+        trainer.run_training_pipeline(output_file='headline_classifier_model.pkl')
         result = trainer.run_training_pipeline()
         
         if result is not None:
             print(f"Model training complete.")
             
-            # Print appropriate metrics based on model type
-            if result.get('model_type', 'regression') == 'classification':
-                print(f"Training metrics:")
-                print(f"  Accuracy: {result['train_metrics']['accuracy']:.4f}")
+            if result:
+                print("Training metrics:")
+                print(f"  Accuracy : {result['train_metrics']['accuracy']:.4f}")
                 print(f"  Precision: {result['train_metrics']['precision']:.4f}")
-                print(f"  Recall: {result['train_metrics']['recall']:.4f}")
-                print(f"  F1 Score: {result['train_metrics']['f1']:.4f}")
-                print(f"  AUC: {result['train_metrics']['auc']:.4f}")
+                print(f"  Recall   : {result['train_metrics']['recall']:.4f}")
+                print(f"  F1 Score : {result['train_metrics']['f1']:.4f}")
+                print(f"  AUC      : {result['train_metrics']['auc']:.4f}")
                 
-                if 'val_metrics' in result and result['val_metrics']:
-                    print(f"Validation metrics:")
-                    print(f"  Accuracy: {result['val_metrics']['accuracy']:.4f}")
+                if result.get('val_metrics'):
+                    print("Validation metrics:")
+                    print(f"  Accuracy : {result['val_metrics']['accuracy']:.4f}")
                     print(f"  Precision: {result['val_metrics']['precision']:.4f}")
-                    print(f"  Recall: {result['val_metrics']['recall']:.4f}")
-                    print(f"  F1 Score: {result['val_metrics']['f1']:.4f}")
-                    print(f"  AUC: {result['val_metrics']['auc']:.4f}")
+                    print(f"  Recall   : {result['val_metrics']['recall']:.4f}")
+                    print(f"  F1 Score : {result['val_metrics']['f1']:.4f}")
+                    print(f"  AUC      : {result['val_metrics']['auc']:.4f}")
+                
+                print(f"Results saved to {trainer.output_dir}")
             else:
-                print(f"Training R-squared: {result['train_metrics']['r2']:.4f}")
-                if 'val_metrics' in result and result['val_metrics']:
-                    print(f"Validation R-squared: {result['val_metrics']['r2']:.4f}")
-            
-            print(f"Results saved to {trainer.output_dir}")
-        else:
-            print("Model training failed.")
-
+                print("Model training failed.")
 
 if __name__ == "__main__":
     main()
