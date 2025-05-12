@@ -275,7 +275,8 @@ class HeadlineModelTrainer:
         headlines     = val_data['title'].values
         actual_clicks = (val_data['ctr'].values > 0).astype(int)
 
-        features = self.extract_features_cached(headlines)
+        # Extract features for validation data
+        features = self.extract_features(headlines)
         feats_sel = features[model_data['feature_names']]
 
         # 2) Get predicted click probabilities
