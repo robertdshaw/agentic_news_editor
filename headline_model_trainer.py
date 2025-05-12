@@ -263,7 +263,6 @@ class HeadlineModelTrainer:
         
         return selected_features
     
-    # Add this method to your HeadlineModelTrainer class
     def evaluate_model_ranking(self, model_data, val_data):
         """
         Evaluate model's ability to rank headlines by their likelihood of getting clicks
@@ -957,13 +956,11 @@ class HeadlineModelTrainer:
                 test_results.to_csv(os.path.join(self.output_dir, 'test_predictions.csv'), index=False)
                 logging.info(f"Test predictions saved to {os.path.join(self.output_dir, 'test_predictions.csv')}")
             
-            # Create a report
             self.create_model_report(result, train_data, val_data, test_data)
             
-                    # Add this line to evaluate ranking performance
             ranking_eval = self.evaluate_model_ranking(result, val_data)
             
-            # You might want to add the ranking evaluation results to the result dictionary
+            # Add the ranking evaluation results to the result dictionary
             if ranking_eval is not None:
                 result['ranking_evaluation'] = ranking_eval
         
