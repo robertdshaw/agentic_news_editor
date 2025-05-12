@@ -24,6 +24,7 @@ import time
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, 
                             roc_auc_score, confusion_matrix)
+from sklearn.feature_selection import VarianceThreshold
 
 
 # Configure logging
@@ -155,6 +156,69 @@ class HeadlineModelTrainer:
             return result
         finally:
             logging.info("Finished run_training_pipeline.")
+            
+    def remove_constant_features(self, X):
+        """
+        Detect and remove features with near-zero variance.
+        
+        Args:
+            X (DataFrame): Feature matrix
+            
+        Returns:
+            tuple: (filtered DataFrame, list of kept features, list of removed features)
+        """
+        # Find features with zero variance
+        selector = VarianceThreshold(threshold=0.001)
+        X_filtered = selector.fit(X)
+        
+        # Get names of retained features
+        kept_features = X.columns[selector.get_support()].tolist()
+        removed_features = X.columns[~selector.get_support()].tolist()
+        
+        logging.info(f"Removed {len(removed_features)} constant/near-constant features")
+        logging.info(f"Retained {len(kept_features)} features")
+        
+        # Return the filtered DataFrame with kept columns (more efficient than fit_transform)
+        return X[kept_features], kept_features, removed_features
+
+    def engineer_additional_features(self, df):
+        """
+        Add advanced engineered features to the dataframe.
+        
+        Args:
+            df (DataFrame): Feature dataframe
+            
+        Returns:
+            DataFrame: Enhanced feature dataframe
+        """
+        # Create a copy to avoid modifying the original
+        df_enhanced = df.copy()
+        
+        # Time-based features (if applicable)
+        if 'timestamp' in df_enhanced.columns:
+            # Convert to datetime if string
+            if df_enhanced['timestamp'].dtype == 'object':
+                df_enhanced['timestamp'] = pd.to_datetime(df_enhanced['timestamp'])
+            
+            df_enhanced['hour_of_day'] = df_enhanced['timestamp'].dt.hour
+            df_enhanced['day_of_week'] = df_enhanced['timestamp'].dt.dayofweek
+            df_enhanced['is_weekend'] = df_enhanced['day_of_week'].isin([5, 6]).astype(int)
+        
+        # Create additional headline-specific interaction features
+        if 'length' in df_enhanced.columns and 'is_question' in df_enhanced.columns:
+            df_enhanced['length_question_interaction'] = df_enhanced['length'] * df_enhanced['is_question']
+        
+        if 'capital_ratio' in df_enhanced.columns and 'has_urgency' in df_enhanced.columns:
+            df_enhanced['capital_urgency_interaction'] = df_enhanced['capital_ratio'] * df_enhanced['has_urgency']
+        
+        # Normalization of numeric features
+        numeric_cols = df_enhanced.select_dtypes(include=['float64', 'int64']).columns
+        for col in numeric_cols:
+            # Skip columns that are already log-transformed or binary
+            if not col.endswith('_log') and not (df_enhanced[col].nunique() <= 2):
+                df_enhanced[f'{col}_log'] = np.log1p(df_enhanced[col].clip(lower=0))
+        
+        return df_enhanced
         
     def extract_features_cached(self, headlines, cache_name):
         """
