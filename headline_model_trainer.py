@@ -44,7 +44,7 @@ class HeadlineModelTrainer:
         
         # Create output directory for results
         self.output_dir = 'model_output'
-        os.makedirs(self.output_dir)
+        os.makedirs(self.output_dir, exist_ok=True)
             
         # Create mapping for common first/last words in headlines
         self.word_to_index = {}
