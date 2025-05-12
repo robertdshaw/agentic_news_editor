@@ -345,6 +345,8 @@ class HeadlineModelTrainer:
         """
         logging.info("Training headline click-probability classification model")
 
+        model_data = {}
+        
         # 1) Binary targets
         y_train = (train_ctr > 0).astype(int)
         y_val = (val_ctr > 0).astype(int) if val_ctr is not None else None
@@ -423,7 +425,6 @@ class HeadlineModelTrainer:
             'importance': model.feature_importances_
         }).sort_values('importance', ascending=False)
         logging.info(f"Top features: {fi.head(10).to_dict('records')}")
-        model_data['feature_importances'] = fi
 
         # 7) Save model + metadata
         model_data = {
@@ -432,7 +433,8 @@ class HeadlineModelTrainer:
             'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
             'train_metrics': train_metrics,
             'val_metrics': val_metrics,
-            'training_time': elapsed
+            'training_time': elapsed,
+            'feature_importances': fi
         }
         with open(os.path.join(self.output_dir, output_file), 'wb') as f:
             pickle.dump(model_data, f)
