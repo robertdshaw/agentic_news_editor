@@ -1,0 +1,10 @@
+has_number_at_start
+has_controversy
+emb_0
+emb_1
+emb_2
+emb_5
+emb_7
+emb_8
+emb_10
+emb_17

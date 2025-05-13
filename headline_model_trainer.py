@@ -1,14 +1,3 @@
-# Accuracy is high (86.54% on training, 96.25% on validation): This suggests that the model is correctly predicting the majority class.
-# AUC is moderate (0.6623 on training, 0.5993 on validation): The AUC score indicates that the model has some ability to distinguish between classes, but it's not strong.
-# Zero Precision/Recall/F1: This typically happens when the model is not predicting any positive instances (i.e., it's predicting all samples as the negative class).
-
-# Imbalanced Dataset Problem
-# This pattern strongly suggests you have a highly imbalanced dataset. In headline click prediction:
-
-# Most headlines probably have CTR = 0 (no clicks) → the majority class
-# Few headlines have CTR > 0 (got clicks) → the minority class
-
-# The model is taking the "easy way out" by predicting everything as the majority class (no clicks), which gives it a high accuracy but makes it useless for identifying which headlines will get clicks.
 
 import os
 import pandas as pd
@@ -25,6 +14,8 @@ from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, 
                             roc_auc_score, confusion_matrix)
 from sklearn.feature_selection import VarianceThreshold
+from sklearn.model_selection import StratifiedKFold, RandomizedSearchCV
+from sklearn.metrics import make_scorer, roc_auc_score
 
 
 # Configure logging
@@ -67,7 +58,7 @@ class HeadlineModelTrainer:
             raise ValueError(f"Could not load embedding model: {e}")
     
     def run_training_pipeline(self, use_cached_features: bool = True,
-                              do_resample: bool = False, feature_sel_thresh=0.4):
+                              do_resample: bool = False, feature_selection_threshold=0.4):
         """Run the complete classification pipeline with train/val/test splits."""
         try:
             # 1) Load splits
@@ -121,21 +112,36 @@ class HeadlineModelTrainer:
                                         y=y_train_binary)
             class_weight = {cls: w for cls, w in zip(np.unique(y_train_binary), weights)}
             logging.info(f"Using class weights: {class_weight}")
-
-            # 7) Train the classifier
-            result = self.train_model(
-                train_feats,
-                train_data['ctr'].values,
-                val_feats,
-                val_data['ctr'].values,
-                output_file='headline_classifier_model.pkl',
-                class_weight=class_weight,
-                do_resample=do_resample
+            
+           
+           # 7a) Perform feature selection *once* and then tune on those features
+            y_train_bin = (train_data['ctr'] > 0).astype(int)
+            selected_features = self.manual_feature_selection(
+            train_feats, 
+            y_train_bin, 
+            threshold=self.feature_selection_threshold
             )
-            if result is None:
-                logging.error("Model training failed.")
-                return None
+            X_sel = train_feats[selected_features]
+            logging.info(f"Tuning hyperparameters on {len(selected_features)} features")
+    
+            best_model = self.tune_hyperparameters(
+                X_sel,
+                train_data['ctr'].values,
+                class_weight,
+                n_iter=30,
+                cv_splits=5
+            )
+            # overwrite model_data to use the tuned model for the rest of the pipeline
+            model_data = {
+                'model': best_model,
+                'feature_names': selected_features,
+                'training_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'class_weight': class_weight
+            }
 
+            # 7b) (skip default train_model since we already have best_model)
+            result = model_data
+                        
             # 8) Test‐set predictions (click probabilities)
             if test_data is not None and test_feats is not None and 'selected_features' in result:
                 logging.info("Generating test‐set click probabilities...")
@@ -1028,7 +1034,54 @@ class HeadlineModelTrainer:
         # Sort by predicted CTR
         results = results.sort_values('predicted_ctr', ascending=False).reset_index(drop=True)
         return results
-    
+    def tune_hyperparameters(self,
+                             train_features: pd.DataFrame,
+                             train_ctr: np.ndarray,
+                             class_weight: dict,
+                             n_iter: int = 50,
+                             cv_splits: int = 5):
+        """
+        Run a randomized search to maximize validation AUC.
+        Returns the best estimator.
+        """
+        # 1) Prepare binary target
+        y = (train_ctr > 0).astype(int)
+        X = train_features.copy()
+
+        # 2) Define StratifiedKFold
+        skf = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=42)
+
+        # 3) Search space
+        weight_ratio = class_weight.get(0,1) / class_weight.get(1,1)
+        param_dist = {
+            'n_estimators': [100, 200, 300, 500],
+            'max_depth': [2, 3, 4, 5, 6],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'min_child_weight': [1, 3, 5, 7],
+            'subsample': [0.6, 0.8, 1.0],
+            'colsample_bytree': [0.6, 0.8, 1.0],
+            'reg_alpha': [0.0, 0.5, 1, 1.5],
+            'reg_lambda': [0.5, 1.0, 1.5, 2.0],
+            'scale_pos_weight': [weight_ratio]
+        }
+
+        # 4) Set up and run
+        xgb = XGBClassifier(objective='binary:logistic', random_state=42, n_jobs=-1)
+        search = RandomizedSearchCV(
+            estimator=xgb,
+            param_distributions=param_dist,
+            n_iter=n_iter,
+            scoring=make_scorer(roc_auc_score, needs_proba=True),
+            cv=skf,
+            verbose=2,
+            random_state=42
+        )
+        logging.info("Starting hyperparameter search for AUC...")
+        search.fit(X, y)
+        logging.info(f"Best CV AUC: {search.best_score_:.4f}")
+        logging.info(f"Best params: {search.best_params_}")
+        return search.best_estimator_
+   
 def main():
     """Main function to run the headline model training pipeline"""
     import argparse
