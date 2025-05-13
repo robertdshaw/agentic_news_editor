@@ -1,0 +1,313 @@
+2025-05-13 18:00:52,517 - INFO - Starting MIND dataset preprocessing...
+2025-05-13 18:00:52,518 - INFO - Starting MIND dataset preprocessing
+2025-05-13 18:00:52,528 - INFO - Current memory usage: 149.61 MB
+2025-05-13 18:00:52,528 - INFO - 
+=== Starting train split ===
+2025-05-13 18:00:52,529 - INFO - 
+========================================
+PROCESSING TRAIN
+========================================
+2025-05-13 18:00:52,529 - INFO - Current memory usage: 149.61 MB
+2025-05-13 18:00:52,529 - INFO - Validated data files for train
+2025-05-13 18:00:52,529 - INFO - Loading news data...
+2025-05-13 18:00:53,615 - INFO - Validated News DataFrame with 101527 rows
+2025-05-13 18:00:53,616 - INFO - Loaded 101527 news rows
+2025-05-13 18:00:53,616 - INFO - Current memory usage: 260.65 MB
+2025-05-13 18:00:53,638 - INFO - Sampled news to 10153 rows (rate: 0.1)
+2025-05-13 18:00:53,640 - INFO - Loading behaviors data (with 0.05 sampling)...
+2025-05-13 18:00:54,344 - INFO - Loaded 10 behavior chunks, 5000 rows after sampling...
+2025-05-13 18:00:54,419 - INFO - Memory cleanup performed
+2025-05-13 18:00:55,149 - INFO - Loaded 20 behavior chunks, 10000 rows after sampling...
+2025-05-13 18:00:55,214 - INFO - Memory cleanup performed
+2025-05-13 18:00:55,946 - INFO - Loaded 30 behavior chunks, 15000 rows after sampling...
+2025-05-13 18:00:56,011 - INFO - Memory cleanup performed
+2025-05-13 18:00:56,815 - INFO - Loaded 40 behavior chunks, 20000 rows after sampling...
+2025-05-13 18:00:56,880 - INFO - Memory cleanup performed
+2025-05-13 18:00:57,608 - INFO - Loaded 50 behavior chunks, 25000 rows after sampling...
+2025-05-13 18:00:57,673 - INFO - Memory cleanup performed
+2025-05-13 18:00:58,419 - INFO - Loaded 60 behavior chunks, 30000 rows after sampling...
+2025-05-13 18:00:58,490 - INFO - Memory cleanup performed
+2025-05-13 18:00:59,294 - INFO - Loaded 70 behavior chunks, 35000 rows after sampling...
+2025-05-13 18:00:59,361 - INFO - Memory cleanup performed
+2025-05-13 18:01:00,058 - INFO - Loaded 80 behavior chunks, 40000 rows after sampling...
+2025-05-13 18:01:00,124 - INFO - Memory cleanup performed
+2025-05-13 18:01:00,807 - INFO - Loaded 90 behavior chunks, 45000 rows after sampling...
+2025-05-13 18:01:00,875 - INFO - Memory cleanup performed
+2025-05-13 18:01:01,558 - INFO - Loaded 100 behavior chunks, 50000 rows after sampling...
+2025-05-13 18:01:01,627 - INFO - Memory cleanup performed
+2025-05-13 18:01:02,343 - INFO - Loaded 110 behavior chunks, 55000 rows after sampling...
+2025-05-13 18:01:02,414 - INFO - Memory cleanup performed
+2025-05-13 18:01:03,096 - INFO - Loaded 120 behavior chunks, 60000 rows after sampling...
+2025-05-13 18:01:03,159 - INFO - Memory cleanup performed
+2025-05-13 18:01:03,914 - INFO - Loaded 130 behavior chunks, 65000 rows after sampling...
+2025-05-13 18:01:03,981 - INFO - Memory cleanup performed
+2025-05-13 18:01:04,733 - INFO - Loaded 140 behavior chunks, 70000 rows after sampling...
+2025-05-13 18:01:04,803 - INFO - Memory cleanup performed
+2025-05-13 18:01:05,476 - INFO - Loaded 150 behavior chunks, 75000 rows after sampling...
+2025-05-13 18:01:05,543 - INFO - Memory cleanup performed
+2025-05-13 18:01:06,254 - INFO - Loaded 160 behavior chunks, 80000 rows after sampling...
+2025-05-13 18:01:06,321 - INFO - Memory cleanup performed
+2025-05-13 18:01:07,106 - INFO - Loaded 170 behavior chunks, 85000 rows after sampling...
+2025-05-13 18:01:07,176 - INFO - Memory cleanup performed
+2025-05-13 18:01:07,926 - INFO - Loaded 180 behavior chunks, 90000 rows after sampling...
+2025-05-13 18:01:07,992 - INFO - Memory cleanup performed
+2025-05-13 18:01:08,749 - INFO - Loaded 190 behavior chunks, 95000 rows after sampling...
+2025-05-13 18:01:08,818 - INFO - Memory cleanup performed
+2025-05-13 18:01:09,564 - INFO - Loaded 200 behavior chunks, 100000 rows after sampling...
+2025-05-13 18:01:09,631 - INFO - Memory cleanup performed
+2025-05-13 18:01:10,417 - INFO - Loaded 210 behavior chunks, 105000 rows after sampling...
+2025-05-13 18:01:10,485 - INFO - Memory cleanup performed
+2025-05-13 18:01:11,146 - INFO - Loaded 220 behavior chunks, 110000 rows after sampling...
+2025-05-13 18:01:11,212 - INFO - Memory cleanup performed
+2025-05-13 18:01:11,549 - INFO - Memory cleanup performed
+2025-05-13 18:01:11,549 - INFO - Validated Behaviors DataFrame with 111637 rows
+2025-05-13 18:01:11,550 - INFO - Final behavior count after sampling: 111637 rows (from ~2,232,740 original)
+2025-05-13 18:01:11,550 - INFO - Current memory usage: 295.56 MB
+2025-05-13 18:01:11,550 - INFO - Extracting timestamps (memory-optimized)...
+2025-05-13 18:01:11,957 - INFO - Memory cleanup performed
+2025-05-13 18:01:11,957 - INFO - Processed timestamps for 0/111637 behaviors
+2025-05-13 18:01:12,321 - INFO - Memory cleanup performed
+2025-05-13 18:01:12,706 - INFO - Memory cleanup performed
+2025-05-13 18:01:13,113 - INFO - Memory cleanup performed
+2025-05-13 18:01:13,532 - INFO - Memory cleanup performed
+2025-05-13 18:01:13,980 - INFO - Memory cleanup performed
+2025-05-13 18:01:14,444 - INFO - Memory cleanup performed
+2025-05-13 18:01:14,926 - INFO - Memory cleanup performed
+2025-05-13 18:01:15,446 - INFO - Memory cleanup performed
+2025-05-13 18:01:15,999 - INFO - Memory cleanup performed
+2025-05-13 18:01:16,565 - INFO - Memory cleanup performed
+2025-05-13 18:01:16,565 - INFO - Processed timestamps for 50000/111637 behaviors
+2025-05-13 18:01:17,133 - INFO - Memory cleanup performed
+2025-05-13 18:01:17,756 - INFO - Memory cleanup performed
+2025-05-13 18:01:18,383 - INFO - Memory cleanup performed
+2025-05-13 18:01:18,997 - INFO - Memory cleanup performed
+2025-05-13 18:01:19,640 - INFO - Memory cleanup performed
+2025-05-13 18:01:20,322 - INFO - Memory cleanup performed
+2025-05-13 18:01:21,001 - INFO - Memory cleanup performed
+2025-05-13 18:01:21,710 - INFO - Memory cleanup performed
+2025-05-13 18:01:22,467 - INFO - Memory cleanup performed
+2025-05-13 18:01:23,262 - INFO - Memory cleanup performed
+2025-05-13 18:01:23,263 - INFO - Processed timestamps for 100000/111637 behaviors
+2025-05-13 18:01:24,029 - INFO - Memory cleanup performed
+2025-05-13 18:01:24,715 - INFO - Memory cleanup performed
+2025-05-13 18:01:27,743 - INFO - Aggregated timestamps for 19544 articles
+2025-05-13 18:01:27,996 - INFO - Current memory usage: 1252.54 MB
+2025-05-13 18:01:27,996 - INFO - Processing impressions...
+2025-05-13 18:01:27,999 - INFO - Detected impression format: WITH click information
+2025-05-13 18:01:28,297 - INFO - Memory cleanup performed
+2025-05-13 18:01:28,298 - INFO - Processed 1/23 chunks, 7010 impressions so far
+2025-05-13 18:01:30,680 - INFO - Memory cleanup performed
+2025-05-13 18:01:30,681 - INFO - Processed 11/23 chunks, 75759 impressions so far
+2025-05-13 18:01:33,122 - INFO - Memory cleanup performed
+2025-05-13 18:01:33,122 - INFO - Processed 21/23 chunks, 144380 impressions so far
+2025-05-13 18:01:33,423 - INFO - Total impressions written: 153421
+2025-05-13 18:01:33,506 - INFO - Memory cleanup performed
+2025-05-13 18:01:33,506 - INFO - Current memory usage: 1220.61 MB
+2025-05-13 18:01:33,507 - INFO - Calculating CTR...
+2025-05-13 18:01:37,343 - INFO - Calculated CTR for 1407 articles
+2025-05-13 18:01:37,349 - INFO - Current memory usage: 1222.51 MB
+2025-05-13 18:01:37,349 - INFO - Merging data...
+2025-05-13 18:01:37,350 - INFO - Merging news with CTR...
+2025-05-13 18:01:37,455 - INFO - Memory cleanup performed
+2025-05-13 18:01:37,455 - INFO - Merging with timestamps...
+2025-05-13 18:01:37,627 - INFO - Memory cleanup performed
+2025-05-13 18:01:37,630 - INFO - Current memory usage: 299.94 MB
+2025-05-13 18:01:37,631 - INFO - Calculating reading ease scores...
+2025-05-13 18:01:37,823 - INFO - Memory cleanup performed
+2025-05-13 18:01:38,716 - INFO - Memory cleanup performed
+2025-05-13 18:01:38,716 - INFO - Calculated reading scores for 10153 articles
+2025-05-13 18:01:38,724 - INFO - Saving results...
+2025-05-13 18:01:38,917 - INFO - Saved train to agentic_news_editor/processed_data/train_headline_ctr.csv
+2025-05-13 18:01:38,918 - INFO - Successfully processed train dataset with 10153 articles
+2025-05-13 18:01:39,004 - INFO - Memory cleanup performed
+2025-05-13 18:01:39,005 - INFO - Current memory usage: 299.96 MB
+2025-05-13 18:01:39,102 - INFO - Memory cleanup performed
+2025-05-13 18:01:39,102 - INFO - === Completed train split ===
+2025-05-13 18:01:39,102 - INFO - Current memory usage: 246.11 MB
+2025-05-13 18:01:39,103 - INFO - 
+=== Starting val split ===
+2025-05-13 18:01:39,103 - INFO - 
+========================================
+PROCESSING VAL
+========================================
+2025-05-13 18:01:39,103 - INFO - Current memory usage: 246.11 MB
+2025-05-13 18:01:39,104 - INFO - Validated data files for val
+2025-05-13 18:01:39,104 - INFO - Loading news data...
+2025-05-13 18:01:39,818 - INFO - Validated News DataFrame with 72023 rows
+2025-05-13 18:01:39,818 - INFO - Loaded 72023 news rows
+2025-05-13 18:01:39,818 - INFO - Current memory usage: 261.67 MB
+2025-05-13 18:01:39,835 - INFO - Sampled news to 7202 rows (rate: 0.1)
+2025-05-13 18:01:39,837 - INFO - Loading behaviors data (with 0.05 sampling)...
+2025-05-13 18:01:40,572 - INFO - Loaded 10 behavior chunks, 5000 rows after sampling...
+2025-05-13 18:01:40,662 - INFO - Memory cleanup performed
+2025-05-13 18:01:41,429 - INFO - Loaded 20 behavior chunks, 10000 rows after sampling...
+2025-05-13 18:01:41,511 - INFO - Memory cleanup performed
+2025-05-13 18:01:42,261 - INFO - Loaded 30 behavior chunks, 15000 rows after sampling...
+2025-05-13 18:01:42,348 - INFO - Memory cleanup performed
+2025-05-13 18:01:43,036 - INFO - Memory cleanup performed
+2025-05-13 18:01:43,036 - INFO - Validated Behaviors DataFrame with 18824 rows
+2025-05-13 18:01:43,036 - INFO - Final behavior count after sampling: 18824 rows (from ~376,480 original)
+2025-05-13 18:01:43,037 - INFO - Current memory usage: 261.64 MB
+2025-05-13 18:01:43,037 - INFO - Extracting timestamps (memory-optimized)...
+2025-05-13 18:01:43,410 - INFO - Memory cleanup performed
+2025-05-13 18:01:43,410 - INFO - Processed timestamps for 0/18824 behaviors
+2025-05-13 18:01:43,802 - INFO - Memory cleanup performed
+2025-05-13 18:01:44,215 - INFO - Memory cleanup performed
+2025-05-13 18:01:44,563 - INFO - Memory cleanup performed
+2025-05-13 18:01:45,101 - INFO - Aggregated timestamps for 4251 articles
+2025-05-13 18:01:45,155 - INFO - Current memory usage: 392.78 MB
+2025-05-13 18:01:45,155 - INFO - Processing impressions...
+2025-05-13 18:01:45,157 - INFO - Detected impression format: WITH click information
+2025-05-13 18:01:45,470 - INFO - Memory cleanup performed
+2025-05-13 18:01:45,470 - INFO - Processed 1/4 chunks, 7960 impressions so far
+2025-05-13 18:01:46,156 - INFO - Total impressions written: 30191
+2025-05-13 18:01:46,256 - INFO - Memory cleanup performed
+2025-05-13 18:01:46,257 - INFO - Current memory usage: 385.13 MB
+2025-05-13 18:01:46,257 - INFO - Calculating CTR...
+2025-05-13 18:01:47,066 - INFO - Calculated CTR for 280 articles
+2025-05-13 18:01:47,068 - INFO - Current memory usage: 389.35 MB
+2025-05-13 18:01:47,068 - INFO - Merging data...
+2025-05-13 18:01:47,069 - INFO - Merging news with CTR...
+2025-05-13 18:01:47,161 - INFO - Memory cleanup performed
+2025-05-13 18:01:47,161 - INFO - Merging with timestamps...
+2025-05-13 18:01:47,271 - INFO - Memory cleanup performed
+2025-05-13 18:01:47,272 - INFO - Current memory usage: 263.39 MB
+2025-05-13 18:01:47,273 - INFO - Calculating reading ease scores...
+2025-05-13 18:01:47,493 - INFO - Memory cleanup performed
+2025-05-13 18:01:48,105 - INFO - Calculated reading scores for 7202 articles
+2025-05-13 18:01:48,108 - INFO - Saving results...
+2025-05-13 18:01:48,252 - INFO - Saved val to agentic_news_editor/processed_data/val_headline_ctr.csv
+2025-05-13 18:01:48,252 - INFO - Successfully processed val dataset with 7202 articles
+2025-05-13 18:01:48,351 - INFO - Memory cleanup performed
+2025-05-13 18:01:48,351 - INFO - Current memory usage: 264.03 MB
+2025-05-13 18:01:48,450 - INFO - Memory cleanup performed
+2025-05-13 18:01:48,450 - INFO - === Completed val split ===
+2025-05-13 18:01:48,451 - INFO - Current memory usage: 242.68 MB
+2025-05-13 18:01:48,451 - INFO - 
+=== Starting test split ===
+2025-05-13 18:01:48,451 - INFO - 
+========================================
+PROCESSING TEST
+========================================
+2025-05-13 18:01:48,451 - INFO - Current memory usage: 242.68 MB
+2025-05-13 18:01:48,452 - INFO - Validated data files for test
+2025-05-13 18:01:48,452 - INFO - Loading news data...
+2025-05-13 18:01:49,760 - INFO - Validated News DataFrame with 120959 rows
+2025-05-13 18:01:49,761 - INFO - Loaded 120959 news rows
+2025-05-13 18:01:49,761 - INFO - Current memory usage: 292.71 MB
+2025-05-13 18:01:49,789 - INFO - Sampled news to 12096 rows (rate: 0.1)
+2025-05-13 18:01:49,792 - INFO - Loading behaviors data (with 0.05 sampling)...
+2025-05-13 18:01:50,577 - INFO - Loaded 10 behavior chunks, 5000 rows after sampling...
+2025-05-13 18:01:50,670 - INFO - Memory cleanup performed
+2025-05-13 18:01:51,529 - INFO - Loaded 20 behavior chunks, 10000 rows after sampling...
+2025-05-13 18:01:51,631 - INFO - Memory cleanup performed
+2025-05-13 18:01:52,575 - INFO - Loaded 30 behavior chunks, 15000 rows after sampling...
+2025-05-13 18:01:52,686 - INFO - Memory cleanup performed
+2025-05-13 18:01:53,443 - INFO - Loaded 40 behavior chunks, 20000 rows after sampling...
+2025-05-13 18:01:53,539 - INFO - Memory cleanup performed
+2025-05-13 18:01:54,348 - INFO - Loaded 50 behavior chunks, 25000 rows after sampling...
+2025-05-13 18:01:54,450 - INFO - Memory cleanup performed
+2025-05-13 18:01:55,291 - INFO - Loaded 60 behavior chunks, 30000 rows after sampling...
+2025-05-13 18:01:55,389 - INFO - Memory cleanup performed
+2025-05-13 18:01:56,202 - INFO - Loaded 70 behavior chunks, 35000 rows after sampling...
+2025-05-13 18:01:56,299 - INFO - Memory cleanup performed
+2025-05-13 18:01:57,081 - INFO - Loaded 80 behavior chunks, 40000 rows after sampling...
+2025-05-13 18:01:57,184 - INFO - Memory cleanup performed
+2025-05-13 18:01:57,936 - INFO - Loaded 90 behavior chunks, 45000 rows after sampling...
+2025-05-13 18:01:58,030 - INFO - Memory cleanup performed
+2025-05-13 18:01:58,784 - INFO - Loaded 100 behavior chunks, 50000 rows after sampling...
+2025-05-13 18:01:58,879 - INFO - Memory cleanup performed
+2025-05-13 18:01:59,731 - INFO - Loaded 110 behavior chunks, 55000 rows after sampling...
+2025-05-13 18:01:59,834 - INFO - Memory cleanup performed
+2025-05-13 18:02:00,558 - INFO - Loaded 120 behavior chunks, 60000 rows after sampling...
+2025-05-13 18:02:00,656 - INFO - Memory cleanup performed
+2025-05-13 18:02:01,426 - INFO - Loaded 130 behavior chunks, 65000 rows after sampling...
+2025-05-13 18:02:01,522 - INFO - Memory cleanup performed
+2025-05-13 18:02:02,318 - INFO - Loaded 140 behavior chunks, 70000 rows after sampling...
+2025-05-13 18:02:02,425 - INFO - Memory cleanup performed
+2025-05-13 18:02:03,206 - INFO - Loaded 150 behavior chunks, 75000 rows after sampling...
+2025-05-13 18:02:03,304 - INFO - Memory cleanup performed
+2025-05-13 18:02:04,196 - INFO - Loaded 160 behavior chunks, 80000 rows after sampling...
+2025-05-13 18:02:04,290 - INFO - Memory cleanup performed
+2025-05-13 18:02:05,025 - INFO - Loaded 170 behavior chunks, 85000 rows after sampling...
+2025-05-13 18:02:05,126 - INFO - Memory cleanup performed
+2025-05-13 18:02:05,934 - INFO - Loaded 180 behavior chunks, 90000 rows after sampling...
+2025-05-13 18:02:06,031 - INFO - Memory cleanup performed
+2025-05-13 18:02:06,820 - INFO - Loaded 190 behavior chunks, 95000 rows after sampling...
+2025-05-13 18:02:06,920 - INFO - Memory cleanup performed
+2025-05-13 18:02:07,637 - INFO - Loaded 200 behavior chunks, 100000 rows after sampling...
+2025-05-13 18:02:07,740 - INFO - Memory cleanup performed
+2025-05-13 18:02:08,542 - INFO - Loaded 210 behavior chunks, 105000 rows after sampling...
+2025-05-13 18:02:08,646 - INFO - Memory cleanup performed
+2025-05-13 18:02:09,483 - INFO - Loaded 220 behavior chunks, 110000 rows after sampling...
+2025-05-13 18:02:09,578 - INFO - Memory cleanup performed
+2025-05-13 18:02:10,455 - INFO - Loaded 230 behavior chunks, 115000 rows after sampling...
+2025-05-13 18:02:10,550 - INFO - Memory cleanup performed
+2025-05-13 18:02:11,173 - INFO - Memory cleanup performed
+2025-05-13 18:02:11,174 - INFO - Validated Behaviors DataFrame with 118536 rows
+2025-05-13 18:02:11,174 - INFO - Final behavior count after sampling: 118536 rows (from ~2,370,720 original)
+2025-05-13 18:02:11,175 - INFO - Current memory usage: 327.78 MB
+2025-05-13 18:02:11,175 - INFO - Extracting timestamps (memory-optimized)...
+2025-05-13 18:02:11,546 - INFO - Memory cleanup performed
+2025-05-13 18:02:11,546 - INFO - Processed timestamps for 0/118536 behaviors
+2025-05-13 18:02:11,907 - INFO - Memory cleanup performed
+2025-05-13 18:02:12,309 - INFO - Memory cleanup performed
+2025-05-13 18:02:12,716 - INFO - Memory cleanup performed
+2025-05-13 18:02:13,140 - INFO - Memory cleanup performed
+2025-05-13 18:02:13,586 - INFO - Memory cleanup performed
+2025-05-13 18:02:14,040 - INFO - Memory cleanup performed
+2025-05-13 18:02:14,537 - INFO - Memory cleanup performed
+2025-05-13 18:02:15,045 - INFO - Memory cleanup performed
+2025-05-13 18:02:15,558 - INFO - Memory cleanup performed
+2025-05-13 18:02:16,066 - INFO - Memory cleanup performed
+2025-05-13 18:02:16,067 - INFO - Processed timestamps for 50000/118536 behaviors
+2025-05-13 18:02:16,609 - INFO - Memory cleanup performed
+2025-05-13 18:02:17,170 - INFO - Memory cleanup performed
+2025-05-13 18:02:17,745 - INFO - Memory cleanup performed
+2025-05-13 18:02:18,312 - INFO - Memory cleanup performed
+2025-05-13 18:02:18,934 - INFO - Memory cleanup performed
+2025-05-13 18:02:19,553 - INFO - Memory cleanup performed
+2025-05-13 18:02:20,189 - INFO - Memory cleanup performed
+2025-05-13 18:02:20,875 - INFO - Memory cleanup performed
+2025-05-13 18:02:21,558 - INFO - Memory cleanup performed
+2025-05-13 18:02:22,232 - INFO - Memory cleanup performed
+2025-05-13 18:02:22,233 - INFO - Processed timestamps for 100000/118536 behaviors
+2025-05-13 18:02:22,939 - INFO - Memory cleanup performed
+2025-05-13 18:02:23,658 - INFO - Memory cleanup performed
+2025-05-13 18:02:24,321 - INFO - Memory cleanup performed
+2025-05-13 18:02:27,541 - INFO - Aggregated timestamps for 22326 articles
+2025-05-13 18:02:27,798 - INFO - Current memory usage: 1392.82 MB
+2025-05-13 18:02:27,799 - INFO - Processing impressions...
+2025-05-13 18:02:27,801 - INFO - Detected impression format: WITHOUT click information
+2025-05-13 18:02:28,088 - INFO - Memory cleanup performed
+2025-05-13 18:02:28,089 - INFO - Processed 1/24 chunks, 6510 impressions so far
+2025-05-13 18:02:30,284 - INFO - Memory cleanup performed
+2025-05-13 18:02:30,285 - INFO - Processed 11/24 chunks, 72511 impressions so far
+2025-05-13 18:02:32,452 - INFO - Memory cleanup performed
+2025-05-13 18:02:32,452 - INFO - Processed 21/24 chunks, 138134 impressions so far
+2025-05-13 18:02:33,062 - INFO - Total impressions written: 155963
+2025-05-13 18:02:33,209 - INFO - Memory cleanup performed
+2025-05-13 18:02:33,210 - INFO - Current memory usage: 1362.15 MB
+2025-05-13 18:02:33,210 - INFO - Calculating CTR...
+2025-05-13 18:02:37,329 - INFO - Calculated CTR for 1634 articles
+2025-05-13 18:02:37,335 - INFO - Current memory usage: 1359.91 MB
+2025-05-13 18:02:37,335 - INFO - Merging data...
+2025-05-13 18:02:37,336 - INFO - Merging news with CTR...
+2025-05-13 18:02:37,432 - INFO - Memory cleanup performed
+2025-05-13 18:02:37,433 - INFO - Merging with timestamps...
+2025-05-13 18:02:37,637 - INFO - Memory cleanup performed
+2025-05-13 18:02:37,638 - INFO - Current memory usage: 324.68 MB
+2025-05-13 18:02:37,639 - INFO - Calculating reading ease scores...
+2025-05-13 18:02:37,841 - INFO - Memory cleanup performed
+2025-05-13 18:02:38,772 - INFO - Memory cleanup performed
+2025-05-13 18:02:38,871 - INFO - Calculated reading scores for 12096 articles
+2025-05-13 18:02:38,873 - INFO - Saving results...
+2025-05-13 18:02:39,095 - INFO - Saved test to agentic_news_editor/processed_data/test_headline_ctr.csv
+2025-05-13 18:02:39,095 - INFO - Successfully processed test dataset with 12096 articles
+2025-05-13 18:02:39,193 - INFO - Memory cleanup performed
+2025-05-13 18:02:39,193 - INFO - Current memory usage: 325.96 MB
+2025-05-13 18:02:39,303 - INFO - Memory cleanup performed
+2025-05-13 18:02:39,303 - INFO - === Completed test split ===
+2025-05-13 18:02:39,304 - INFO - Current memory usage: 284.53 MB
+2025-05-13 18:02:39,304 - INFO - Preprocessing complete
+2025-05-13 18:02:39,304 - INFO - Preprocessing complete
