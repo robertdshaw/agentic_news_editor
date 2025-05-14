@@ -39,8 +39,8 @@ import time
 import logging
 import re
 import pickle
-from sklearn import mean_squared_error, train_test_split, r2_score
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
 
 from openai import OpenAI
 from dotenv import load_dotenv
