@@ -49,6 +49,11 @@ from headline_model_trainer_optimized import CTRPredictor
 from headline_metrics import HeadlineMetrics
 from headline_learning import HeadlineLearningLoop
 
+# At the top of app_frontpage.py, check your imports
+print(f"HeadlineLearningLoop location: {HeadlineLearningLoop.__module__}")
+print(f"HeadlineLearningLoop file: {HeadlineLearningLoop.__code__.co_filename}")
+
+
 # Import FAISS conditionally to avoid conflicts
 try:
     import faiss
