@@ -4,26 +4,31 @@ import os
 import logging
 import pickle
 import datetime
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
 import json
+from pathlib import Path
 from headline_metrics import HeadlineMetrics
 
 class HeadlineLearningLoop:
     """
     A learning system that continuously improves headline rewriting by:
     1. Collecting pairs of original and rewritten headlines
-    2. Analyzing their performance metrics
-    3. Periodically retraining the underlying CTR prediction model
-    4. Generating insights about what makes headlines effective
+    2. Analyzing their performance metrics using the trained CTR model
+    3. Generating insights about what makes headlines effective
+    4. Providing feedback for headline writers
     """
     
-    def __init__(self, data_file="headline_learning_data.csv", model_file="headline_ctr_model.pkl"):
+    def __init__(self, data_file="headline_learning_data.csv", model_path="model_output/ctr_model.pkl"):
         """Initialize the headline learning system"""
         self.data_file = data_file
-        self.model_file = model_file
-        self.metrics_analyzer = HeadlineMetrics()
+        self.model_path = model_path
+        
+        # Initialize metrics analyzer with the CTR model
+        try:
+            self.metrics_analyzer = HeadlineMetrics(model_path=model_path)
+            logging.info("Initialized HeadlineMetrics with CTR model")
+        except Exception as e:
+            logging.error(f"Error initializing HeadlineMetrics: {e}")
+            raise
         
         # Initialize or load the dataset
         if os.path.exists(data_file):
@@ -42,12 +47,12 @@ class HeadlineLearningLoop:
                 'topic': [],
                 'timestamp': []
             })
-            logging.info(f"Created new headline learning dataset")
+            logging.info("Created new headline learning dataset")
     
     def add_headline_pair(self, original, rewritten, topic=None):
         """Add a single pair of headlines to the learning system"""
         try:
-            # Calculate metrics
+            # Calculate metrics using the CTR model
             comparison = self.metrics_analyzer.compare_headlines(original, rewritten)
             
             # Create new entry
@@ -70,6 +75,7 @@ class HeadlineLearningLoop:
             # Save the updated dataset
             self.data.to_csv(self.data_file, index=False)
             
+            logging.info(f"Added headline pair: {comparison['score_percent_change']:.1f}% improvement")
             return True
         except Exception as e:
             logging.error(f"Error adding headline pair: {e}")
@@ -83,7 +89,7 @@ class HeadlineLearningLoop:
             if 'original_title' in row and 'rewritten_title' in row:
                 topic = row.get('topic', 'General')
                 
-                # Check if we already have metrics
+                # Check if we already have metrics calculated
                 if ('headline_score_original' in row and 
                     'headline_score_rewritten' in row and
                     'headline_ctr_original' in row and
@@ -116,86 +122,16 @@ class HeadlineLearningLoop:
         # Save the updated dataset
         if count > 0:
             self.data.to_csv(self.data_file, index=False)
+            logging.info(f"Added {count} headline pairs from dataframe")
         
         return count
-    
-    def retrain_model(self, force=False):
-        """Retrain the CTR prediction model using collected data"""
-        # Check if we have enough data
-        if len(self.data) < 50 and not force:
-            logging.info("Not enough headline data to retrain model (min 50 required)")
-            return False
-        
-        try:
-            # Prepare features from original headlines
-            orig_features = []
-            for title in self.data['original_title']:
-                features = self.metrics_analyzer.extract_features(title)
-                orig_features.append(features)
-            
-            orig_df = pd.DataFrame(orig_features)
-            orig_df['ctr'] = self.data['headline_ctr_original']
-            
-            # Prepare features from rewritten headlines
-            rewritten_features = []
-            for title in self.data['rewritten_title']:
-                features = self.metrics_analyzer.extract_features(title)
-                rewritten_features.append(features)
-            
-            rewritten_df = pd.DataFrame(rewritten_features)
-            rewritten_df['ctr'] = self.data['headline_ctr_rewritten']
-            
-            # Combine datasets
-            combined_df = pd.concat([orig_df, rewritten_df], ignore_index=True)
-            
-            # Split features and target
-            X = combined_df.drop('ctr', axis=1)
-            y = combined_df['ctr']
-            
-            # Train-test split
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            
-            # Train model
-            model = RandomForestRegressor(n_estimators=100, random_state=42)
-            model.fit(X_train, y_train)
-            
-            # Evaluate model
-            y_pred = model.predict(X_test)
-            mse = mean_squared_error(y_test, y_pred)
-            r2 = r2_score(y_test, y_pred)
-            
-            logging.info(f"Model MSE: {mse}, R²: {r2}")
-            
-            # Save model if performance is good enough
-            if r2 > 0.3 or force:
-                with open(self.model_file, 'wb') as f:
-                    pickle.dump(model, f)
-                
-                # Also save model metrics
-                with open('headline_model_metrics.json', 'w') as f:
-                    json.dump({
-                        'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'samples': len(combined_df),
-                        'mse': mse,
-                        'r2': r2
-                    }, f)
-                
-                logging.info(f"Model saved to {self.model_file}")
-                return True
-            else:
-                logging.warning(f"Model performance too low (R²={r2}), not saving")
-                return False
-                
-        except Exception as e:
-            logging.error(f"Error retraining model: {e}")
-            return False
     
     def analyze_headline_patterns(self):
         """Analyze headline patterns to extract insights"""
         if len(self.data) < 20:
             return {
                 'status': 'insufficient_data',
-                'message': 'Need at least 20 headline pairs for analysis'
+                'message': f'Need at least 20 headline pairs for analysis (current: {len(self.data)})'
             }
         
         try:
@@ -206,27 +142,43 @@ class HeadlineLearningLoop:
             improvement_rate = (improvements > 0).mean()
             
             # Find common improvement factors
-            if 'headline_key_factors' in self.data.columns:
-                all_factors = []
-                for factors in self.data['headline_key_factors']:
-                    if isinstance(factors, str):
-                        all_factors.extend([f.strip() for f in factors.split(',')])
-                
+            all_factors = []
+            for factors in self.data['headline_key_factors']:
+                if isinstance(factors, str) and factors.strip():
+                    all_factors.extend([f.strip() for f in factors.split(',') if f.strip()])
+            
+            if all_factors:
                 factor_counts = pd.Series(all_factors).value_counts()
-                top_factors = factor_counts.head(5).to_dict()
+                top_factors = factor_counts.head(10).to_dict()
             else:
                 top_factors = {}
             
             # Look at topic performance
             topic_performance = {}
-            if 'topic' in self.data.columns:
-                for topic in self.data['topic'].unique():
-                    topic_data = self.data[self.data['topic'] == topic]
+            for topic in self.data['topic'].unique():
+                topic_data = self.data[self.data['topic'] == topic]
+                if len(topic_data) > 3:  # Only include topics with sufficient data
                     topic_performance[topic] = {
                         'count': len(topic_data),
                         'avg_improvement': topic_data['headline_improvement'].mean(),
-                        'improvement_rate': (topic_data['headline_improvement'] > 0).mean()
+                        'improvement_rate': (topic_data['headline_improvement'] > 0).mean(),
+                        'avg_ctr_original': topic_data['headline_ctr_original'].mean(),
+                        'avg_ctr_rewritten': topic_data['headline_ctr_rewritten'].mean()
                     }
+            
+            # Analyze CTR distributions
+            ctr_analysis = {
+                'original_ctr_stats': {
+                    'mean': self.data['headline_ctr_original'].mean(),
+                    'median': self.data['headline_ctr_original'].median(),
+                    'std': self.data['headline_ctr_original'].std()
+                },
+                'rewritten_ctr_stats': {
+                    'mean': self.data['headline_ctr_rewritten'].mean(),
+                    'median': self.data['headline_ctr_rewritten'].median(),
+                    'std': self.data['headline_ctr_rewritten'].std()
+                }
+            }
             
             return {
                 'status': 'success',
@@ -237,7 +189,8 @@ class HeadlineLearningLoop:
                     'improvement_rate': improvement_rate
                 },
                 'top_improvement_factors': top_factors,
-                'topic_performance': topic_performance
+                'topic_performance': topic_performance,
+                'ctr_analysis': ctr_analysis
             }
             
         except Exception as e:
@@ -247,61 +200,137 @@ class HeadlineLearningLoop:
                 'message': str(e)
             }
     
-    def prompt_improvement_report(self):
-        """Generate a markdown report with insights for headline improvement"""
+    def get_improvement_recommendations(self):
+        """Get specific recommendations based on collected data"""
         analysis = self.analyze_headline_patterns()
         
         if analysis['status'] != 'success':
-            return False
+            return ["Need more data to provide recommendations"]
+        
+        recommendations = []
+        
+        # Based on top improvement factors
+        top_factors = analysis['top_improvement_factors']
+        for factor, count in list(top_factors.items())[:5]:
+            recommendations.append(f"✓ {factor} (effective in {count} cases)")
+        
+        # Based on topic performance
+        best_topics = sorted(
+            analysis['topic_performance'].items(),
+            key=lambda x: x[1]['avg_improvement'],
+            reverse=True
+        )[:3]
+        
+        if best_topics:
+            recommendations.append(f"Focus on {best_topics[0][0]} topics (avg improvement: {best_topics[0][1]['avg_improvement']:.1f}%)")
+        
+        # CTR-based recommendations
+        ctr_analysis = analysis['ctr_analysis']
+        avg_original = ctr_analysis['original_ctr_stats']['mean']
+        avg_rewritten = ctr_analysis['rewritten_ctr_stats']['mean']
+        
+        recommendations.append(f"Current rewriting improves CTR from {avg_original:.4f} to {avg_rewritten:.4f} on average")
+        
+        return recommendations
+    
+    def generate_improvement_report(self):
+        """Generate a comprehensive markdown report"""
+        analysis = self.analyze_headline_patterns()
+        
+        if analysis['status'] != 'success':
+            return f"Cannot generate report: {analysis.get('message', 'Analysis failed')}"
         
         try:
-            report = f"""# Headline Improvement Analysis
+            report = f"""# Headline Improvement Analysis Report
 Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
 
-## Overview
-- Dataset contains {analysis['sample_size']} headline pairs
-- Average improvement: {analysis['overall_stats']['avg_improvement']:.1f}%
-- Improvement rate: {analysis['overall_stats']['improvement_rate']:.1%}
+## Executive Summary
+- **Total headline pairs analyzed**: {analysis['sample_size']}
+- **Average CTR improvement**: {analysis['overall_stats']['avg_improvement']:.1f}%
+- **Headlines that improved**: {analysis['overall_stats']['improvement_rate']:.1%}
+- **Median improvement**: {analysis['overall_stats']['median_improvement']:.1f}%
 
-## Top Factors for Headline Improvement
+## CTR Performance Analysis
+- **Original headlines average CTR**: {analysis['ctr_analysis']['original_ctr_stats']['mean']:.4f}
+- **Rewritten headlines average CTR**: {analysis['ctr_analysis']['rewritten_ctr_stats']['mean']:.4f}
+- **CTR improvement factor**: {analysis['ctr_analysis']['rewritten_ctr_stats']['mean'] / analysis['ctr_analysis']['original_ctr_stats']['mean']:.2f}x
+
+## Top Improvement Factors
 """
             
             for factor, count in analysis['top_improvement_factors'].items():
-                report += f"- {factor}: {count} occurrences\n"
+                report += f"- **{factor}**: {count} occurrences\n"
             
             report += """
 ## Performance by Topic
 """
             
             for topic, stats in analysis['topic_performance'].items():
-                if stats['count'] > 5:  # Only include topics with sufficient data
-                    report += f"### {topic}\n"
-                    report += f"- Sample size: {stats['count']} headlines\n"
-                    report += f"- Average improvement: {stats['avg_improvement']:.1f}%\n"
-                    report += f"- Improvement rate: {stats['improvement_rate']:.1%}\n\n"
+                report += f"### {topic}\n"
+                report += f"- Sample size: {stats['count']} headlines\n"
+                report += f"- Average improvement: {stats['avg_improvement']:.1f}%\n"
+                report += f"- Improvement rate: {stats['improvement_rate']:.1%}\n"
+                report += f"- Average CTR: {stats['avg_ctr_original']:.4f} → {stats['avg_ctr_rewritten']:.4f}\n\n"
             
             report += """
-## Recommendations for Headline Writing
+## Actionable Recommendations
 
-Based on the patterns observed in our data, here are the key strategies for writing more effective headlines:
+Based on the analysis of headline performance:
 
-1. **Optimize headline length** - Headlines between 40-60 characters tend to perform best
-2. **Use specific numbers** when relevant to make claims more concrete
-3. **Create curiosity gaps** without being clickbait
-4. **Use active voice and strong verbs** to create more dynamic headlines
-5. **Match tone to topic** - Different topics require different approaches
+### 1. Most Effective Techniques
+"""
+            
+            recommendations = self.get_improvement_recommendations()
+            for rec in recommendations:
+                report += f"- {rec}\n"
+            
+            report += f"""
+### 2. CTR Optimization Strategy
+- Current model achieves {analysis['overall_stats']['improvement_rate']:.1%} improvement rate
+- Focus on techniques that consistently deliver >10% CTR improvement
+- Pay attention to topic-specific patterns
 
-## Next Steps
+### 3. Next Steps
+1. Continue collecting headline pairs to improve model accuracy
+2. Focus on underperforming topics: {', '.join([t for t, s in analysis['topic_performance'].items() if s['avg_improvement'] < 0])}
+3. Experiment with top-performing improvement factors in new headlines
 
-The headline improvement system will continue to collect data and refine these recommendations.
+---
+*Report generated by Headline Learning System*
 """
             
             # Save report to file
             with open('headline_improvement_report.md', 'w') as f:
                 f.write(report)
             
-            return True
+            return report
             
         except Exception as e:
             logging.error(f"Error generating headline report: {e}")
-            return False
+            return f"Error generating report: {str(e)}"
+    
+    def export_data_for_analysis(self, filename=None):
+        """Export the collected data for external analysis"""
+        if filename is None:
+            filename = f"headline_data_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        
+        try:
+            # Add calculated features for analysis
+            export_data = self.data.copy()
+            
+            # Add feature analysis for each headline
+            for i, row in export_data.iterrows():
+                orig_features = self.metrics_analyzer.extract_features(row['original_title'])
+                new_features = self.metrics_analyzer.extract_features(row['rewritten_title'])
+                
+                export_data.at[i, 'original_length'] = orig_features['title_length'].iloc[0]
+                export_data.at[i, 'rewritten_length'] = new_features['title_length'].iloc[0]
+                export_data.at[i, 'original_word_count'] = orig_features['title_word_count'].iloc[0]
+                export_data.at[i, 'rewritten_word_count'] = new_features['title_word_count'].iloc[0]
+            
+            export_data.to_csv(filename, index=False)
+            logging.info(f"Exported data to {filename}")
+            return filename
+        except Exception as e:
+            logging.error(f"Error exporting data: {e}")
+            return None
