@@ -1,0 +1,40 @@
+{
+  "correlation_with_ctr": {
+    "ctr": 1.0,
+    "title_length": 0.07636712492178355,
+    "has_colon": 0.05009738884193369,
+    "title_word_count": 0.03572382074852187,
+    "has_ellipsis": 0.017138560319229314,
+    "has_quotes": 0.011330937910629661,
+    "has_temporal_words": 0.0056718453638533025,
+    "has_exclamation": -0.0015765221640868512,
+    "has_question": -0.02516687138672023,
+    "has_number": -0.025221307940326315,
+    "title_reading_ease": -0.060690954887162,
+    "starts_with_question": -0.06168783225849773,
+    "has_superlative": -0.06228913092967362,
+    "title_uppercase_ratio": -0.07510106766527658,
+    "starts_with_number": -0.08608363038866168
+  },
+  "recommended_features": [
+    "title_length",
+    "title_word_count",
+    "title_reading_ease",
+    "has_question",
+    "has_number",
+    "has_colon",
+    "has_quotes",
+    "has_ellipsis",
+    "title_uppercase_ratio",
+    "starts_with_number",
+    "starts_with_question",
+    "has_superlative"
+  ],
+  "features_to_avoid": [
+    "title_reading_ease",
+    "title_uppercase_ratio",
+    "starts_with_number",
+    "starts_with_question",
+    "has_superlative"
+  ]
+}

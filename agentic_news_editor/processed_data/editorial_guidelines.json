@@ -1,0 +1,149 @@
+{
+  "overall_ctr_benchmark": 0.04072173105112516,
+  "category_performance": {
+    "kids": {
+      "ctr_mean": 0.11493506493506493,
+      "ctr_std": 0.07104976294332431,
+      "ctr_count": 4
+    },
+    "sports": {
+      "ctr_mean": 0.10392798480618771,
+      "ctr_std": 0.0962145280977069,
+      "ctr_count": 1235
+    },
+    "weather": {
+      "ctr_mean": 0.087078451969622,
+      "ctr_std": 0.07268734603436044,
+      "ctr_count": 223
+    },
+    "video": {
+      "ctr_mean": 0.07541304024602569,
+      "ctr_std": 0.07795695101610271,
+      "ctr_count": 198
+    },
+    "news": {
+      "ctr_mean": 0.07044752837748892,
+      "ctr_std": 0.06710328323854402,
+      "ctr_count": 1766
+    },
+    "travel": {
+      "ctr_mean": 0.06271052729963293,
+      "ctr_std": 0.06474656989599067,
+      "ctr_count": 268
+    },
+    "autos": {
+      "ctr_mean": 0.061697780820001054,
+      "ctr_std": 0.06552043590783836,
+      "ctr_count": 213
+    },
+    "tv": {
+      "ctr_mean": 0.05559105281920002,
+      "ctr_std": 0.048747211293332864,
+      "ctr_count": 119
+    },
+    "music": {
+      "ctr_mean": 0.05508505802990217,
+      "ctr_std": 0.06169610261280971,
+      "ctr_count": 111
+    },
+    "foodanddrink": {
+      "ctr_mean": 0.05202971601362956,
+      "ctr_std": 0.053283735624734783,
+      "ctr_count": 360
+    },
+    "lifestyle": {
+      "ctr_mean": 0.04960658153914855,
+      "ctr_std": 0.0432891188243544,
+      "ctr_count": 406
+    },
+    "finance": {
+      "ctr_mean": 0.04949419217234824,
+      "ctr_std": 0.05887955209428786,
+      "ctr_count": 423
+    },
+    "movies": {
+      "ctr_mean": 0.04874160350769591,
+      "ctr_std": 0.073816754705934,
+      "ctr_count": 95
+    },
+    "northamerica": {
+      "ctr_mean": 0.047619047619047616,
+      "ctr_std": NaN,
+      "ctr_count": 1
+    },
+    "entertainment": {
+      "ctr_mean": 0.04665303554916167,
+      "ctr_std": 0.045162354023498975,
+      "ctr_count": 105
+    },
+    "health": {
+      "ctr_mean": 0.042071705263266305,
+      "ctr_std": 0.038099550899246375,
+      "ctr_count": 324
+    }
+  },
+  "feature_correlations": {
+    "ctr": 1.0,
+    "title_length": 0.07636712492178355,
+    "has_colon": 0.05009738884193369,
+    "title_word_count": 0.03572382074852187,
+    "has_ellipsis": 0.017138560319229314,
+    "has_quotes": 0.011330937910629661,
+    "has_temporal_words": 0.0056718453638533025,
+    "has_exclamation": -0.0015765221640868512,
+    "has_question": -0.02516687138672023,
+    "has_number": -0.025221307940326315,
+    "title_reading_ease": -0.060690954887162,
+    "starts_with_question": -0.06168783225849773,
+    "has_superlative": -0.06228913092967362,
+    "title_uppercase_ratio": -0.07510106766527658,
+    "starts_with_number": -0.08608363038866168
+  },
+  "high_performing_patterns": {
+    "title_length": 66.93416370106762,
+    "title_word_count": 10.76067615658363,
+    "title_reading_ease": 55.51576512455515,
+    "has_question": 0.037366548042704624,
+    "has_exclamation": 0.008896797153024912,
+    "has_number": 0.28647686832740216,
+    "has_colon": 0.20462633451957296,
+    "has_quotes": 0.32562277580071175,
+    "has_ellipsis": 0.0035587188612099642,
+    "title_uppercase_ratio": 0.07844547060477108,
+    "starts_with_number": 0.04804270462633452,
+    "starts_with_question": 0.023131672597864767,
+    "has_superlative": 0.050711743772241996,
+    "has_temporal_words": 0.03113879003558719
+  },
+  "low_performing_patterns": {
+    "title_length": 61.116239316239316,
+    "title_word_count": 10.250427350427351,
+    "title_reading_ease": 60.97991452991453,
+    "has_question": 0.06495726495726496,
+    "has_exclamation": 0.009401709401709401,
+    "has_number": 0.3162393162393162,
+    "has_colon": 0.13504273504273503,
+    "has_quotes": 0.27692307692307694,
+    "has_ellipsis": 0.0,
+    "title_uppercase_ratio": 0.08863821171073465,
+    "starts_with_number": 0.11282051282051282,
+    "starts_with_question": 0.07094017094017094,
+    "has_superlative": 0.11196581196581197,
+    "has_temporal_words": 0.017948717948717947
+  },
+  "key_insights": {
+    "questions_reduce_ctr": true,
+    "numbers_effect": "negative",
+    "reading_ease_effect": "significant",
+    "top_categories": [
+      "kids",
+      "sports",
+      "weather"
+    ],
+    "bottom_categories": [
+      "northamerica",
+      "entertainment",
+      "health"
+    ]
+  }
+}

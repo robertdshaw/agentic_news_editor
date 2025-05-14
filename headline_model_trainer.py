@@ -264,6 +264,7 @@ class HeadlineModelTrainer:
         
         return features
     
+        
     def load_data(self, data_type='train'):
         """Load processed headlines for specified split (train, val, or test)"""
         try:

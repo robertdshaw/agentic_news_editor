@@ -1,0 +1,394 @@
+{
+  "avoid_questions": {
+    "original": [
+      "Will injured Jalen Wilson redshirt? Self says KU won't make a decision right away",
+      "Apartments for rent in Miami: What will $1,200 get you?",
+      "Where do Colts sit in AFC South standings in Week 11?",
+      "Michigan State football grades: Worst loss of Mark Dantonio's career?",
+      "Is Cisco a Buy Ahead of Earnings?"
+    ],
+    "ctr": [
+      0.14285714285714285,
+      0.14285714285714285,
+      0.16666666666666666,
+      0.2,
+      0.125
+    ]
+  },
+  "effective_patterns": {
+    "high_ctr_titles": [
+      {
+        "title": "Indiana high school football scores, updates and highlights from sectional finals",
+        "ctr": 0.625,
+        "category": "sports"
+      },
+      {
+        "title": "Why the Chiefs are struggling to finish off red-zone drives",
+        "ctr": 0.6,
+        "category": "sports"
+      },
+      {
+        "title": "Guthrie Theater cancels Friday performance of 'Steel Magnolias' at intermission",
+        "ctr": 0.6,
+        "category": "movies"
+      },
+      {
+        "title": "Ky Bowman can't afford an SF apartment, but he's proving he belongs in the NBA",
+        "ctr": 0.6,
+        "category": "sports"
+      },
+      {
+        "title": "Penn State lands in ESPN's 'Bottom 10'; Lions' heart and soul will be revealed, and more",
+        "ctr": 0.6,
+        "category": "sports"
+      },
+      {
+        "title": "California woman recounts horrific story of homeless man pouring hot feces on her head",
+        "ctr": 0.6,
+        "category": "video"
+      },
+      {
+        "title": "NBA power rankings: Sixers drop almost out of Top 10; Boston Celtics move to No. 1",
+        "ctr": 0.5714285714285714,
+        "category": "sports"
+      },
+      {
+        "title": "Through Vikings' first 10 games, Dalvin Cook is producing like Adrian Peterson did in 2012",
+        "ctr": 0.5714285714285714,
+        "category": "sports"
+      },
+      {
+        "title": "Josh McDaniels discussed N'Keal Harry and the Patriots' offense.",
+        "ctr": 0.5,
+        "category": "sports"
+      },
+      {
+        "title": "Kamaru Usman isn't impressed with Jorge Masvidal, but he'd fight him",
+        "ctr": 0.5,
+        "category": "sports"
+      }
+    ],
+    "category_leaders": {
+      "travel": {
+        "title": "Free flu vaccines for a cost",
+        "ctr": 0.4,
+        "features": {
+          "title_length": 28.0,
+          "title_word_count": 6.0,
+          "title_reading_ease": 99.23,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.03571428571428571,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "lifestyle": {
+        "title": "Communities come together to remember SCSU gymnast",
+        "ctr": 0.23529411764705882,
+        "features": {
+          "title_length": 50.0,
+          "title_word_count": 7.0,
+          "title_reading_ease": 5.15,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.1,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "movies": {
+        "title": "Guthrie Theater cancels Friday performance of 'Steel Magnolias' at intermission",
+        "ctr": 0.6,
+        "features": {
+          "title_length": 79.0,
+          "title_word_count": 10.0,
+          "title_reading_ease": 10.56,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 1.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.06329113924050633,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "sports": {
+        "title": "Indiana high school football scores, updates and highlights from sectional finals",
+        "ctr": 0.625,
+        "features": {
+          "title_length": 81.0,
+          "title_word_count": 11.0,
+          "title_reading_ease": 43.39,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.012345679012345678,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "news": {
+        "title": "Who tampered with Halloween Candy in Colerain? The investigation continues",
+        "ctr": 0.5,
+        "features": {
+          "title_length": 74.0,
+          "title_word_count": 10.0,
+          "title_reading_ease": 24.1,
+          "has_question": 1.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.06756756756756757,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "finance": {
+        "title": "County customers to pay more, as Waste Management proposes new trash contract with 43% increase",
+        "ctr": 0.42857142857142855,
+        "features": {
+          "title_length": 95.0,
+          "title_word_count": 15.0,
+          "title_reading_ease": 56.25,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 1.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.031578947368421054,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "health": {
+        "title": "People learn they have rare blood disease after seeing man's story on KOCO 5",
+        "ctr": 0.25,
+        "features": {
+          "title_length": 76.0,
+          "title_word_count": 14.0,
+          "title_reading_ease": 74.19,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 1.0,
+          "has_colon": 0.0,
+          "has_quotes": 1.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.06578947368421052,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "music": {
+        "title": "Broadway Actress Laurel Griggs Dies at Age 13",
+        "ctr": 0.3740880503144654,
+        "features": {
+          "title_length": 45.0,
+          "title_word_count": 8.0,
+          "title_reading_ease": 80.28,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 1.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.13333333333333333,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "foodanddrink": {
+        "title": "Subway Is Brought Back Its Beloved Cheesy Garlic Bread For A Limited Time",
+        "ctr": 0.4,
+        "features": {
+          "title_length": 73.0,
+          "title_word_count": 13.0,
+          "title_reading_ease": 66.74,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.1780821917808219,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "weather": {
+        "title": "NES: Power restored to 10,000 after equipment malfunction due to freezing conditions",
+        "ctr": 0.42857142857142855,
+        "features": {
+          "title_length": 84.0,
+          "title_word_count": 12.0,
+          "title_reading_ease": 42.38,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 1.0,
+          "has_colon": 1.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.047619047619047616,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "video": {
+        "title": "California woman recounts horrific story of homeless man pouring hot feces on her head",
+        "ctr": 0.6,
+        "features": {
+          "title_length": 86.0,
+          "title_word_count": 14.0,
+          "title_reading_ease": 40.35,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.011627906976744186,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "entertainment": {
+        "title": "Early access changed everything about games",
+        "ctr": 0.2857142857142857,
+        "features": {
+          "title_length": 43.0,
+          "title_word_count": 6.0,
+          "title_reading_ease": 48.47,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.023255813953488372,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "tv": {
+        "title": "Rip Taylor's Cause of Death Revealed, Memorial Service Scheduled for Later This Month",
+        "ctr": 0.2947893213251849,
+        "features": {
+          "title_length": 85.0,
+          "title_word_count": 13.0,
+          "title_reading_ease": 58.28,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 1.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.12941176470588237,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "autos": {
+        "title": "Books About The Philosophical Side Of The Motorcycle",
+        "ctr": 0.3333333333333333,
+        "features": {
+          "title_length": 52.0,
+          "title_word_count": 8.0,
+          "title_reading_ease": 29.52,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.15384615384615385,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "kids": {
+        "title": "A Teenage Inventor May Have Solved the Problem of Car Blindspots",
+        "ctr": 0.21428571428571427,
+        "features": {
+          "title_length": 64.0,
+          "title_word_count": 11.0,
+          "title_reading_ease": 77.23,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 0.0,
+          "has_colon": 0.0,
+          "has_quotes": 0.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.140625,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      },
+      "northamerica": {
+        "title": "Republicans have floated 17 different defenses of Trump's Ukraine actions",
+        "ctr": 0.047619047619047616,
+        "features": {
+          "title_length": 73.0,
+          "title_word_count": 10.0,
+          "title_reading_ease": 27.49,
+          "has_question": 0.0,
+          "has_exclamation": 0.0,
+          "has_number": 1.0,
+          "has_colon": 0.0,
+          "has_quotes": 1.0,
+          "has_ellipsis": 0.0,
+          "title_uppercase_ratio": 0.0410958904109589,
+          "starts_with_number": 0.0,
+          "starts_with_question": 0.0,
+          "has_superlative": 0.0,
+          "has_temporal_words": 0.0
+        }
+      }
+    }
+  }
+}
