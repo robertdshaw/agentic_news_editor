@@ -231,11 +231,11 @@ class HeadlineMetrics:
         feedback = []
         
         if comparison['score_percent_change'] > 0:
-            feedback.append(f"✅ Improved CTR by {comparison['score_percent_change']:.1f}%")
-            feedback.append(f"📈 CTR: {comparison['original_ctr']:.4f} → {comparison['rewritten_ctr']:.4f}")
+            feedback.append(f" Improved CTR by {comparison['score_percent_change']:.1f}%")
+            feedback.append(f" CTR: {comparison['original_ctr']:.4f} → {comparison['rewritten_ctr']:.4f}")
         else:
-            feedback.append(f"⚠️ Decreased CTR by {abs(comparison['score_percent_change']):.1f}%")
-            feedback.append(f"📉 CTR: {comparison['original_ctr']:.4f} → {comparison['rewritten_ctr']:.4f}")
+            feedback.append(f" Decreased CTR by {abs(comparison['score_percent_change']):.1f}%")
+            feedback.append(f" CTR: {comparison['original_ctr']:.4f} → {comparison['rewritten_ctr']:.4f}")
         
         if comparison['key_improvements']:
             feedback.append("Key improvements:")

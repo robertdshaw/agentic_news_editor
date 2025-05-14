@@ -1,4 +1,3 @@
-# Add this to the top of your file before other imports
 import logging
 import threading
 import sys
@@ -26,6 +25,7 @@ def disable_torch_watchdog():
 disable_torch_watchdog()
  
 import os
+sys.path.append('.') 
 import streamlit as st
 import json
 import pandas as pd
@@ -41,6 +41,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 from openai import OpenAI
 from dotenv import load_dotenv
+from headline_model_trainer_optimized import CTRPredictor
 from headline_metrics import HeadlineMetrics
 from headline_learning import HeadlineLearningLoop
 
@@ -864,9 +865,18 @@ def curate_articles_for_topic(query_text, index, articles_df, model, openai_clie
         return pd.DataFrame()
 
 def analyze_headline_effectiveness(df, openai_client=None):
-    """Analyze the effectiveness of headline rewrites"""
+    """Analyze the effectiveness of headline rewrites using CTR model"""
     if len(df) == 0:
         return df
+    ctr_predictor = st.session_state.get('CTRPredictor')
+    
+    if ctr_predictor is None:
+        # Fallback to basic metrics if CTR model not available
+        logging.warning("CTR predictor not available, using fallback metrics")
+        metrics_analyzer = HeadlineMetrics(client=openai_client)
+    else:
+        # Use the CTR model for predictions
+        logging.info("Using CTR model for headline analysis")
     
     metrics_analyzer = HeadlineMetrics(client=openai_client)
     
@@ -883,27 +893,49 @@ def analyze_headline_effectiveness(df, openai_client=None):
         if pd.isna(row['title']) or pd.isna(row['rewritten_title']):
             continue
             
-        try:
-            comparison = metrics_analyzer.compare_headlines(
-                row['title'], 
-                row['rewritten_title']
-            )
+    if ctr_predictor:
+            # Use CTR model predictions
+            original_ctr = ctr_predictor.predict_ctr(row['title'])
+            rewritten_ctr = ctr_predictor.predict_ctr(row['rewritten_title'])
             
-            df.at[i, 'headline_score_original'] = comparison['original_score']
-            df.at[i, 'headline_score_rewritten'] = comparison['rewritten_score']
-            df.at[i, 'headline_ctr_original'] = comparison['original_ctr'] * 100
-            df.at[i, 'headline_ctr_rewritten'] = comparison['rewritten_ctr'] * 100
-            df.at[i, 'headline_improvement'] = comparison['score_percent_change']
-            
-            if comparison['key_improvements']:
-                df.at[i, 'headline_key_factors'] = ", ".join(comparison['key_improvements'])
+            # Calculate improvement
+            if original_ctr > 0:
+                improvement = (rewritten_ctr - original_ctr) / original_ctr * 100
             else:
+                improvement = 100 if rewritten_ctr > 0 else 0
+            
+            # Get key improvements from metrics analyzer
+            if 'metrics_analyzer' in locals():
+                comparison = metrics_analyzer.compare_headlines(row['title'], row['rewritten_title'])
+                key_factors = comparison.get('key_improvements', [])
+            else:
+                key_factors = ["CTR-based improvement"]
+            
+            df.at[i, 'headline_score_original'] = original_ctr
+            df.at[i, 'headline_score_rewritten'] = rewritten_ctr
+            df.at[i, 'headline_ctr_original'] = original_ctr * 100  # Convert to percentage
+            df.at[i, 'headline_ctr_rewritten'] = rewritten_ctr * 100
+            df.at[i, 'headline_improvement'] = improvement
+            df.at[i, 'headline_key_factors'] = ", ".join(key_factors)
+    else:
+        # Fallback to original metrics analyzer
+        comparison = metrics_analyzer.compare_headlines(row['title'], row['rewritten_title'])
+            
+        df.at[i, 'headline_score_original'] = comparison['original_score']
+        df.at[i, 'headline_score_rewritten'] = comparison['rewritten_score']
+        df.at[i, 'headline_ctr_original'] = comparison['original_ctr'] * 100
+        df.at[i, 'headline_ctr_rewritten'] = comparison['rewritten_ctr'] * 100
+        df.at[i, 'headline_improvement'] = comparison['score_percent_change']
+        
+        if comparison['key_improvements']:
+            df.at[i, 'headline_key_factors'] = ", ".join(comparison['key_improvements'])
+        else:
                 df.at[i, 'headline_key_factors'] = "No major improvements identified"
                 
-        except Exception as e:
-            logging.error(f"Error analyzing headlines for row {i}: {e}")
+    except Exception as e:
+        logging.error(f"Error analyzing headlines for row {i}: {e}")
     
-    return df
+return df
 
 def calculate_evaluation_metrics(curated_articles):
     """Simplified metrics for research questions"""
