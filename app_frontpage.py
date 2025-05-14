@@ -39,6 +39,7 @@ import time
 import logging
 import re
 import pickle
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
