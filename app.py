@@ -1174,7 +1174,7 @@ def add_headline_testing_section():
     st.sidebar.subheader("Test Any Headline")
 
     user_headline = st.sidebar.text_area(
-        "Enter your headline:", placeholder="Type your headline here...", height=60
+        "Enter your headline:", placeholder="Type your headline here...", height=68
     )
 
     if user_headline and st.sidebar.button("Analyze & Improve"):
