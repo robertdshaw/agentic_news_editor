@@ -7,6 +7,9 @@ from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 import os
 from pathlib import Path
+from headline_features import HeadlineFeatureExtractor
+from headline_utils import load_ctr_model
+from sklearn.impute import SimpleImputer
 
 
 class HeadlineMetrics:
@@ -15,13 +18,17 @@ class HeadlineMetrics:
         self.openai_client = client
 
         # Load the CTR model and its components
+        # Load the CTR model and its components
         try:
-            with open(model_path, "rb") as f:
-                model_data = pickle.load(f)
+            model_data, error = load_ctr_model(model_path)
+
+            if model_data is None:
+                logging.error(f"Failed to load CTR model: {error}")
+                raise ValueError(f"Could not load model from {model_path}: {error}")
 
             self.model = model_data["model"]
             self.scaler = model_data["scaler"]
-            self.imputer = model_data["imputer"]
+            self.imputer = model_data.get("imputer", SimpleImputer(strategy="mean"))
             self.encoders = model_data["encoders"]
             self.feature_names = model_data["feature_names"]
             self.best_model = model_data["model_name"]
@@ -34,93 +41,14 @@ class HeadlineMetrics:
             logging.error(f"Failed to load CTR model: {e}")
             raise ValueError(f"Could not load model from {model_path}: {e}")
 
-        # Load embedding model (same as used in training)
-        try:
-            self.embeddings_model = SentenceTransformer("all-MiniLM-L6-v2")
-            logging.info("Loaded sentence transformer model")
-        except Exception as e:
-            logging.error(f"Failed to load sentence transformer: {e}")
-            raise ValueError(f"Could not load sentence transformer: {e}")
-
     def extract_features(self, df_or_headline):
-        """Extract features using the same method as the CTR model training"""
-        # Handle single headline or dataframe
-        if isinstance(df_or_headline, str):
-            df = pd.DataFrame({"title": [df_or_headline]})
-        else:
-            df = df_or_headline.copy()
+        """Extract features using the shared utility"""
+        # Initialize the feature extractor if not already done
+        if not hasattr(self, "feature_extractor"):
+            self.feature_extractor = HeadlineFeatureExtractor(self.embeddings_model)
 
-        features = pd.DataFrame(index=df.index)
-
-        # Text features from title
-        features["title_length"] = df["title"].str.len()
-        features["title_word_count"] = df["title"].str.split().str.len()
-
-        # Pattern features
-        features["has_question"] = df["title"].str.contains(r"\?").astype(int)
-        features["has_number"] = df["title"].str.contains(r"\d").astype(int)
-        features["has_colon"] = df["title"].str.contains(":").astype(int)
-        features["has_quotes"] = df["title"].str.contains(r'["\']').astype(int)
-        features["has_ellipsis"] = df["title"].str.contains(r"\.\.\.").astype(int)
-
-        # Problematic patterns
-        features["starts_with_number"] = df["title"].str.match(r"^\d").astype(int)
-        features["starts_with_question"] = (
-            df["title"].str.match(r"^(Is|What|How|Why|When|Where)").astype(int)
-        )
-        features["has_superlative"] = (
-            df["title"]
-            .str.contains(r"\b(?:best|worst|most|least|biggest|smallest)\b", case=False)
-            .astype(int)
-        )
-        features["title_uppercase_ratio"] = df["title"].apply(
-            lambda x: sum(1 for c in x if c.isupper()) / len(x) if len(x) > 0 else 0
-        )
-
-        # Reading ease (simplified version)
-        def safe_flesch_reading_ease(text):
-            try:
-                if pd.isna(text) or not isinstance(text, str) or len(text) == 0:
-                    return 50.0  # Default reading ease
-                # Simplified calculation
-                words = len(text.split())
-                sentences = max(1, text.count(".") + text.count("!") + text.count("?"))
-                return max(
-                    0,
-                    min(
-                        100,
-                        206.835 - 1.015 * (words / sentences) - 84.6 * (words / words),
-                    ),
-                )
-            except:
-                return 50.0
-
-        features["title_reading_ease"] = df["title"].apply(safe_flesch_reading_ease)
-
-        # Category encoding (use 'unknown' as default)
-        features["category_encoded"] = 0  # Default category
-
-        # Time features (use defaults)
-        features["hour"] = 12
-        features["day_of_week"] = 1
-        features["is_weekend"] = 0
-
-        # Embeddings
-        try:
-            titles_clean = df["title"].fillna("").astype(str).tolist()
-            embeddings = self.embeddings_model.encode(titles_clean, batch_size=32)
-
-            # Add first 50 embedding dimensions as features
-            for i in range(min(50, embeddings.shape[1])):
-                features[f"emb_{i}"] = embeddings[:, i]
-        except Exception as e:
-            logging.error(f"Error creating embeddings: {e}")
-            # Add zero embeddings if failed
-            for i in range(50):
-                features[f"emb_{i}"] = 0.0
-
-        # Fill any remaining NaN values
-        features = features.fillna(0)
+        # Get features from the shared extractor
+        features = self.feature_extractor.extract_features(df_or_headline)
 
         return features
 

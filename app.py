@@ -3,6 +3,7 @@ import sys
 import logging
 import subprocess
 from pathlib import Path
+from headline_utils import get_model_paths, load_ctr_model
 
 # Set environment variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -1372,101 +1373,136 @@ def add_headline_testing_section():
 
 
 def add_learning_system_section():
-    """Add the headline learning system section to sidebar"""
+    """Add the headline learning system section to sidebar with proper error handling"""
     st.sidebar.markdown("---")
     st.sidebar.subheader("Headline Learning System")
 
     if st.sidebar.button("Generate Headline Report"):
         try:
-            if (
-                st.session_state.get("headline_learner")
-                and st.session_state.headline_learner.prompt_improvement_report()
-            ):
-                st.sidebar.success("Headline improvement report generated!")
-                with open("headline_improvement_report.md", "r") as f:
-                    report_content = f.read()
+            if st.session_state.get("headline_learner"):
+                if hasattr(
+                    st.session_state.headline_learner, "prompt_improvement_report"
+                ):
+                    if st.session_state.headline_learner.prompt_improvement_report():
+                        st.sidebar.success("Headline improvement report generated!")
+                        if os.path.exists("headline_improvement_report.md"):
+                            with open("headline_improvement_report.md", "r") as f:
+                                report_content = f.read()
 
-                st.sidebar.download_button(
-                    label="Download Report",
-                    data=report_content,
-                    file_name="headline_improvement_report.md",
-                    mime="text/markdown",
-                )
+                            st.sidebar.download_button(
+                                label="Download Report",
+                                data=report_content,
+                                file_name="headline_improvement_report.md",
+                                mime="text/markdown",
+                            )
+                        else:
+                            st.sidebar.warning("Report file not found")
+                    else:
+                        st.sidebar.error("Failed to generate report")
+                else:
+                    st.sidebar.warning(
+                        "Upgrade your HeadlineLearningLoop class with the new methods"
+                    )
+                    st.sidebar.info(
+                        "Add the prompt_improvement_report method to HeadlineLearningLoop"
+                    )
             else:
-                st.sidebar.error("Failed to generate report")
+                st.sidebar.error("Headline learning system not initialized")
         except Exception as e:
             st.sidebar.error(f"Error generating report: {str(e)}")
-
-
-def show_model_performance():
-    """Show model performance in sidebar"""
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Model Performance")
-
-    # Calculate and display current evaluation
-    if st.sidebar.button("Check Model Accuracy"):
-        # Using the proper method from HeadlineLearningLoop
-        if st.session_state.get("headline_learner"):
-            eval_results = (
-                st.session_state.headline_learner.evaluate_model_performance()
-            )
-
-            # Display key metrics
-            st.sidebar.metric(
-                "Direction Accuracy", f"{eval_results['direction_accuracy']:.0%}"
-            )
-            st.sidebar.metric(
-                "Average Improvement", f"{eval_results['avg_improvement']:.0%}"
-            )
-            st.sidebar.info(f"Based on {eval_results['sample_size']} headlines")
-        else:
-            st.sidebar.error("Headline learning system not initialized")
+            logging.error(f"Error in add_learning_system_section: {e}")
 
 
 def show_model_dashboard():
-    """Show simple model performance dashboard"""
+    """Show simple model performance dashboard with error handling"""
     st.subheader("Model Performance Dashboard")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         # Real-time accuracy from learning system
-        if st.session_state.get("headline_learner"):
-            # Get insights from the learning system
-            insights = st.session_state.headline_learner.get_insights_summary()
-            if "error" not in insights:
-                improved_count = int(
-                    insights["improvement_rate"] * insights["total_headlines"]
-                )
-                st.metric(
-                    "Headlines Improved",
-                    f"{improved_count}/{insights['total_headlines']}",
-                    f"{insights['improvement_rate']:.0%}",
-                )
+        try:
+            if st.session_state.get("headline_learner"):
+                # Get insights from the learning system
+                if hasattr(st.session_state.headline_learner, "get_insights_summary"):
+                    insights = st.session_state.headline_learner.get_insights_summary()
+                    if "error" not in insights:
+                        improved_count = int(
+                            insights["improvement_rate"] * insights["total_headlines"]
+                        )
+                        st.metric(
+                            "Headlines Improved",
+                            f"{improved_count}/{insights['total_headlines']}",
+                            f"{insights['improvement_rate']:.0%}",
+                        )
+                    else:
+                        st.metric("Headlines Improved", "0/0", "No data")
+                else:
+                    # Fallback to basic analytics if method doesn't exist
+                    if hasattr(st.session_state.headline_learner, "data"):
+                        data = st.session_state.headline_learner.data
+                        if not data.empty and "headline_improvement" in data.columns:
+                            improved_count = (data["headline_improvement"] > 0).sum()
+                            st.metric(
+                                "Headlines Improved",
+                                f"{improved_count}/{len(data)}",
+                                (
+                                    f"{improved_count/len(data):.0%}"
+                                    if len(data) > 0
+                                    else "0%"
+                                ),
+                            )
+                        else:
+                            st.metric("Headlines Improved", "0/0", "No data")
+                    else:
+                        st.metric("Headlines Improved", "0/0", "No data")
             else:
                 st.metric("Headlines Improved", "0/0", "No data")
-        else:
-            st.metric("Headlines Improved", "0/0", "No data")
+        except Exception as e:
+            st.metric("Headlines Improved", "0/0", "Error")
+            logging.error(f"Error showing headlines improved: {e}")
 
     with col2:
         # Average improvement from learning system
-        if st.session_state.get("headline_learner"):
-            insights = st.session_state.headline_learner.get_insights_summary()
-            if "error" not in insights:
-                st.metric("Avg Improvement", f"{insights['avg_improvement']:.1f}%")
+        try:
+            if st.session_state.get("headline_learner"):
+                if hasattr(st.session_state.headline_learner, "get_insights_summary"):
+                    insights = st.session_state.headline_learner.get_insights_summary()
+                    if "error" not in insights:
+                        st.metric(
+                            "Avg Improvement", f"{insights['avg_improvement']:.1f}%"
+                        )
+                    else:
+                        st.metric("Avg Improvement", "0%")
+                else:
+                    # Fallback to basic analytics
+                    if hasattr(st.session_state.headline_learner, "data"):
+                        data = st.session_state.headline_learner.data
+                        if not data.empty and "headline_improvement" in data.columns:
+                            avg_improvement = data["headline_improvement"].mean()
+                            st.metric("Avg Improvement", f"{avg_improvement:.1f}%")
+                        else:
+                            st.metric("Avg Improvement", "0%")
+                    else:
+                        st.metric("Avg Improvement", "0%")
             else:
                 st.metric("Avg Improvement", "0%")
-        else:
-            st.metric("Avg Improvement", "0%")
+        except Exception as e:
+            st.metric("Avg Improvement", "Error")
+            logging.error(f"Error showing average improvement: {e}")
 
     with col3:
         # Model status
-        ctr_predictor = st.session_state.get("ctr_predictor")
-        if ctr_predictor:
-            model_name = getattr(ctr_predictor, "best_model", "Unknown")
-            st.metric("Model Status", "Active", f"{model_name}")
-        else:
-            st.metric("Model Status", "Inactive", "Not loaded")
+        try:
+            ctr_predictor = st.session_state.get("ctr_predictor")
+            if ctr_predictor:
+                model_name = getattr(ctr_predictor, "best_model", "Unknown")
+                st.metric("Model Status", "Active", f"{model_name}")
+            else:
+                st.metric("Model Status", "Inactive", "Not loaded")
+        except Exception as e:
+            st.metric("Model Status", "Error", "Unknown")
+            logging.error(f"Error showing model status: {e}")
 
 
 def load_curated_articles():
@@ -1510,11 +1546,12 @@ def initialize_session_state():
         ]
 
     # Initialize CTR predictor
+    # Initialize CTR predictor
     if "ctr_predictor" not in st.session_state:
         try:
-            base_dir = Path(".")
-            processed_data_dir = base_dir / "agentic_news_editor" / "processed_data"
-            output_dir = base_dir / "model_output"
+            paths = get_model_paths()
+            processed_data_dir = paths["processed_data"]
+            output_dir = paths["output"]
 
             st.session_state.ctr_predictor = CTRPredictor(
                 processed_data_dir=str(processed_data_dir),
@@ -1608,7 +1645,7 @@ def setup_sidebar():
         add_system_status_indicator()
         add_headline_testing_section()
         add_learning_system_section()
-        show_model_performance()
+        # show_model_performance()
 
         return {
             "editorial_queries": editorial_queries,

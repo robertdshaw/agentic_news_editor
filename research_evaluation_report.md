@@ -1,22 +1,19 @@
 
 # Research Evaluation Report
-Generated on: 2025-05-03 15:58
+Generated on: 2025-05-17 14:26
 
 ## RQ1: Article Retrieval Effectiveness
 
 ### Metrics:
-- Retrieval Success Rate: 93.3%
-- Total Articles: 15
-- Topics Covered: 3
+- Retrieval Success Rate: 100.0%
+- Total Articles: 1
+- Topics Covered: 1
 
-## RQ2: Headline Improvement Effectiveness
-
-### Metrics:
-- Average Improvement: 2.8%
-- Headlines Improved: 6 out of 15
-- Improvement Rate: 40.0%
-- Average CTR Change: 0.9%
+- Average Improvement: -42.3%
+- Headlines Improved: 0 out of 1
+- Improvement Rate: 0.0%
+- Average CTR Change: -0.1%
 
 ## Summary:
-The AI system successfully retrieved 15 articles across 3 topics.
-Headline rewriting improved 40.0% of headlines with an average CTR improvement of 2.8%.
+The AI system successfully retrieved 1 articles across 1 topics.
+Headline rewriting improved 0.0% of headlines with an average CTR improvement of -42.3%.

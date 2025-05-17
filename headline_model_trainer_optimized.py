@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 # ML Imports
+from headline_features import HeadlineFeatureExtractor
+from headline_utils import load_ctr_model
 import xgboost as xgb
 import lightgbm as lgb
 from catboost import CatBoostClassifier
@@ -336,50 +338,15 @@ class CTRPredictor:
                 return None, None, None
 
     def extract_features(self, df):
-        """Extract features from headlines and metadata"""
-        features = pd.DataFrame(index=df.index)
+        """Extract features from headlines and metadata using the shared utility"""
+        # Initialize the feature extractor if not already done
+        if not hasattr(self, "feature_extractor"):
+            self.feature_extractor = HeadlineFeatureExtractor(self.embeddings_model)
 
-        # Text features from title
-        features["title_length"] = df["title"].str.len()
-        features["title_word_count"] = df["title"].str.split().str.len()
+        # Get basic features from the shared extractor
+        features = self.feature_extractor.extract_features(df)
 
-        # Pattern features based on EDA findings
-        features["has_question"] = df["title"].str.contains(r"\?").astype(int)
-        features["has_number"] = df["title"].str.contains(r"\d").astype(int)
-        features["has_colon"] = df["title"].str.contains(":").astype(int)
-        features["has_quotes"] = df["title"].str.contains(r'["\']').astype(int)
-        features["has_ellipsis"] = df["title"].str.contains(r"\.\.\.").astype(int)
-
-        # Problematic patterns (from EDA)
-        features["starts_with_number"] = df["title"].str.match(r"^\d").astype(int)
-        features["starts_with_question"] = (
-            df["title"].str.match(r"^(Is|What|How|Why|When|Where)").astype(int)
-        )
-        features["has_superlative"] = (
-            df["title"]
-            .str.contains(r"\b(?:best|worst|most|least|biggest|smallest)\b", case=False)
-            .astype(int)
-        )
-        features["title_uppercase_ratio"] = df["title"].apply(
-            lambda x: sum(1 for c in x if c.isupper()) / len(x) if len(x) > 0 else 0
-        )
-
-        # Reading ease with proper error handling
-        if "title_reading_ease" not in df.columns:
-
-            def safe_flesch_reading_ease(text):
-                try:
-                    if pd.isna(text) or not isinstance(text, str) or len(text) == 0:
-                        return 0
-                    return flesch_reading_ease(text)
-                except:
-                    return 0
-
-            features["title_reading_ease"] = df["title"].apply(safe_flesch_reading_ease)
-        else:
-            features["title_reading_ease"] = df["title_reading_ease"].fillna(0)
-
-        # Category encoding with proper NaN handling
+        # Category encoding with proper NaN handling - specific to CTRPredictor
         if "category" in df.columns:
             if "category" not in self.encoders:
                 self.encoders["category"] = LabelEncoder()
@@ -860,12 +827,15 @@ class CTRPredictor:
         logger.info(f"Model saved to {self.output_dir / 'ctr_model.pkl'}")
 
     def load_model(self, model_path=None):
-        """Load a previously trained model"""
+        """Load a previously trained model using standardized loader"""
         if model_path is None:
             model_path = self.output_dir / "ctr_model.pkl"
 
-        with open(model_path, "rb") as f:
-            model_data = pickle.load(f)
+        model_data, error = load_ctr_model(model_path)
+
+        if model_data is None:
+            logger.error(f"Failed to load model: {error}")
+            return False
 
         self.best_model = model_data["model_name"]
         self.results[self.best_model] = {"model": model_data["model"]}
@@ -882,6 +852,7 @@ class CTRPredictor:
             ]
 
         logger.info(f"Model loaded from {model_path}")
+        return True
 
     def predict_click_probability(self, headlines, use_best_threshold=True):
         """Predict click probability for new headlines"""

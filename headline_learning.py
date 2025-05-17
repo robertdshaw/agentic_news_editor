@@ -226,6 +226,125 @@ class HeadlineLearningLoop:
             logging.error(f"Error analyzing headline patterns: {e}")
             return {"status": "error", "message": str(e)}
 
+    def evaluate_model_performance(self):
+        """Evaluate the headline improvement model performance metrics"""
+        try:
+            # Check if we have enough data
+            if len(self.data) < 10:
+                return {
+                    "direction_accuracy": 0.0,
+                    "avg_improvement": 0.0,
+                    "sample_size": 0,
+                }
+
+            # Calculate direction accuracy
+            # What percentage of time does the model correctly predict whether a headline will improve?
+            correct_predictions = 0
+            total_comparisons = 0
+
+            # Calculate stats based on available data
+            improvements = self.data["headline_improvement"]
+            avg_improvement = improvements.mean() if not improvements.empty else 0
+
+            # Simple direction prediction estimation (just for demonstration)
+            # In a real system, you would compare with actual click data
+            if (
+                "headline_ctr_original" in self.data.columns
+                and "headline_ctr_rewritten" in self.data.columns
+            ):
+                for _, row in self.data.iterrows():
+                    # If ctr improved and headline_improvement is positive, that's correct
+                    actual_improvement = (
+                        row["headline_ctr_rewritten"] > row["headline_ctr_original"]
+                    )
+                    predicted_improvement = row["headline_improvement"] > 0
+
+                    if actual_improvement == predicted_improvement:
+                        correct_predictions += 1
+                    total_comparisons += 1
+
+            direction_accuracy = (
+                correct_predictions / total_comparisons if total_comparisons > 0 else 0
+            )
+
+            return {
+                "direction_accuracy": direction_accuracy,
+                "avg_improvement": (
+                    avg_improvement / 100 if avg_improvement else 0
+                ),  # Convert to percentage
+                "sample_size": len(self.data),
+            }
+        except Exception as e:
+            logging.error(f"Error evaluating model performance: {e}")
+            return {
+                "direction_accuracy": 0.0,
+                "avg_improvement": 0.0,
+                "sample_size": 0,
+                "error": str(e),
+            }
+
+    def prompt_improvement_report(self):
+        """Generate improvement report and return success status"""
+        try:
+            report = self.generate_improvement_report()
+            if report.startswith("Cannot generate report") or report.startswith(
+                "Error generating report"
+            ):
+                logging.error(report)
+                return False
+            return True
+        except Exception as e:
+            logging.error(f"Error generating report: {e}")
+            return False
+
+    def get_insights_summary(self):
+        """Get a summary of key insights from the collected headline data"""
+        try:
+            # If we don't have enough data, return empty stats
+            if len(self.data) < 5:
+                return {
+                    "total_headlines": len(self.data),
+                    "improvement_rate": 0,
+                    "avg_improvement": 0,
+                    "most_common_factors": [],
+                    "error": "Not enough data for meaningful insights",
+                }
+
+            # Calculate basic stats from headline_improvement column
+            improvements = self.data["headline_improvement"]
+            improvement_rate = (improvements > 0).mean()
+            avg_improvement = improvements.mean()
+
+            # Extract top improvement factors
+            all_factors = []
+            for factors in self.data["headline_key_factors"]:
+                if isinstance(factors, str) and factors.strip():
+                    all_factors.extend(
+                        [f.strip() for f in factors.split(",") if f.strip()]
+                    )
+
+            # Get most common factors
+            factor_counts = pd.Series(all_factors).value_counts()
+            top_factors = (
+                factor_counts.head(5).index.tolist() if not factor_counts.empty else []
+            )
+
+            return {
+                "total_headlines": len(self.data),
+                "improvement_rate": improvement_rate,
+                "avg_improvement": avg_improvement,
+                "most_common_factors": top_factors,
+            }
+        except Exception as e:
+            logging.error(f"Error getting insights summary: {e}")
+            return {
+                "total_headlines": len(self.data) if hasattr(self, "data") else 0,
+                "improvement_rate": 0,
+                "avg_improvement": 0,
+                "most_common_factors": [],
+                "error": str(e),
+            }
+
     def get_improvement_recommendations(self):
         """Get specific recommendations based on collected data"""
         analysis = self.analyze_headline_patterns()
