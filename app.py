@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import subprocess
+from pathlib import Path
 
 # Set environment variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -117,283 +118,7 @@ st.set_page_config(
 )
 
 
-def add_headline_pair(self, original, rewritten, topic=None):
-    """Add a single pair of headlines to the learning system"""
-    try:
-        comparison = self.metrics_analyzer.compare_headlines(original, rewritten)
-        new_entry = pd.DataFrame(
-            {
-                "original_title": [original],
-                "rewritten_title": [rewritten],
-                "headline_score_original": [comparison["original_score"]],
-                "headline_score_rewritten": [comparison["rewritten_score"]],
-                "headline_ctr_original": [comparison["original_ctr"]],
-                "headline_ctr_rewritten": [comparison["rewritten_ctr"]],
-                "headline_improvement": [comparison["score_percent_change"]],
-                "headline_key_factors": [", ".join(comparison["key_improvements"])],
-                "topic": [topic if topic else "General"],
-                "timestamp": [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-            }
-        )
-
-        self.data = pd.concat([self.data, new_entry], ignore_index=True)
-        self.data.to_csv(self.data_file, index=False)
-
-        return True
-    except Exception as e:
-        logging.error(f"Error adding headline pair: {e}")
-        return False
-
-
-def add_headlines_from_dataframe(self, df):
-    """Add multiple headline pairs from a dataframe"""
-    count = 0
-
-    for _, row in df.iterrows():
-        if "original_title" in row and "rewritten_title" in row:
-            topic = row.get("topic", "General")
-            if (
-                "headline_score_original" in row
-                and "headline_score_rewritten" in row
-                and "headline_ctr_original" in row
-                and "headline_ctr_rewritten" in row
-                and "headline_improvement" in row
-                and "headline_key_factors" in row
-            ):
-
-                new_entry = pd.DataFrame(
-                    {
-                        "original_title": [row["original_title"]],
-                        "rewritten_title": [row["rewritten_title"]],
-                        "headline_score_original": [row["headline_score_original"]],
-                        "headline_score_rewritten": [row["headline_score_rewritten"]],
-                        "headline_ctr_original": [row["headline_ctr_original"]],
-                        "headline_ctr_rewritten": [row["headline_ctr_rewritten"]],
-                        "headline_improvement": [row["headline_improvement"]],
-                        "headline_key_factors": [row["headline_key_factors"]],
-                        "topic": [topic],
-                        "timestamp": [
-                            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        ],
-                    }
-                )
-
-                self.data = pd.concat([self.data, new_entry], ignore_index=True)
-                count += 1
-            else:
-                if self.add_headline_pair(
-                    row["original_title"], row["rewritten_title"], topic
-                ):
-                    count += 1
-    if count > 0:
-        self.data.to_csv(self.data_file, index=False)
-
-    return count
-
-
-def generate_improved_headline_report(self):
-    """Generate a comprehensive, statistically sound headline improvement report"""
-    if len(self.data) < 20:
-        return {
-            "status": "insufficient_data",
-            "message": "Need at least 20 headline pairs",
-        }
-
-    # Determine which column names to use
-    if "probability_improvement" in self.data.columns:
-        improvement_col = "probability_improvement"
-        orig_ctr_col = "original_click_probability"
-        new_ctr_col = "rewritten_click_probability"
-        factors_col = "key_improvements"
-    else:
-        improvement_col = "headline_improvement"
-        orig_ctr_col = "headline_ctr_original"
-        new_ctr_col = "headline_ctr_rewritten"
-        factors_col = "headline_key_factors"
-
-    # Clean and validate data
-    df = self.data.copy()
-    df = df.dropna(subset=[improvement_col, orig_ctr_col, new_ctr_col])
-
-    # Handle outliers (improvements > 500% are likely errors)
-    outliers_mask = np.abs(df[improvement_col]) > 500
-    outliers_count = outliers_mask.sum()
-    if outliers_count > 0:
-        print(
-            f"Detected {outliers_count} extreme outliers (>500% change), capping at ±500%"
-        )
-        df.loc[df[improvement_col] > 500, improvement_col] = 500
-        df.loc[df[improvement_col] < -500, improvement_col] = -500
-
-    # Calculate overall statistics
-    total_headlines = len(df)
-    positive_improvements = (df[improvement_col] > 0).sum()
-    significant_improvements = (df[improvement_col] > 20).sum()  # >20% improvement
-    negative_improvements = (df[improvement_col] < -10).sum()  # >10% decrease
-
-    # Calculate median instead of mean (more robust to outliers)
-    median_improvement = df[improvement_col].median()
-    mean_improvement = df[improvement_col].mean()
-    std_improvement = df[improvement_col].std()
-
-    # Calculate actual CTR changes
-    ctr_original_mean = df[orig_ctr_col].mean()
-    ctr_rewritten_mean = df[new_ctr_col].mean()
-    actual_ctr_change = (
-        (ctr_rewritten_mean - ctr_original_mean) / ctr_original_mean
-    ) * 100
-
-    # Analyze improvement factors
-    all_factors = []
-    for factors in df[factors_col]:
-        if isinstance(factors, str) and factors.strip():
-            # Clean up the factors
-            factors_list = [f.strip() for f in factors.split(",") if f.strip()]
-            all_factors.extend(factors_list)
-
-    factor_counts = pd.Series(all_factors).value_counts().head(10)
-
-    # Topic-level analysis with statistical testing
-    topic_analysis = {}
-    for topic in df["topic"].unique():
-        topic_data = df[df["topic"] == topic]
-        if len(topic_data) >= 5:  # Only analyze topics with sufficient data
-            topic_analysis[topic] = {
-                "count": len(topic_data),
-                "median_improvement": topic_data[improvement_col].median(),
-                "mean_improvement": topic_data[improvement_col].mean(),
-                "std_improvement": topic_data[improvement_col].std(),
-                "success_rate": (topic_data[improvement_col] > 0).mean(),
-                "significant_success_rate": (topic_data[improvement_col] > 20).mean(),
-                "failure_rate": (topic_data[improvement_col] < -10).mean(),
-                "mean_original_ctr": topic_data[orig_ctr_col].mean(),
-                "mean_rewritten_ctr": topic_data[new_ctr_col].mean(),
-            }
-
-    # Generate the report
-    report = f"""# Headline Improvement Analysis Report
-    Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}
-
-    ## Executive Summary
-    We analyzed **{total_headlines}** headline rewriting attempts using our AI system. Here's what we found:
-
-    ### Key Findings
-    - **{positive_improvements} headlines ({positive_improvements/total_headlines:.1%})** showed improvement
-    - **{significant_improvements} headlines ({significant_improvements/total_headlines:.1%})** showed significant improvement (>20%)
-    - **{negative_improvements} headlines ({negative_improvements/total_headlines:.1%})** performed worse (>10% decrease)
-
-    ### Overall Performance
-    - **Median Improvement**: {median_improvement:.1f}%
-    - *This means half of all rewrites performed better than {median_improvement:.1f}% improvement*
-    - **Average Improvement**: {mean_improvement:.1f}% (±{std_improvement:.1f}%)
-    - *The typical improvement, accounting for both successes and failures*
-    - **Actual CTR Impact**: {actual_ctr_change:.2f}%
-    - *The real-world click-through rate change from original to rewritten*
-
-    ## What These Numbers Mean
-
-    ### Understanding Improvement Percentages
-    - **Positive values** (e.g., +25%): The rewritten headline is predicted to get 25% more clicks
-    - **Negative values** (e.g., -15%): The rewritten headline is predicted to get 15% fewer clicks
-    - **Zero (0%)**: No significant change in predicted performance
-
-    ### Statistical Context
-    - **Standard Deviation**: {std_improvement:.1f}% shows high variability (expected in creative tasks)
-    - **Sample Size**: {total_headlines} provides {'good' if total_headlines >= 100 else 'limited'} statistical confidence
-
-    ## Most Effective Improvement Strategies
-    """
-
-    # Add factor analysis
-    if len(factor_counts) > 0:
-        report += "\n### Techniques That Work\n"
-        for i, (factor, count) in enumerate(factor_counts.items(), 1):
-            percentage = (count / total_headlines) * 100
-            report += (
-                f"{i}. **{factor}**: Used in {count} headlines ({percentage:.1f}%)\n"
-            )
-
-    # Add topic-specific analysis
-    report += "\n## Performance by Topic\n"
-    report += "\n*Note: Only topics with 5+ headlines are included for statistical validity*\n\n"
-
-    # Sort topics by median improvement for better insights
-    sorted_topics = sorted(
-        topic_analysis.items(),
-        key=lambda x: x[1]["median_improvement"],
-        reverse=True,
-    )
-
-    for topic, stats in sorted_topics:
-        report += f"### {topic}\n"
-        report += f"- **Sample Size**: {stats['count']} headlines\n"
-        report += f"- **Median Improvement**: {stats['median_improvement']:.1f}%\n"
-        report += (
-            f"- **Success Rate**: {stats['success_rate']:.1%} of headlines improved\n"
-        )
-        report += f"- **Significant Success**: {stats['significant_success_rate']:.1%} showed >20% improvement\n"
-        if stats["failure_rate"] > 0:
-            report += f"- **Failure Rate**: {stats['failure_rate']:.1%} performed significantly worse\n"
-        report += f"- **CTR Change**: {stats['mean_original_ctr']:.3f} → {stats['mean_rewritten_ctr']:.3f}\n\n"
-
-    # Add data quality section
-    report += f"""
-    ## Data Quality Assessment
-    - **Total Records**: {total_headlines} headline pairs
-    - **Outliers Detected**: {outliers_count} extreme values (>500% change)
-    - **Data Completeness**: {(len(df)/len(self.data)):.1%} records with complete data
-    - **Date Range**: {df['timestamp'].min()} to {df['timestamp'].max()}
-
-    ## Statistical Interpretation Guide
-
-    ### How to Read These Results
-    1. **Median vs Mean**: We report both because:
-    - **Median** shows typical performance (less affected by extreme cases)
-    - **Mean** shows average performance (includes all successes and failures)
-
-    2. **Success Rates**:
-    - **Any Improvement**: Headlines that performed even slightly better
-    - **Significant Improvement**: Headlines with >20% better predicted performance
-    - **Failure Rate**: Headlines that performed >10% worse
-
-    3. **CTR Numbers**:
-    - These represent predicted click-through rates (probability of clicks)
-    - Small absolute numbers (0.001-0.1) are normal for news headlines
-    - Focus on relative improvements rather than absolute values
-
-    ## Actionable Recommendations
-
-    ### Based on This Analysis:
-    1. **For {sorted_topics[0][0]}**: Most successful topic - continue current approach
-    2. **For {sorted_topics[-1][0]}**: Needs improvement - consider topic-specific training
-    3. **Overall Strategy**: Focus on techniques showing >30 occurrences in our factor analysis
-    4. **Quality Control**: Review headlines with <-20% improvement to identify failure patterns
-
-    ## Next Steps
-    1. **Increase Sample Size**: Aim for 50+ headlines per topic for better statistical confidence
-    2. **A/B Testing**: Test our top predictions with real users
-    3. **Continuous Learning**: Use successful patterns to improve the rewriting algorithm
-    4. **Human Validation**: Have editors review headlines with extreme improvements/failures
-
-    ---
-    *This report analyzes AI-generated headline improvements. Results are predictions that should be validated with real user testing.*
-    """
-
-    # Save the report
-    with open("comprehensive_headline_analysis.md", "w") as f:
-        f.write(report)
-
-    return {
-        "status": "success",
-        "total_headlines": total_headlines,
-        "median_improvement": median_improvement,
-        "success_rate": positive_improvements / total_headlines,
-        "report_path": "comprehensive_headline_analysis.md",
-    }
-
-
 def apply_custom_css():
-
     timestamp = str(int(time.time()))
     st.markdown(
         """
@@ -781,12 +506,13 @@ def process_mind_dataset(news_file="news.tsv", behaviors_file="behaviors.tsv"):
 def create_embeddings_and_index(processed_file="processed_news.csv"):
     """Create embeddings and FAISS index for articles"""
     try:
-        if not os.path.exists(processed_file):
+        processed_path = Path(processed_file)
+        if not processed_path.exists():
             logging.error(f"Processed file not found: {processed_file}")
             return False
 
         # Load processed data
-        processed_df = pd.read_csv(processed_file)
+        processed_df = pd.read_csv(processed_path)
 
         # Initialize SentenceTransformer
         model = load_sentence_transformer()
@@ -878,20 +604,23 @@ def load_models_and_data():
     """Load FAISS index, metadata, and embedding model with caching"""
     try:
         logging.info("Loading FAISS index and models")
+        base_dir = Path(".")
 
         # Load the CSV data first
-        if not os.path.exists("articles_with_embeddings.csv"):
+        articles_path = base_dir / "articles_with_embeddings.csv"
+        if not articles_path.exists():
             st.error("⚠️ articles_with_embeddings.csv file not found!")
             return None, None, None
 
-        articles_df = pd.read_csv("articles_with_embeddings.csv")
+        articles_df = pd.read_csv(articles_path)
 
         # Load FAISS index
-        if not os.path.exists("articles_faiss.index"):
+        index_path = base_dir / "articles_faiss.index"
+        if not index_path.exists():
             st.error("⚠️ articles_faiss.index file not found!")
             return None, None, None
 
-        index = faiss.read_index("articles_faiss.index")
+        index = faiss.read_index(str(index_path))
 
         # Load model with the separate function
         model = load_sentence_transformer()
@@ -1066,7 +795,8 @@ def train_headline_ctr_model(
 
 def check_model_and_train():
     """Check if model exists and train if needed"""
-    if not os.path.exists("headline_ctr_model.pkl"):
+    model_path = Path("model_output/ctr_model.pkl")
+    if not model_path.exists():
         st.info("CTR prediction model not found. Training model...")
 
         if train_headline_ctr_model():
@@ -1166,10 +896,21 @@ def curate_articles_for_topic(
                 openai_client, row["title"], row["abstract"]
             )
 
-        # Analyze headline effectiveness with the simplified function
-        topic_articles = analyze_headline_effectiveness_simplified(
-            topic_articles, st.session_state.get("ctr_predictor")
-        )
+        # Get the metrics analyzer from session state if available
+        ctr_predictor = st.session_state.get("ctr_predictor")
+
+        # Analyze headline effectiveness
+        if ctr_predictor:
+            # Use the CTRPredictor directly
+            for i, (idx, row) in enumerate(topic_articles.iterrows()):
+                # Get the analysis using the proper class method
+                analysis = ctr_predictor.analyze_headline_pair(
+                    row["original_title"], row["rewritten_title"]
+                )
+
+                # Add all metrics to the dataframe
+                for key, value in analysis.items():
+                    topic_articles.at[idx, key] = value
 
         if progress_bar is not None:
             progress_bar.progress(1.0, text="Processing complete!")
@@ -1225,120 +966,6 @@ def load_sentence_transformer_once():
             return model
         except:
             return None
-
-
-def analyze_headline_effectiveness_simplified(df, ctr_predictor):
-    """
-    Simplified headline analysis using only the CTRPredictor model
-    Returns clear, understandable metrics with consistent units
-    """
-    if df.empty:
-        return df
-
-    # Initialize columns with default values
-    df["original_click_probability"] = 0.0
-    df["rewritten_click_probability"] = 0.0
-    df["probability_improvement"] = 0.0
-    df["improvement_category"] = "No Change"
-    df["key_improvements"] = "Analysis pending"
-
-    if ctr_predictor is None:
-        logging.warning("CTR predictor not available - using placeholder values")
-        return df
-
-    # Process each headline pair
-    for i, row in df.iterrows():
-        if pd.isna(row["title"]) or pd.isna(row["rewritten_title"]):
-            continue
-
-        try:
-            # Get click probabilities (values between 0-1)
-            original_prob = get_ctr_safely(ctr_predictor, row["title"])
-            rewritten_prob = get_ctr_safely(ctr_predictor, row["rewritten_title"])
-
-            # Store probabilities
-            df.at[i, "original_click_probability"] = original_prob
-            df.at[i, "rewritten_click_probability"] = rewritten_prob
-
-            # Calculate improvement
-            if original_prob > 0:
-                improvement = ((rewritten_prob - original_prob) / original_prob) * 100
-            else:
-                improvement = 100 if rewritten_prob > 0 else 0
-
-            df.at[i, "probability_improvement"] = improvement
-
-            # Categorize improvement
-            if improvement > 20:
-                df.at[i, "improvement_category"] = "Significant Improvement"
-            elif improvement > 5:
-                df.at[i, "improvement_category"] = "Moderate Improvement"
-            elif improvement > -5:
-                df.at[i, "improvement_category"] = "No Significant Change"
-            else:
-                df.at[i, "improvement_category"] = "Decreased Performance"
-
-            # Generate key improvements based on headline changes
-            df.at[i, "key_improvements"] = analyze_headline_changes(
-                row["title"], row["rewritten_title"], improvement
-            )
-
-        except Exception as e:
-            logging.error(f"Error analyzing headline at row {i}: {e}")
-            # Keep default values on error
-
-    return df
-
-
-def analyze_headline_changes(original, rewritten, improvement):
-    """Analyze what changed between original and rewritten headlines"""
-    changes = []
-
-    # Length changes
-    orig_len = len(original)
-    new_len = len(rewritten)
-    if abs(new_len - orig_len) > 10:
-        if new_len > orig_len:
-            changes.append("Made headline longer")
-        else:
-            changes.append("Made headline shorter")
-
-    # Number additions
-    if re.search(r"\d+", rewritten) and not re.search(r"\d+", original):
-        changes.append("Added specific numbers")
-
-    # Question format
-    if "?" in rewritten and "?" not in original:
-        changes.append("Added question format")
-
-    # How-to format
-    if "how to" in rewritten.lower() and "how to" not in original.lower():
-        changes.append("Added how-to format")
-
-    # Power words
-    power_words = ["best", "top", "ultimate", "secret", "proven", "exclusive"]
-    if any(word in rewritten.lower() for word in power_words) and not any(
-        word in original.lower() for word in power_words
-    ):
-        changes.append("Added power words")
-
-    # Default message
-    if not changes:
-        if improvement > 0:
-            changes.append("Overall writing improvement")
-        elif improvement < 0:
-            changes.append("Less engaging rewrite")
-        else:
-            changes.append("No significant changes detected")
-
-    return "; ".join(changes[:3])  # Limit to top 3 changes
-
-
-def analyze_headline_effectiveness(df, openai_client=None):
-    """Wrapper function for backward compatibility"""
-    return analyze_headline_effectiveness_simplified(
-        df, st.session_state.get("ctr_predictor")
-    )
 
 
 def display_headline_with_clear_metrics(original_title, rewritten_title, metrics=None):
@@ -1467,22 +1094,11 @@ The AI system successfully retrieved {metrics['num_articles']} articles across {
 Headline rewriting improved {metrics['headline_metrics']['improvement_rate']:.1%} of headlines with an average CTR improvement of {metrics['headline_metrics']['avg_improvement']:.1f}%.
 """
 
-    with open("research_evaluation_report.md", "w") as f:
+    report_path = Path("research_evaluation_report.md")
+    with open(report_path, "w") as f:
         f.write(report)
 
     return report
-
-
-def update_headline_learning(df):
-    """Update the headline learning system with newly processed articles"""
-    global headline_learner
-
-    if not isinstance(df, pd.DataFrame) or len(df) == 0:
-        return 0
-
-    count = headline_learner.add_headlines_from_dataframe(df)
-    logging.info(f"Added {count} headline pairs to learning system")
-    return count
 
 
 def get_stock_image_path(topic, article_id=None):
@@ -1552,66 +1168,79 @@ def display_article_image(topic, article_id=None, is_main=False):
         return False
 
 
-def evaluate_model_performance():
-    """Simple evaluation using your existing headline pairs"""
-    ctr_predictor = st.session_state.get("ctr_predictor")
+def add_headline_testing_section():
+    """Add a section for testing individual headlines with confidence"""
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Test Any Headline")
 
-    # Use your existing collected data
-    if os.path.exists("headline_learning_data.csv"):
-        df = pd.read_csv("headline_learning_data.csv")
-    else:
-        return {"direction_accuracy": 0, "avg_improvement": 0, "sample_size": 0}
+    user_headline = st.sidebar.text_area(
+        "Enter your headline:", placeholder="Type your headline here...", height=60
+    )
 
-    correct_predictions = 0
-    improvements = []
+    if user_headline and st.sidebar.button("Analyze & Improve"):
+        ctr_predictor = st.session_state.get("ctr_predictor")
+        openai_client = get_openai_client()
 
-    for _, row in df.iterrows():
-        # Get current predictions
-        orig_pred = ctr_predictor.predict_single_headline(row["original_title"])
-        rewrite_pred = ctr_predictor.predict_single_headline(row["rewritten_title"])
+        if not ctr_predictor or not openai_client:
+            st.error("Model or OpenAI client not available")
+            return
 
-        # Handle both dict and float returns
-        if isinstance(orig_pred, dict):
-            orig_ctr = orig_pred["ctr"]
-            rewrite_ctr = rewrite_pred["ctr"]
-        else:
-            orig_ctr = orig_pred
-            rewrite_ctr = rewrite_pred
+        with st.spinner("Analyzing headline..."):
+            # Get predictions
+            original_result = ctr_predictor.predict_single_headline(user_headline)
+            rewritten = rewrite_headline(openai_client, user_headline, "General news")
+            rewritten_result = ctr_predictor.predict_single_headline(rewritten)
 
-        # Calculate predicted improvement
-        if orig_ctr > 0:
-            pred_improvement = (rewrite_ctr - orig_ctr) / orig_ctr
-        else:
-            pred_improvement = 0
+            # Handle both dict and float returns
+            if isinstance(original_result, dict):
+                orig_ctr = original_result["ctr"]
+                orig_relative = original_result["relative_score"]
+                rewrite_ctr = rewritten_result["ctr"]
+                rewrite_relative = rewritten_result["relative_score"]
+            else:
+                orig_ctr = original_result
+                rewrite_ctr = rewritten_result
+                orig_relative = orig_ctr / 0.008  # Convert to relative
+                rewrite_relative = rewrite_ctr / 0.008
 
-        # Compare with actual (from your data) - Handle both column names
-        if "probability_improvement" in row:
-            actual_improvement = (
-                row["probability_improvement"] / 100
-            )  # Convert % to decimal
-        elif "headline_improvement" in row:
-            actual_improvement = (
-                row["headline_improvement"] / 100
-            )  # Convert % to decimal
-        else:
-            actual_improvement = 0  # fallback
+            # Calculate improvement
+            if orig_ctr > 0:
+                improvement = ((rewrite_ctr - orig_ctr) / orig_ctr) * 100
+            else:
+                improvement = 100 if rewrite_ctr > 0 else 0
 
-        # Check if direction is correct
-        if (pred_improvement > 0 and actual_improvement > 0) or (
-            pred_improvement < 0 and actual_improvement < 0
-        ):
-            correct_predictions += 1
+            # Save to learning system
+            if st.session_state.get("headline_learner"):
+                st.session_state.headline_learner.add_headline_pair(
+                    user_headline, rewritten
+                )
 
-        improvements.append(abs(pred_improvement - actual_improvement))
 
-    if len(df) > 0:
-        return {
-            "direction_accuracy": correct_predictions / len(df),
-            "avg_improvement": np.mean(improvements) * 100,
-            "sample_size": len(df),
-        }
-    else:
-        return {"direction_accuracy": 0, "avg_improvement": 0, "sample_size": 0}
+def add_learning_system_section():
+    """Add the headline learning system section to sidebar"""
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Headline Learning System")
+
+    if st.sidebar.button("Generate Headline Report"):
+        try:
+            if (
+                st.session_state.get("headline_learner")
+                and st.session_state.headline_learner.prompt_improvement_report()
+            ):
+                st.sidebar.success("Headline improvement report generated!")
+                with open("headline_improvement_report.md", "r") as f:
+                    report_content = f.read()
+
+                st.sidebar.download_button(
+                    label="Download Report",
+                    data=report_content,
+                    file_name="headline_improvement_report.md",
+                    mime="text/markdown",
+                )
+            else:
+                st.sidebar.error("Failed to generate report")
+        except Exception as e:
+            st.sidebar.error(f"Error generating report: {str(e)}")
 
 
 def show_model_performance():
@@ -1621,16 +1250,22 @@ def show_model_performance():
 
     # Calculate and display current evaluation
     if st.sidebar.button("Check Model Accuracy"):
-        eval_results = evaluate_model_performance()
+        # Using the proper method from HeadlineLearningLoop
+        if st.session_state.get("headline_learner"):
+            eval_results = (
+                st.session_state.headline_learner.evaluate_model_performance()
+            )
 
-        # Display key metrics
-        st.sidebar.metric(
-            "Direction Accuracy", f"{eval_results['direction_accuracy']:.0%}"
-        )
-        st.sidebar.metric(
-            "Average Improvement", f"{eval_results['avg_improvement']:.0%}"
-        )
-        st.sidebar.info(f"Based on {eval_results['sample_size']} headlines")
+            # Display key metrics
+            st.sidebar.metric(
+                "Direction Accuracy", f"{eval_results['direction_accuracy']:.0%}"
+            )
+            st.sidebar.metric(
+                "Average Improvement", f"{eval_results['avg_improvement']:.0%}"
+            )
+            st.sidebar.info(f"Based on {eval_results['sample_size']} headlines")
+        else:
+            st.sidebar.error("Headline learning system not initialized")
 
 
 def show_model_dashboard():
@@ -1640,24 +1275,18 @@ def show_model_dashboard():
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        # Real-time accuracy
-        if os.path.exists("headline_learning_data.csv"):
-            df = pd.read_csv("headline_learning_data.csv")
-
-            # Handle both new and old column names
-            improvement_col = (
-                "probability_improvement"
-                if "probability_improvement" in df.columns
-                else "headline_improvement"
-            )
-
-            if improvement_col in df.columns:
-                improved_count = (df[improvement_col] > 0).sum()
-                accuracy = improved_count / len(df) if len(df) > 0 else 0
+        # Real-time accuracy from learning system
+        if st.session_state.get("headline_learner"):
+            # Get insights from the learning system
+            insights = st.session_state.headline_learner.get_insights_summary()
+            if "error" not in insights:
+                improved_count = int(
+                    insights["improvement_rate"] * insights["total_headlines"]
+                )
                 st.metric(
                     "Headlines Improved",
-                    f"{improved_count}/{len(df)}",
-                    f"{accuracy:.0%}",
+                    f"{improved_count}/{insights['total_headlines']}",
+                    f"{insights['improvement_rate']:.0%}",
                 )
             else:
                 st.metric("Headlines Improved", "0/0", "No data")
@@ -1665,20 +1294,11 @@ def show_model_dashboard():
             st.metric("Headlines Improved", "0/0", "No data")
 
     with col2:
-        # Average improvement (replacing confidence)
-        if os.path.exists("headline_learning_data.csv"):
-            df = pd.read_csv("headline_learning_data.csv")
-
-            # Handle both new and old column names
-            improvement_col = (
-                "probability_improvement"
-                if "probability_improvement" in df.columns
-                else "headline_improvement"
-            )
-
-            if improvement_col in df.columns and len(df) > 0:
-                avg_improvement = df[improvement_col].mean()
-                st.metric("Avg Improvement", f"{avg_improvement:.1f}%")
+        # Average improvement from learning system
+        if st.session_state.get("headline_learner"):
+            insights = st.session_state.headline_learner.get_insights_summary()
+            if "error" not in insights:
+                st.metric("Avg Improvement", f"{insights['avg_improvement']:.1f}%")
             else:
                 st.metric("Avg Improvement", "0%")
         else:
@@ -1697,34 +1317,53 @@ def show_model_dashboard():
 def load_curated_articles():
     """Load previously curated articles if available"""
     try:
-        if os.path.exists("curated_full_daily_output.csv"):
-            return pd.read_csv("curated_full_daily_output.csv")
+        curated_path = Path("curated_full_daily_output.csv")
+        if curated_path.exists():
+            return pd.read_csv(curated_path)
         return None
     except Exception as e:
         logging.error(f"Error loading curated articles: {e}")
         return None
 
 
-# Update the initialize_session_state function:
 def initialize_session_state():
-    """Initialize all session state variables"""
+    """Centralized function to initialize all session state variables"""
+    # Initialize navigation and display state
+    if "active_section" not in st.session_state:
+        st.session_state.active_section = "tech"
+    if "show_headline_comparison" not in st.session_state:
+        st.session_state.show_headline_comparison = True
+
+    # Initialize curation state tracking
     if "curation_started" not in st.session_state:
         st.session_state.curation_started = False
     if "curation_complete" not in st.session_state:
         st.session_state.curation_complete = False
     if "loaded_articles" not in st.session_state:
         st.session_state.loaded_articles = None
-    if "show_headline_comparison" not in st.session_state:
-        st.session_state.show_headline_comparison = True
+
+    # Initialize performance tracking
     if "evaluation_history" not in st.session_state:
         st.session_state.evaluation_history = []
+
+    # Initialize topic selection
+    if "selected_topics" not in st.session_state:
+        st.session_state.selected_topics = [
+            "Top Technology News",
+            "Business and Economy",
+            "Global Politics",
+        ]
 
     # Initialize CTR predictor
     if "ctr_predictor" not in st.session_state:
         try:
+            base_dir = Path(".")
+            processed_data_dir = base_dir / "agentic_news_editor" / "processed_data"
+            output_dir = base_dir / "model_output"
+
             st.session_state.ctr_predictor = CTRPredictor(
-                processed_data_dir="agentic_news_editor/processed_data",
-                output_dir="model_output",
+                processed_data_dir=str(processed_data_dir),
+                output_dir=str(output_dir),
             )
             st.session_state.ctr_predictor.load_model()
             logging.info("CTR predictor loaded successfully")
@@ -1732,6 +1371,18 @@ def initialize_session_state():
             logging.error(f"Failed to load CTR predictor: {e}")
             st.session_state.ctr_predictor = None
             st.sidebar.warning("⚠️ CTR model not available. Using fallback metrics.")
+
+    # Initialize headline learning system
+    if "headline_learner" not in st.session_state:
+        try:
+            st.session_state.headline_learner = HeadlineLearningLoop(
+                data_file="headline_learning_data.csv",
+                model_path="model_output/ctr_model.pkl",
+            )
+            logging.info("Headline learning system initialized")
+        except Exception as e:
+            logging.error(f"Failed to initialize headline learning system: {e}")
+            st.session_state.headline_learner = None
 
 
 def setup_sidebar():
@@ -1749,10 +1400,6 @@ def setup_sidebar():
             "Climate and Environment": "climate change news and environment protection",
             "Health and Wellness": "advances in healthcare and medical discoveries",
         }
-
-        # Initialize selected topics in session state if not exists
-        if "selected_topics" not in st.session_state:
-            st.session_state.selected_topics = list(editorial_queries.keys())[:3]
 
         # Custom topic selector with checkboxes
         st.subheader("Select Topics to Curate")
@@ -1817,113 +1464,6 @@ def setup_sidebar():
         }
 
 
-def calculate_prediction_confidence(headline):
-    """Calculate confidence based on headline features"""
-    features = {
-        "has_common_patterns": any(
-            word in headline.lower() for word in ["how", "why", "what", "best"]
-        ),
-        "has_numbers": bool(re.search(r"\d", headline)),
-        "length_optimal": 30 <= len(headline) <= 70,
-        "has_action_words": any(
-            word in headline.lower() for word in ["discover", "learn", "find"]
-        ),
-    }
-
-    # Base confidence on feature similarity to training data
-    confidence_score = 0.5  # Base 50%
-
-    # Adjust based on features
-    if features["has_common_patterns"]:
-        confidence_score += 0.15
-    if features["has_numbers"]:
-        confidence_score += 0.1
-    if features["length_optimal"]:
-        confidence_score += 0.15
-    if features["has_action_words"]:
-        confidence_score += 0.1
-
-    # Cap at 90%
-    confidence_score = min(confidence_score, 0.9)
-
-    return confidence_score
-
-
-def add_headline_testing_section():
-    """Add a section for testing individual headlines with confidence"""
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Test Any Headline")
-
-    user_headline = st.sidebar.text_area(
-        "Enter your headline:", placeholder="Type your headline here...", height=60
-    )
-
-    if user_headline and st.sidebar.button("Analyze & Improve"):
-        ctr_predictor = st.session_state.get("ctr_predictor")
-        openai_client = get_openai_client()
-
-        if not ctr_predictor or not openai_client:
-            st.error("Model or OpenAI client not available")
-            return
-
-        with st.spinner("Analyzing headline..."):
-            # Get predictions
-            original_result = ctr_predictor.predict_single_headline(user_headline)
-            rewritten = rewrite_headline(openai_client, user_headline, "General news")
-            rewritten_result = ctr_predictor.predict_single_headline(rewritten)
-
-            # Handle both dict and float returns
-            if isinstance(original_result, dict):
-                orig_ctr = original_result["ctr"]
-                orig_relative = original_result["relative_score"]
-                rewrite_ctr = rewritten_result["ctr"]
-                rewrite_relative = rewritten_result["relative_score"]
-            else:
-                orig_ctr = original_result
-                rewrite_ctr = rewritten_result
-                orig_relative = orig_ctr / 0.008  # Convert to relative
-                rewrite_relative = rewrite_ctr / 0.008
-
-            # Calculate improvement
-            if orig_ctr > 0:
-                improvement = ((rewrite_ctr - orig_ctr) / orig_ctr) * 100
-            else:
-                improvement = 100 if rewrite_ctr > 0 else 0
-
-            # Save to learning system
-            if st.session_state.get("headline_learner"):
-                st.session_state.headline_learner.add_headline_pair(
-                    user_headline, rewritten
-                )
-
-
-def add_learning_system_section():
-    """Add the headline learning system section to sidebar"""
-    st.markdown("---")
-    st.subheader("Headline Learning System")
-
-    if st.button("Generate Headline Report"):
-        try:
-            if (
-                st.session_state.get("headline_learner")
-                and st.session_state.headline_learner.prompt_improvement_report()
-            ):
-                st.success("Headline improvement report generated!")
-                with open("headline_improvement_report.md", "r") as f:
-                    report_content = f.read()
-
-                st.download_button(
-                    label="Download Report",
-                    data=report_content,
-                    file_name="headline_improvement_report.md",
-                    mime="text/markdown",
-                )
-            else:
-                st.error("Failed to generate report")
-        except Exception as e:
-            st.error(f"Error generating report: {str(e)}")
-
-
 def handle_article_curation(config):
     """Handle the article curation process"""
     if not config["selected_topics"]:
@@ -1937,77 +1477,88 @@ def handle_article_curation(config):
     # Create progress bar
     progress_bar = st.sidebar.progress(0, text="Starting curation process...")
 
-    # Load models and data
-    progress_bar.progress(0.1, text="Loading models and data...")
-    index, articles_df, model = load_models_and_data()
-    openai_client = get_openai_client()
+    try:
+        # Load models and data
+        progress_bar.progress(0.1, text="Loading models and data...")
+        index, articles_df, model = load_models_and_data()
+        openai_client = get_openai_client()
 
-    if index is None or articles_df is None or model is None:
-        st.error("Failed to load required models and data")
-        st.session_state.curation_started = False
-        return
+        if index is None or articles_df is None or model is None:
+            st.error("Failed to load required models and data")
+            st.session_state.curation_started = False
+            return
 
-    # Curate articles for each selected topic
-    all_curated_articles = []
+        # Curate articles for each selected topic
+        all_curated_articles = []
 
-    for i, topic in enumerate(config["selected_topics"]):
-        topic_progress = (i / len(config["selected_topics"])) * 0.8 + 0.1
-        progress_bar.progress(topic_progress, text=f"Curating articles for {topic}...")
+        for i, topic in enumerate(config["selected_topics"]):
+            topic_progress = (i / len(config["selected_topics"])) * 0.8 + 0.1
+            progress_bar.progress(
+                topic_progress, text=f"Curating articles for {topic}..."
+            )
 
-        query_text = config["editorial_queries"][topic]
-        topic_articles = curate_articles_for_topic(
-            query_text,
-            index,
-            articles_df,
-            model,
-            openai_client,
-            k=config["articles_per_topic"],
-        )
-        topic_articles["topic"] = topic
-        all_curated_articles.append(topic_articles)
+            query_text = config["editorial_queries"][topic]
+            topic_articles = curate_articles_for_topic(
+                query_text,
+                index,
+                articles_df,
+                model,
+                openai_client,
+                k=config["articles_per_topic"],
+                progress_bar=progress_bar,
+            )
+            topic_articles["topic"] = topic
+            all_curated_articles.append(topic_articles)
 
-    # Combine and process all curated articles
-    if all_curated_articles:
-        progress_bar.progress(0.9, text="Saving curated articles...")
-        full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
-        full_curated_df.to_csv("curated_full_daily_output.csv", index=False)
+        # Combine and process all curated articles
+        if all_curated_articles:
+            progress_bar.progress(0.9, text="Saving curated articles...")
+            full_curated_df = pd.concat(all_curated_articles, ignore_index=True)
+            output_path = Path("curated_full_daily_output.csv")
+            full_curated_df.to_csv(output_path, index=False)
 
-        # Update session state
-        st.session_state.loaded_articles = full_curated_df
-        st.session_state.curation_complete = True
+            # Update session state
+            st.session_state.loaded_articles = full_curated_df
+            st.session_state.curation_complete = True
 
-        # Update the headline learning system
-        try:
-            headline_count = update_headline_learning(full_curated_df)
-            if headline_count > 0:
-                st.sidebar.success(
-                    f"✅ Added {headline_count} headlines to learning system"
-                )
-        except Exception as e:
-            logging.error(f"Error updating headline learning system: {e}")
+            # Update the headline learning system
+            try:
+                if st.session_state.get("headline_learner"):
+                    headline_count = (
+                        st.session_state.headline_learner.add_headlines_from_dataframe(
+                            full_curated_df
+                        )
+                    )
+                    if headline_count > 0:
+                        st.sidebar.success(
+                            f"✅ Added {headline_count} headlines to learning system"
+                        )
+            except Exception as e:
+                logging.error(f"Error updating headline learning system: {e}")
 
-        # Calculate evaluation metrics
-        try:
-            metrics = calculate_evaluation_metrics(full_curated_df)
-            report = generate_research_report(metrics)
-            st.session_state.evaluation_history.append(metrics)
-            st.sidebar.success("✅ Research metrics calculated")
-        except Exception as e:
-            logging.error(f"Error calculating evaluation metrics: {e}")
+            # Calculate evaluation metrics
+            try:
+                metrics = calculate_evaluation_metrics(full_curated_df)
+                report = generate_research_report(metrics)
+                st.session_state.evaluation_history.append(metrics)
+                st.sidebar.success("✅ Research metrics calculated")
+            except Exception as e:
+                logging.error(f"Error calculating evaluation metrics: {e}")
 
-        progress_bar.progress(1.0, text="Curation complete!")
-        st.success("✅ Articles curated successfully!")
-    else:
-        st.warning("No articles were curated")
+            progress_bar.progress(1.0, text="Curation complete!")
+            st.success("✅ Articles curated successfully!")
+        else:
+            st.warning("No articles were curated")
+            st.session_state.curation_started = False
+
+    except Exception as e:
+        logging.error(f"Error in article curation: {e}")
+        st.error(f"An error occurred during curation: {e}")
         st.session_state.curation_started = False
 
 
 def display_header_and_navigation():
     """Display the header with clickable navigation"""
-    # Initialize active section if it doesn't exist
-    if "active_section" not in st.session_state:
-        st.session_state.active_section = "tech"
-
     # Header
     st.markdown('<div class="header">', unsafe_allow_html=True)
     st.markdown(
@@ -2126,7 +1677,6 @@ def display_featured_article(articles_df, show_comparison):
             else:
                 st.subheader(main_article["rewritten_title"])
 
-            # Rest of the function remains the same...
             # Author byline
             author = random.choice(
                 ["Sarah Chen", "Michael Johnson", "Priya Patel", "Robert Williams"]
@@ -2180,7 +1730,6 @@ def display_trending_articles(articles_df, show_comparison):
                     unsafe_allow_html=True,
                 )
 
-                # Title comparison
                 # Title comparison - robust version
                 if show_comparison:
                     # Check what columns actually exist
@@ -2248,7 +1797,6 @@ def display_topic_sections(articles_df, show_comparison):
     }
 
     # Filter articles for the active section
-    # You may need to adjust this filtering logic based on your data structure
     section_articles = (
         articles_df[articles_df["topic"].str.lower() == active_section]
         if "topic" in articles_df.columns
@@ -2405,36 +1953,36 @@ def display_welcome_page():
 
 # --- Main Application Logic ---
 def main():
+    # Apply custom CSS
+    apply_custom_css()
+
+    # Initialize all session state variables
     initialize_session_state()
 
-    # Initialize headline learner
-    if "headline_learner" not in st.session_state:
-        st.session_state.headline_learner = HeadlineLearningLoop(
-            data_file="headline_learning_data.csv",
-            model_path="model_output/ctr_model.pkl",
-        )
-
     # Check for required model files
-    if not os.path.exists("model_output/ctr_model.pkl"):
-        st.error(
-            "⚠️ CTR model not found! Please ensure model_output/ctr_model.pkl exists."
-        )
+    model_path = Path("model_output") / "ctr_model.pkl"
+    if not model_path.exists():
+        st.error(f"⚠️ CTR model not found! Please ensure {model_path} exists.")
         st.info(
             "Run the CTR model training script first to generate the required model files."
         )
         return
 
     # Check for required data files
-    data_dir = "agentic_news_editor/processed_data/"
-    if not os.path.exists(
-        os.path.join(data_dir, "articles_with_embeddings.csv")
-    ) or not os.path.exists("articles_faiss.index"):
+    data_dir = Path("agentic_news_editor") / "processed_data"
+    if (
+        not (data_dir / "articles_with_embeddings.csv").exists()
+        or not Path("articles_faiss.index").exists()
+    ):
         st.error(
             f"Required data files not found in {data_dir}. Please run the EDA pipeline first."
         )
         return
 
+    # Setup sidebar and get configuration
     config = setup_sidebar()
+
+    # Handle button actions
     if config["curate_button"]:
         handle_article_curation(config)
 
