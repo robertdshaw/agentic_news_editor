@@ -1,9 +1,12 @@
 import os
 import sys
 import logging
-import subprocess
 from pathlib import Path
-from headline_utils import get_model_paths, load_ctr_model
+
+# Setup logging first
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Set environment variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -11,36 +14,44 @@ os.environ["TORCH_USE_CUDA_DSA"] = "0"
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 os.environ["TORCH_USE_RTLD_GLOBAL"] = "YES"
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = (
+    "none"  # Disable file watching at the env level
 )
 
 
+# Apply PyTorch fixes
 def fix_torch_compatibility():
     """Fix known torch compatibility issues before app starts"""
     try:
         import torch
-        import torchvision
 
-        torch.backends.cudnn.enabled = False
-        torch.multiprocessing.set_sharing_strategy("file_system")
+        # Disable CUDNN
+        if hasattr(torch, "backends") and hasattr(torch.backends, "cudnn"):
+            torch.backends.cudnn.enabled = False
+
+        # Set sharing strategy
+        if hasattr(torch, "multiprocessing"):
+            torch.multiprocessing.set_sharing_strategy("file_system")
+
+        # Fix for _classes.__path__ issue - use a completely different approach
         if hasattr(torch, "_classes"):
+            # Store original module
+            original_classes = torch._classes
 
-            class DummyPath:
-                _path = []
+            # Create a wrapper class that handles __path__ specially
+            class PatchedClasses:
+                def __getattr__(self, name):
+                    if name == "__path__":
 
-            original_getattr = torch._classes.__getattr__
+                        class DummyPath:
+                            _path = []
 
-            def safe_getattr(name):
-                if name == "__path__":
-                    return DummyPath()
-                try:
-                    return original_getattr(name)
-                except:
-                    return None
+                        return DummyPath()
+                    return getattr(original_classes, name)
 
-            torch._classes.__getattr__ = safe_getattr
+            # Replace the module with our wrapper
+            torch._classes = PatchedClasses()
+
         logging.info("Torch compatibility fixes applied")
         return True
     except Exception as e:
@@ -48,6 +59,10 @@ def fix_torch_compatibility():
         return False
 
 
+# Call the fix function
+fix_torch_compatibility()
+
+# Continue with other imports
 import streamlit as st
 import json
 import pandas as pd
@@ -66,6 +81,7 @@ from dotenv import load_dotenv
 from headline_model_trainer_optimized import CTRPredictor
 from headline_metrics import HeadlineMetrics
 from headline_learning import HeadlineLearningLoop
+from headline_utils import get_model_paths, load_ctr_model
 
 import warnings
 
@@ -1586,7 +1602,7 @@ def setup_sidebar():
 
         # Editorial queries
         editorial_queries = {
-            "Top Technology News": "latest breakthroughs in technology and innovation",
+            "Top Technology News": "latest technology AI computing software hardware innovation",
             "Business and Economy": "coverage of finance, jobs, inflation, innovation economics",
             "Global Politics": "latest news about world politics and diplomacy",
             "Climate and Environment": "climate change news and environment protection",
