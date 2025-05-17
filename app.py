@@ -863,7 +863,7 @@ def generate_explanation(client, title, abstract):
 def curate_articles_for_topic(
     query_text, index, articles_df, model, openai_client, k=5, progress_bar=None
 ):
-    """Find and enhance articles for a given topic - SIMPLIFIED AND UPDATED"""
+    """Find and enhance articles for a given topic - ROBUST ERROR HANDLING VERSION"""
     try:
         # Get the top k articles
         query_embedding = model.encode([query_text])
@@ -876,8 +876,9 @@ def curate_articles_for_topic(
             logging.warning(f"No articles found for query: {query_text}")
             return pd.DataFrame()
 
-        # Store original title
+        # Store original title and topic
         topic_articles["original_title"] = topic_articles["title"].copy()
+        topic_articles["topic"] = query_text  # Set the topic for all articles
 
         # Process each article
         total = len(topic_articles)
@@ -896,21 +897,85 @@ def curate_articles_for_topic(
                 openai_client, row["title"], row["abstract"]
             )
 
-        # Get the metrics analyzer from session state if available
+        # Get the CTR predictor from session state if available
         ctr_predictor = st.session_state.get("ctr_predictor")
 
         # Analyze headline effectiveness
         if ctr_predictor:
-            # Use the CTRPredictor directly
-            for i, (idx, row) in enumerate(topic_articles.iterrows()):
-                # Get the analysis using the proper class method
-                analysis = ctr_predictor.analyze_headline_pair(
-                    row["original_title"], row["rewritten_title"]
-                )
+            try:
+                # Check if the analyze_headline_pair method exists
+                if hasattr(ctr_predictor, "analyze_headline_pair"):
+                    # Use the existing method if available
+                    for i, (idx, row) in enumerate(topic_articles.iterrows()):
+                        analysis = ctr_predictor.analyze_headline_pair(
+                            row["original_title"], row["rewritten_title"]
+                        )
+                        # Add all metrics to the dataframe
+                        for key, value in analysis.items():
+                            topic_articles.at[idx, key] = value
+                else:
+                    # Create a HeadlineMetrics object as fallback
+                    from headline_metrics import HeadlineMetrics
 
-                # Add all metrics to the dataframe
-                for key, value in analysis.items():
-                    topic_articles.at[idx, key] = value
+                    metrics_analyzer = HeadlineMetrics(
+                        model_path="model_output/ctr_model.pkl"
+                    )
+
+                    for i, (idx, row) in enumerate(topic_articles.iterrows()):
+                        comparison = metrics_analyzer.compare_headlines(
+                            row["original_title"], row["rewritten_title"]
+                        )
+
+                        # Map to expected column names
+                        topic_articles.at[idx, "original_click_probability"] = (
+                            comparison["original_ctr"]
+                        )
+                        topic_articles.at[idx, "rewritten_click_probability"] = (
+                            comparison["rewritten_ctr"]
+                        )
+                        topic_articles.at[idx, "probability_improvement"] = comparison[
+                            "score_percent_change"
+                        ]
+
+                        # Determine improvement category
+                        pct_change = comparison["score_percent_change"]
+                        category = "Neutral"
+                        if pct_change >= 50:
+                            category = "Excellent"
+                        elif pct_change >= 20:
+                            category = "Significant"
+                        elif pct_change >= 5:
+                            category = "Improved"
+                        elif pct_change > -5:
+                            category = "Neutral"
+                        elif pct_change > -20:
+                            category = "Declined"
+                        else:
+                            category = "Poor"
+
+                        topic_articles.at[idx, "improvement_category"] = category
+                        topic_articles.at[idx, "key_improvements"] = ", ".join(
+                            comparison["key_improvements"]
+                        )
+
+                        # Also add old column names for backward compatibility
+                        topic_articles.at[idx, "headline_ctr_original"] = comparison[
+                            "original_ctr"
+                        ]
+                        topic_articles.at[idx, "headline_ctr_rewritten"] = comparison[
+                            "rewritten_ctr"
+                        ]
+                        topic_articles.at[idx, "headline_improvement"] = comparison[
+                            "score_percent_change"
+                        ]
+                        topic_articles.at[idx, "headline_key_factors"] = ", ".join(
+                            comparison["key_improvements"]
+                        )
+            except Exception as e:
+                logging.error(f"Error analyzing headlines: {e}")
+                import traceback
+
+                traceback.print_exc()
 
         if progress_bar is not None:
             progress_bar.progress(1.0, text="Processing complete!")
@@ -920,52 +985,10 @@ def curate_articles_for_topic(
 
     except Exception as e:
         logging.error(f"Error curating articles: {e}")
+        import traceback
+
+        traceback.print_exc()
         return pd.DataFrame()
-
-
-import torch
-
-if hasattr(torch.nn.Module, "to_empty"):
-    # For newer versions of PyTorch
-    def patch_sentence_transformer():
-        import sentence_transformers
-
-        original_to = sentence_transformers.SentenceTransformer.__init__
-
-        def patched_init(self, *args, **kwargs):
-            kwargs.pop("cache_folder", None)  # Remove problematic cache_folder
-            original_to(self, *args, **kwargs)
-
-        sentence_transformers.SentenceTransformer.__init__ = patched_init
-
-    try:
-        patch_sentence_transformer()
-    except:
-        pass
-
-
-# Add this after imports and before any model loading
-@st.cache_resource
-def load_sentence_transformer_once():
-    """Load sentence transformer once and cache it"""
-    try:
-        from sentence_transformers import SentenceTransformer
-
-        model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-        return model
-    except Exception as e:
-        print(f"Error loading sentence transformer: {e}")
-        # Fallback to a simpler initialization
-        try:
-            from sentence_transformers import SentenceTransformer
-            import torch
-
-            # Force CPU and clear any CUDA cache
-            torch.cuda.empty_cache() if torch.cuda.is_available() else None
-            model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-            return model
-        except:
-            return None
 
 
 def display_headline_with_clear_metrics(original_title, rewritten_title, metrics=None):
@@ -1024,6 +1047,65 @@ def display_headline_with_clear_metrics(original_title, rewritten_title, metrics
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def get_headline_metrics(ctr_predictor, original_title, rewritten_title):
+    """Get headline metrics in a standardized format using any available method"""
+    try:
+        # Try the analyze_headline_pair method first
+        if hasattr(ctr_predictor, "analyze_headline_pair"):
+            return ctr_predictor.analyze_headline_pair(original_title, rewritten_title)
+
+        # If not available, check for HeadlineMetrics in session state
+        if hasattr(st.session_state, "metrics_analyzer"):
+            comparison = st.session_state.metrics_analyzer.compare_headlines(
+                original_title, rewritten_title
+            )
+        else:
+            # Create a HeadlineMetrics object
+            from headline_metrics import HeadlineMetrics
+
+            metrics_analyzer = HeadlineMetrics(model_path="model_output/ctr_model.pkl")
+            st.session_state.metrics_analyzer = metrics_analyzer
+            comparison = metrics_analyzer.compare_headlines(
+                original_title, rewritten_title
+            )
+
+        # Convert to standardized format
+        pct_change = comparison["score_percent_change"]
+        category = "Neutral"
+        if pct_change >= 50:
+            category = "Excellent"
+        elif pct_change >= 20:
+            category = "Significant"
+        elif pct_change >= 5:
+            category = "Improved"
+        elif pct_change > -5:
+            category = "Neutral"
+        elif pct_change > -20:
+            category = "Declined"
+        else:
+            category = "Poor"
+
+        # Return in the expected format
+        return {
+            "original_click_probability": comparison["original_ctr"],
+            "rewritten_click_probability": comparison["rewritten_ctr"],
+            "probability_improvement": comparison["score_percent_change"],
+            "improvement_category": category,
+            "key_improvements": ", ".join(comparison["key_improvements"]),
+        }
+
+    except Exception as e:
+        logging.error(f"Error getting headline metrics: {e}")
+        # Return default values in case of error
+        return {
+            "original_click_probability": 0.01,
+            "rewritten_click_probability": 0.01,
+            "probability_improvement": 0,
+            "improvement_category": "Error",
+            "key_improvements": "Analysis failed",
+        }
+
+
 def add_system_status_indicator():
     """Add a clear indicator of which model is being used"""
     ctr_predictor = st.session_state.get("ctr_predictor")
@@ -1037,9 +1119,27 @@ def add_system_status_indicator():
 
 
 def calculate_evaluation_metrics(curated_articles):
-    """Simplified metrics for research questions"""
-    # RQ1: Basic retrieval check
-    valid_articles = (curated_articles["abstract"].str.len() > 100).mean()
+    """Simplified metrics for research questions with improved error handling"""
+    # Check if the dataframe is empty
+    if curated_articles.empty:
+        logging.warning("Empty dataframe in calculate_evaluation_metrics")
+        return {
+            "retrieval_success": 0,
+            "headline_metrics": {
+                "avg_improvement": 0,
+                "improved_count": 0,
+                "total_headlines": 0,
+                "improvement_rate": 0,
+                "avg_ctr_change": 0,
+            },
+            "num_articles": 0,
+            "topics_covered": 0,
+        }
+
+    # RQ1: Basic retrieval check with error handling
+    valid_articles = 1.0  # Default to 100% valid
+    if "abstract" in curated_articles.columns:
+        valid_articles = (curated_articles["abstract"].str.len() > 100).mean()
 
     # RQ2: Headline improvement (the main focus)
     # Update to use new column names with fallback
@@ -1047,27 +1147,70 @@ def calculate_evaluation_metrics(curated_articles):
         improvement_col = "probability_improvement"
         ctr_orig_col = "original_click_probability"
         ctr_new_col = "rewritten_click_probability"
-    else:
+    elif "headline_improvement" in curated_articles.columns:
         # Fallback to old column names
         improvement_col = "headline_improvement"
         ctr_orig_col = "headline_ctr_original"
         ctr_new_col = "headline_ctr_rewritten"
+    else:
+        # If no improvement metrics columns exist
+        logging.warning(
+            "No improvement metrics columns found in calculate_evaluation_metrics"
+        )
+        return {
+            "retrieval_success": valid_articles,
+            "headline_metrics": {
+                "avg_improvement": 0,
+                "improved_count": 0,
+                "total_headlines": len(curated_articles),
+                "improvement_rate": 0,
+                "avg_ctr_change": 0,
+            },
+            "num_articles": len(curated_articles),
+            "topics_covered": (
+                curated_articles["topic"].nunique()
+                if "topic" in curated_articles.columns
+                else 1
+            ),
+        }
 
-    headline_metrics = {
-        "avg_improvement": curated_articles[improvement_col].mean(),
-        "improved_count": (curated_articles[improvement_col] > 0).sum(),
-        "total_headlines": len(curated_articles),
-        "improvement_rate": (curated_articles[improvement_col] > 0).mean(),
-        "avg_ctr_change": (
-            curated_articles[ctr_new_col] - curated_articles[ctr_orig_col]
-        ).mean(),
-    }
+    # Check if the necessary columns exist and calculate metrics
+    if all(
+        col in curated_articles.columns
+        for col in [improvement_col, ctr_orig_col, ctr_new_col]
+    ):
+        headline_metrics = {
+            "avg_improvement": curated_articles[improvement_col].mean(),
+            "improved_count": (curated_articles[improvement_col] > 0).sum(),
+            "total_headlines": len(curated_articles),
+            "improvement_rate": (curated_articles[improvement_col] > 0).mean(),
+            "avg_ctr_change": (
+                curated_articles[ctr_new_col] - curated_articles[ctr_orig_col]
+            ).mean(),
+        }
+    else:
+        # Provide fallback metrics if columns missing
+        headline_metrics = {
+            "avg_improvement": 0,
+            "improved_count": 0,
+            "total_headlines": len(curated_articles),
+            "improvement_rate": 0,
+            "avg_ctr_change": 0,
+        }
+        logging.warning(
+            f"Missing columns for headline metrics. Available: {curated_articles.columns.tolist()}"
+        )
+
+    # Safely get topic count
+    topic_count = 1
+    if "topic" in curated_articles.columns:
+        topic_count = curated_articles["topic"].nunique()
 
     return {
         "retrieval_success": valid_articles,
         "headline_metrics": headline_metrics,
         "num_articles": len(curated_articles),
-        "topics_covered": curated_articles["topic"].nunique(),
+        "topics_covered": topic_count,
     }
 
 
@@ -1169,7 +1312,7 @@ def display_article_image(topic, article_id=None, is_main=False):
 
 
 def add_headline_testing_section():
-    """Add a section for testing individual headlines with confidence"""
+    """Add a section for testing individual headlines with proper error handling"""
     st.sidebar.markdown("---")
     st.sidebar.subheader("Test Any Headline")
 
@@ -1186,34 +1329,46 @@ def add_headline_testing_section():
             return
 
         with st.spinner("Analyzing headline..."):
-            # Get predictions
-            original_result = ctr_predictor.predict_single_headline(user_headline)
-            rewritten = rewrite_headline(openai_client, user_headline, "General news")
-            rewritten_result = ctr_predictor.predict_single_headline(rewritten)
-
-            # Handle both dict and float returns
-            if isinstance(original_result, dict):
-                orig_ctr = original_result["ctr"]
-                orig_relative = original_result["relative_score"]
-                rewrite_ctr = rewritten_result["ctr"]
-                rewrite_relative = rewritten_result["relative_score"]
-            else:
-                orig_ctr = original_result
-                rewrite_ctr = rewritten_result
-                orig_relative = orig_ctr / 0.008  # Convert to relative
-                rewrite_relative = rewrite_ctr / 0.008
-
-            # Calculate improvement
-            if orig_ctr > 0:
-                improvement = ((rewrite_ctr - orig_ctr) / orig_ctr) * 100
-            else:
-                improvement = 100 if rewrite_ctr > 0 else 0
-
-            # Save to learning system
-            if st.session_state.get("headline_learner"):
-                st.session_state.headline_learner.add_headline_pair(
-                    user_headline, rewritten
+            try:
+                # Get the rewritten headline
+                rewritten = rewrite_headline(
+                    openai_client, user_headline, "General news"
                 )
+
+                # Use our utility function for consistent metrics
+                metrics = get_headline_metrics(ctr_predictor, user_headline, rewritten)
+
+                # Display results
+                st.sidebar.success("Analysis complete!")
+                st.sidebar.markdown("### Original Headline")
+                st.sidebar.markdown(f"*{user_headline}*")
+
+                st.sidebar.markdown("### Improved Headline")
+                st.sidebar.markdown(f"**{rewritten}**")
+
+                st.sidebar.markdown("### Metrics")
+                improvement = metrics["probability_improvement"]
+                color = (
+                    "green" if improvement > 0 else "red" if improvement < 0 else "gray"
+                )
+                st.sidebar.markdown(
+                    f"**Improvement:** <span style='color:{color}'>{improvement:.1f}%</span>",
+                    unsafe_allow_html=True,
+                )
+                st.sidebar.markdown(f"**Category:** {metrics['improvement_category']}")
+                st.sidebar.markdown(f"**Key Changes:** {metrics['key_improvements']}")
+
+                # Save to learning system
+                if st.session_state.get("headline_learner"):
+                    st.session_state.headline_learner.add_headline_pair(
+                        user_headline, rewritten
+                    )
+            except Exception as e:
+                st.sidebar.error(f"Error analyzing headline: {str(e)}")
+                logging.error(f"Error in headline testing: {e}")
+                import traceback
+
+                traceback.print_exc()
 
 
 def add_learning_system_section():
